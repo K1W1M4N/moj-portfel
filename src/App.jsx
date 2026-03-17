@@ -488,11 +488,14 @@ export default function App() {
           }
         }}>
 
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
-            PORTFOLIO TRACKER
-          </div>
-        </div>
+        <div style={{ position: "relative", textAlign: "center", marginBottom: 28 }}>
+  <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
+    PORTFOLIO TRACKER
+  </div>
+  <div style={{ position: "absolute", top: 0, right: 0, fontSize: 11, color: "#4a5a6e", fontFamily: "'Sora', sans-serif" }}>
+    cześć
+  </div>
+</div>
 
         {/* Wykres */}
         <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
