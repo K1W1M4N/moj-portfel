@@ -488,12 +488,9 @@ export default function App() {
           }
         }}>
 
-        <div style={{ position: "relative", textAlign: "center", marginBottom: 28 }}>
+        <div style={{ position: textAlign: "center", marginBottom: 28 }}>
   <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
     PORTFOLIO TRACKER
-  </div>
-  <div style={{ position: "absolute", top: 0, right: 0, fontSize: 11, color: "#4a5a6e", fontFamily: "'Sora', sans-serif" }}>
-    cześć
   </div>
 </div>
 
