@@ -1,5 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
+// ─── Krypto lista ─────────────────────────────────────────────────────────────
+const CRYPTO_LIST = [
+  { label: "Bitcoin (BTC)",   id: "bitcoin" },
+  { label: "Ethereum (ETH)",  id: "ethereum" },
+  { label: "BNB",             id: "binancecoin" },
+  { label: "Solana (SOL)",    id: "solana" },
+  { label: "XRP",             id: "ripple" },
+  { label: "Dogecoin (DOGE)", id: "dogecoin" },
+  { label: "USDT",            id: "tether" },
+  { label: "USDC",            id: "usd-coin" },
+  { label: "Shiba Inu (SHIB)",id: "shiba-inu" },
+  { label: "Toncoin (TON)",   id: "the-open-network" },
+];
+
 // ─── Kolory kategorii ────────────────────────────────────────────────────────
 const DEFAULT_CATEGORIES = [
   { name: "Konto oszczędnościowe", color: "#00c896" },
@@ -21,6 +35,44 @@ function fmt(n) {
   return new Intl.NumberFormat("pl-PL", {
     style: "currency", currency: "PLN", maximumFractionDigits: 0
   }).format(n);
+}
+
+function fmtSmall(n) {
+  if (Math.abs(n) < 0.01) return n.toFixed(6);
+  if (Math.abs(n) < 1) return n.toFixed(4);
+  return n.toLocaleString("pl-PL", { maximumFractionDigits: 4 });
+}
+
+// ─── Hook: pobieranie kursów krypto ──────────────────────────────────────────
+function useCryptoPrices(assets) {
+  const [prices, setPrices] = useState({});
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  useEffect(() => {
+    const cryptoAssets = assets.filter(a => a.cryptoId);
+    if (cryptoAssets.length === 0) return;
+    const ids = [...new Set(cryptoAssets.map(a => a.cryptoId))].join(",");
+
+    async function fetchPrices() {
+      try {
+        const res = await fetch(
+          `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=pln&include_24hr_change=true`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        setPrices(data);
+        setLastUpdated(new Date());
+      } catch (e) {
+        console.warn("CoinGecko error:", e);
+      }
+    }
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 5 * 60 * 1000); // co 5 minut
+    return () => clearInterval(interval);
+  }, [assets.map(a => a.cryptoId).join(",")]);
+
+  return { prices, lastUpdated };
 }
 
 // ─── Wykres kołowy (Canvas) ──────────────────────────────────────────────────
@@ -147,10 +199,8 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
     if (cat) {
       onFilterChange(cat === activeFilter ? null : cat);
     } else if (isInCenter(x, y)) {
-      // tylko środek koła resetuje
       onFilterChange(null);
     }
-    // kliknięcie poza pierścieniem — nic nie robi
   }
 
   function handleTouch(e) {
@@ -253,7 +303,7 @@ function closeBtnStyle(hov) {
 function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
   const isEdit = !!asset;
   const [form, setForm] = useState(
-    asset ? { ...asset } : { name: "", category: categories[0]?.name || "", value: "", note: "" }
+    asset ? { ...asset } : { name: "", category: categories[0]?.name || "", value: "", note: "", cryptoId: "", cryptoAmount: "", cryptoPaid: "" }
   );
   const [addingCat, setAddingCat] = useState(false);
   const [newCat, setNewCat] = useState("");
@@ -262,13 +312,29 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
   const [hovCancel, setHovCancel] = useState(false);
   const [hovClose, setHovClose] = useState(false);
 
+  const isCrypto = form.category === "Krypto";
+  const isCustomCrypto = form.cryptoId === "other";
+
   function focusInp(e) { e.target.style.borderColor = "#00c896"; e.target.style.boxShadow = "0 0 0 3px #00c89618"; }
   function blurInp(e) { e.target.style.borderColor = "#243040"; e.target.style.boxShadow = "none"; }
 
   function submit() {
-    const val = parseFloat(String(form.value).replace(",", "."));
-    if (!form.name.trim() || isNaN(val) || val <= 0) return;
-    onSave({ ...form, value: val, id: asset?.id || Date.now() });
+    if (isCrypto && form.cryptoId && form.cryptoId !== "other") {
+      const amount = parseFloat(String(form.cryptoAmount).replace(",", "."));
+      const paid = parseFloat(String(form.cryptoPaid).replace(",", "."));
+      if (!form.name.trim() || isNaN(amount) || amount <= 0 || isNaN(paid) || paid <= 0) return;
+      onSave({
+        ...form,
+        value: paid,
+        cryptoAmount: amount,
+        cryptoPaid: paid,
+        id: asset?.id || Date.now()
+      });
+    } else {
+      const val = parseFloat(String(form.value).replace(",", "."));
+      if (!form.name.trim() || isNaN(val) || val <= 0) return;
+      onSave({ ...form, value: val, cryptoId: "", cryptoAmount: "", cryptoPaid: "", id: asset?.id || Date.now() });
+    }
     onClose();
   }
 
@@ -285,7 +351,7 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
 
         <div style={{ marginBottom: 14 }}>
           <label style={labelSt}>Nazwa aktywa</label>
-          <input style={baseInp} placeholder="np. Konto PKO, ETF IUSQ, Bitcoin..."
+          <input style={baseInp} placeholder="np. Mój Bitcoin, ETF IUSQ..."
             value={form.name} autoFocus
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             onFocus={focusInp} onBlur={blurInp} />
@@ -309,7 +375,7 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
           ) : (
             <div style={{ display: "flex", gap: 6 }}>
               <select style={{ ...baseInp, flex: 1 }} value={form.category}
-                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                onChange={e => setForm(f => ({ ...f, category: e.target.value, cryptoId: "", cryptoAmount: "", cryptoPaid: "" }))}
                 onFocus={focusInp} onBlur={blurInp}>
                 {categories.map(c => <option key={c.name} value={c.name} style={{ background: "#1a2535", color: "#e8f0f8" }}>{c.name}</option>)}
                 {!categories.find(c => c.name === form.category) && form.category &&
@@ -321,21 +387,85 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
           )}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-          <div>
-            <label style={labelSt}>Wartość (PLN)</label>
-            <input style={{ ...baseInp, MozAppearance: "textfield" }} type="number" placeholder="0"
-              value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))}
-              onFocus={focusInp} onBlur={blurInp}
-              onKeyDown={e => e.key === "Enter" && submit()} />
+        {/* Pola dla krypto */}
+        {isCrypto && (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelSt}>Wybierz kryptowalutę</label>
+              <select style={baseInp} value={form.cryptoId}
+                onChange={e => setForm(f => ({ ...f, cryptoId: e.target.value }))}
+                onFocus={focusInp} onBlur={blurInp}>
+                <option value="" style={{ background: "#1a2535", color: "#4a5a6e" }}>-- wybierz --</option>
+                {CRYPTO_LIST.map(c => (
+                  <option key={c.id} value={c.id} style={{ background: "#1a2535", color: "#e8f0f8" }}>{c.label}</option>
+                ))}
+                <option value="other" style={{ background: "#1a2535", color: "#e8f0f8" }}>Inne (wpisz ręcznie)</option>
+              </select>
+            </div>
+
+            {isCustomCrypto && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelSt}>ID z CoinGecko (np. "bitcoin")</label>
+                <input style={baseInp} placeholder="np. bitcoin, ethereum, solana..."
+                  value={form.cryptoIdCustom || ""}
+                  onChange={e => setForm(f => ({ ...f, cryptoIdCustom: e.target.value }))}
+                  onFocus={focusInp} onBlur={blurInp} />
+                <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 4 }}>
+                  Sprawdź ID na coingecko.com/pl
+                </div>
+              </div>
+            )}
+
+            {form.cryptoId && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={labelSt}>Ilość jednostek</label>
+                  <input style={{ ...baseInp, MozAppearance: "textfield" }} type="number" placeholder="0.00314"
+                    value={form.cryptoAmount}
+                    onChange={e => setForm(f => ({ ...f, cryptoAmount: e.target.value }))}
+                    onFocus={focusInp} onBlur={blurInp} />
+                </div>
+                <div>
+                  <label style={labelSt}>Zapłacono łącznie (PLN)</label>
+                  <input style={{ ...baseInp, MozAppearance: "textfield" }} type="number" placeholder="1000"
+                    value={form.cryptoPaid}
+                    onChange={e => setForm(f => ({ ...f, cryptoPaid: e.target.value }))}
+                    onFocus={focusInp} onBlur={blurInp}
+                    onKeyDown={e => e.key === "Enter" && submit()} />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Pola dla nie-krypto lub krypto "inne" bez ID */}
+        {(!isCrypto || !form.cryptoId || form.cryptoId === "other" && !form.cryptoIdCustom) && !isCrypto && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={labelSt}>Wartość (PLN)</label>
+              <input style={{ ...baseInp, MozAppearance: "textfield" }} type="number" placeholder="0"
+                value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))}
+                onFocus={focusInp} onBlur={blurInp}
+                onKeyDown={e => e.key === "Enter" && submit()} />
+            </div>
+            <div>
+              <label style={labelSt}>Notatka</label>
+              <input style={baseInp} placeholder="np. 6.95%, data zakupu..."
+                value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+                onFocus={focusInp} onBlur={blurInp} />
+            </div>
           </div>
-          <div>
-            <label style={labelSt}>Notatka</label>
-            <input style={baseInp} placeholder="np. 6.95%, data zakupu..."
+        )}
+
+        {/* Notatka dla krypto */}
+        {isCrypto && form.cryptoId && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelSt}>Notatka (opcjonalnie)</label>
+            <input style={baseInp} placeholder="np. giełda Binance, data zakupu..."
               value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
               onFocus={focusInp} onBlur={blurInp} />
           </div>
-        </div>
+        )}
 
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
           <button onMouseEnter={() => setHovSave(true)} onMouseLeave={() => setHovSave(false)}
@@ -355,10 +485,31 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
 }
 
 // ─── Wiersz aktywa ───────────────────────────────────────────────────────────
-function AssetRow({ asset, total, categories, onClick }) {
+function AssetRow({ asset, total, categories, prices, onClick }) {
   const color = catColor(categories, asset.category);
-  const pct = total > 0 ? (asset.value / total * 100) : 0;
   const [hov, setHov] = useState(false);
+
+  // Oblicz wartość dla krypto z live price
+  let displayValue = asset.value;
+  let pnlAmt = null;
+  let pnlPct = null;
+  let change24h = null;
+  let cryptoPrice = null;
+
+  if (asset.cryptoId && asset.cryptoId !== "other" && prices[asset.cryptoId]) {
+    const priceData = prices[asset.cryptoId];
+    cryptoPrice = priceData.pln;
+    displayValue = asset.cryptoAmount * cryptoPrice;
+    change24h = priceData.pln_24h_change;
+
+    if (asset.cryptoPaid && asset.cryptoPaid > 0) {
+      pnlAmt = displayValue - asset.cryptoPaid;
+      pnlPct = (pnlAmt / asset.cryptoPaid) * 100;
+    }
+  }
+
+  const pct = total > 0 ? (displayValue / total * 100) : 0;
+
   return (
     <div onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
@@ -366,14 +517,31 @@ function AssetRow({ asset, total, categories, onClick }) {
         background: hov ? "#111720" : "#161d28", borderRadius: 12, marginBottom: 8,
         border: `1px solid ${hov ? color + "50" : "#1e2a38"}`, cursor: "pointer", transition: "all .15s"
       }}>
-      <div style={{ width: 4, height: 36, borderRadius: 2, background: color, flexShrink: 0 }} />
+      <div style={{ width: 4, height: asset.cryptoId ? 44 : 36, borderRadius: 2, background: color, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: "#e8f0f8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{asset.name}</div>
-        <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 2 }}>{asset.note || asset.category}</div>
+        {asset.cryptoAmount ? (
+          <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 2 }}>
+            {fmtSmall(asset.cryptoAmount)} {CRYPTO_LIST.find(c => c.id === asset.cryptoId)?.label.split(" ")[0] || ""}
+            {cryptoPrice && <span style={{ marginLeft: 6, color: "#5a6a7e" }}>@ {fmt(cryptoPrice)}</span>}
+          </div>
+        ) : (
+          <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 2 }}>{asset.note || asset.category}</div>
+        )}
       </div>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'DM Mono', monospace", color: "#e8f0f8" }}>{fmt(asset.value)}</div>
-        <div style={{ fontSize: 11, color, fontFamily: "'DM Mono', monospace", marginTop: 2 }}>{pct.toFixed(1)}%</div>
+        <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'DM Mono', monospace", color: "#e8f0f8" }}>{fmt(displayValue)}</div>
+        {pnlAmt !== null ? (
+          <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", marginTop: 2, color: pnlAmt >= 0 ? "#00c896" : "#f05060" }}>
+            {pnlAmt >= 0 ? "+" : ""}{fmt(pnlAmt)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+          </div>
+        ) : change24h !== null ? (
+          <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", marginTop: 2, color: change24h >= 0 ? "#00c896" : "#f05060" }}>
+            {change24h >= 0 ? "▲" : "▼"} {Math.abs(change24h).toFixed(2)}% dziś
+          </div>
+        ) : (
+          <div style={{ fontSize: 11, color, fontFamily: "'DM Mono', monospace", marginTop: 2 }}>{pct.toFixed(1)}%</div>
+        )}
       </div>
       <div style={{ width: 50, height: 4, background: "#1e2a38", borderRadius: 2, flexShrink: 0, overflow: "hidden" }}>
         <div style={{ width: pct + "%", height: "100%", background: color, borderRadius: 2 }} />
@@ -444,6 +612,16 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
 
+  const { prices, lastUpdated } = useCryptoPrices(assets);
+
+  // Aktualizuj wartości krypto w assets gdy przyjdą ceny
+  const assetsWithLivePrices = assets.map(a => {
+    if (a.cryptoId && a.cryptoId !== "other" && prices[a.cryptoId]) {
+      return { ...a, value: a.cryptoAmount * prices[a.cryptoId].pln };
+    }
+    return a;
+  });
+
   useEffect(() => { try { localStorage.setItem("pt-assets", JSON.stringify(assets)); } catch {} }, [assets]);
   useEffect(() => { try { localStorage.setItem("pt-categories", JSON.stringify(categories)); } catch {} }, [categories]);
 
@@ -467,9 +645,9 @@ export default function App() {
     setAssets(all => all.filter(a => a.id !== id));
   }
 
-  const total = assets.reduce((s, a) => s + a.value, 0);
-  const visible = activeFilter ? assets.filter(a => a.category === activeFilter) : assets;
-  const usedCats = categories.filter(c => assets.some(a => a.category === c.name));
+  const total = assetsWithLivePrices.reduce((s, a) => s + a.value, 0);
+  const visible = activeFilter ? assetsWithLivePrices.filter(a => a.category === activeFilter) : assetsWithLivePrices;
+  const usedCats = categories.filter(c => assetsWithLivePrices.some(a => a.category === c.name));
 
   const globalStyles = `
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600&display=swap');
@@ -507,12 +685,17 @@ export default function App() {
           <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
             PORTFOLIO TRACKER
           </div>
+          {lastUpdated && (
+            <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 4 }}>
+              krypto: {lastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+            </div>
+          )}
         </div>
 
         {/* Wykres */}
         <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
-          {assets.length > 0 ? (
-            <PieChart assets={assets} categories={categories} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+          {assetsWithLivePrices.length > 0 ? (
+            <PieChart assets={assetsWithLivePrices} categories={categories} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "24px 0" }}>
               <div style={{ width: 120, height: 120, borderRadius: "50%", border: "2px dashed #2a3a50", display: "flex", alignItems: "center", justifyContent: "center", color: "#4a5a6e", fontSize: 11, fontFamily: "'DM Mono', monospace" }}>BRAK DANYCH</div>
@@ -575,7 +758,7 @@ export default function App() {
         ) : (
           visible.map(a => (
             <div key={a.id} className="asset-row-wrap">
-              <AssetRow asset={a} total={total} categories={categories}
+              <AssetRow asset={a} total={total} categories={categories} prices={prices}
                 onClick={() => setModal(a)} />
             </div>
           ))
