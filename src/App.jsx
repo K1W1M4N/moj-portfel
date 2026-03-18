@@ -230,6 +230,7 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
         {grouped.map(g => (
           <div key={g.name}
             onClick={() => onFilterChange(g.name === activeFilter ? null : g.name)}
+            onTouchEnd={e => { e.preventDefault(); onFilterChange(g.name === activeFilter ? null : g.name); }}
             onMouseEnter={() => setHovered(g.name)}
             onMouseLeave={() => setHovered(null)}
             style={{
