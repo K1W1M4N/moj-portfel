@@ -685,11 +685,7 @@ export default function App() {
           <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
             PORTFOLIO TRACKER
           </div>
-          {lastUpdated && (
-            <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 4 }}>
-              krypto: {lastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
-            </div>
-          )}
+
         </div>
 
         {/* Wykres */}
@@ -766,6 +762,11 @@ export default function App() {
 
         <div style={{ textAlign: "center", fontSize: 11, color: "#4a5a6e", marginTop: 28, paddingBottom: 16 }}>
           Kliknij aktywo aby edytować · dane zapisane lokalnie w przeglądarce
+          {lastUpdated && (
+            <div style={{ marginTop: 4 }}>
+              Kursy krypto: {lastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+            </div>
+          )}
         </div>
       </div>
 
