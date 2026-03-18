@@ -541,9 +541,6 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
           </div>
         ) : null}
       </div>
-      <div style={{ width: 50, height: 4, background: "#1e2a38", borderRadius: 2, flexShrink: 0, overflow: "hidden" }}>
-        <div style={{ width: pct + "%", height: "100%", background: color, borderRadius: 2 }} />
-      </div>
     </div>
   );
 }
