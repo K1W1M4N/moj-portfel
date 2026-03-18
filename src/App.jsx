@@ -43,11 +43,19 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // Retina / HiDPI fix — ostre czcionki na iPhone
+    const dpr = window.devicePixelRatio || 1;
+    const size = 220;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = size + "px";
+    canvas.style.height = size + "px";
     const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
     const grouped = getGrouped();
     const total = assets.reduce((s, a) => s + a.value, 0);
     const cx = 110, cy = 110, r = 96, inner = 62;
-    ctx.clearRect(0, 0, 220, 220);
+    ctx.clearRect(0, 0, size, size);
     sliceMapRef.current = [];
     let angle = -Math.PI / 2;
 
@@ -83,14 +91,14 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
     const dispG = disp ? sliceMapRef.current.find(s => s.name === disp) : null;
 
     if (dispG) {
-      ctx.fillStyle = dispG.color; ctx.font = "11px 'Sora', sans-serif";
+      ctx.fillStyle = dispG.color; ctx.font = "500 11px 'Sora', sans-serif";
       ctx.fillText(dispG.name.split(" ")[0], cx, cy - 14);
       ctx.fillStyle = "#e8f0f8"; ctx.font = "bold 15px 'DM Mono', monospace";
       ctx.fillText(fmt(dispG.value), cx, cy + 8);
-      ctx.fillStyle = dispG.color; ctx.font = "13px 'DM Mono', monospace";
+      ctx.fillStyle = dispG.color; ctx.font = "500 13px 'DM Mono', monospace";
       ctx.fillText((dispG.pct * 100).toFixed(1) + "%", cx, cy + 27);
     } else {
-      ctx.fillStyle = "#8a9bb0"; ctx.font = "10px 'Sora', sans-serif";
+      ctx.fillStyle = "#8a9bb0"; ctx.font = "500 10px 'Sora', sans-serif";
       ctx.fillText("ŁĄCZNIE", cx, cy - 6);
       ctx.fillStyle = "#00c896"; ctx.font = "bold 18px 'DM Mono', monospace";
       ctx.fillText(fmt(total), cx, cy + 16);
@@ -125,19 +133,15 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
     const { x, y } = getScaledCoords(e.clientX, e.clientY);
     const cat = getCatFromPoint(x, y);
     const cx = 110, cy = 110, inner = 62, dx = x - cx, dy = y - cy;
-    canvasRef.current.style.cursor =
-      (cat || Math.sqrt(dx * dx + dy * dy) < inner) ? "pointer" : "default";
+    canvasRef.current.style.cursor = (cat || Math.sqrt(dx * dx + dy * dy) < inner) ? "pointer" : "default";
     if (cat !== hovered) setHovered(cat);
   }
 
   function handleClick(e) {
     const { x, y } = getScaledCoords(e.clientX, e.clientY);
     const cat = getCatFromPoint(x, y);
-    if (cat) {
-      onFilterChange(cat === activeFilter ? null : cat);
-    } else {
-      onFilterChange(null);
-    }
+    // wycinek = przełącz, środek lub poza pierścieniem = zawsze reset
+    onFilterChange(cat ? (cat === activeFilter ? null : cat) : null);
   }
 
   function handleTouch(e) {
@@ -145,25 +149,23 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
     const touch = e.changedTouches[0];
     const { x, y } = getScaledCoords(touch.clientX, touch.clientY);
     const cat = getCatFromPoint(x, y);
-    if (cat) {
-      onFilterChange(cat === activeFilter ? null : cat);
-    } else {
-      onFilterChange(null);
-    }
+    onFilterChange(cat ? (cat === activeFilter ? null : cat) : null);
   }
 
   const grouped = getGrouped();
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap", justifyContent: "center" }}>
-      <canvas ref={canvasRef} width={220} height={220}
-        style={{ flexShrink: 0, width: "min(220px, 90vw)", height: "auto", cursor: "pointer" }}
+      <canvas ref={canvasRef}
+        style={{ flexShrink: 0, width: "220px", height: "220px", cursor: "pointer" }}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHovered(null)}
         onClick={handleClick}
         onTouchEnd={handleTouch}
       />
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      {/* onClick stopPropagation — kliknięcie legendy nie propaguje do pie-card */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}
+        onClick={e => e.stopPropagation()}>
         {grouped.map(g => (
           <div key={g.name}
             onClick={() => onFilterChange(g.name === activeFilter ? null : g.name)}
@@ -489,12 +491,7 @@ export default function App() {
     <>
       <style>{globalStyles}</style>
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}
-        onClick={e => {
-          if (!e.target.closest("#pie-card") && !e.target.closest(".chip-btn") &&
-            !e.target.closest(".asset-row-wrap") && !e.target.closest("#add-btn") && activeFilter) {
-            setActiveFilter(null);
-          }
-        }}>
+        onClick={() => { if (activeFilter) setActiveFilter(null); }}>
 
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
@@ -503,7 +500,9 @@ export default function App() {
         </div>
 
         {/* Wykres */}
-        <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
+        <div id="pie-card"
+          style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}
+          onClick={e => e.stopPropagation()}>
           {assets.length > 0 ? (
             <PieChart assets={assets} categories={categories} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
           ) : (
@@ -567,7 +566,7 @@ export default function App() {
           </div>
         ) : (
           visible.map(a => (
-            <div key={a.id} className="asset-row-wrap">
+            <div key={a.id} className="asset-row-wrap" onClick={e => e.stopPropagation()}>
               <AssetRow asset={a} total={total} categories={categories}
                 onClick={e => { e.stopPropagation(); setModal(a); }} />
             </div>
