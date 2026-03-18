@@ -488,7 +488,7 @@ export default function App() {
           }
         }}>
 
-        <div style={{ position: textAlign: "center", marginBottom: 28 }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
   <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
     PORTFOLIO TRACKER
   </div>
