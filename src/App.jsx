@@ -133,7 +133,11 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
   function handleClick(e) {
     const { x, y } = getScaledCoords(e.clientX, e.clientY);
     const cat = getCatFromPoint(x, y);
-    onFilterChange(cat ? (cat === activeFilter ? null : cat) : null);
+    if (cat) {
+      onFilterChange(cat === activeFilter ? null : cat);
+    } else {
+      onFilterChange(null);
+    }
   }
 
   function handleTouch(e) {
@@ -141,7 +145,11 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
     const touch = e.changedTouches[0];
     const { x, y } = getScaledCoords(touch.clientX, touch.clientY);
     const cat = getCatFromPoint(x, y);
-    onFilterChange(cat ? (cat === activeFilter ? null : cat) : null);
+    if (cat) {
+      onFilterChange(cat === activeFilter ? null : cat);
+    } else {
+      onFilterChange(null);
+    }
   }
 
   const grouped = getGrouped();
@@ -489,10 +497,10 @@ export default function App() {
         }}>
 
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-  <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
-    PORTFOLIO TRACKER
-  </div>
-</div>
+          <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
+            PORTFOLIO TRACKER
+          </div>
+        </div>
 
         {/* Wykres */}
         <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
