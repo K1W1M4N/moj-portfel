@@ -43,7 +43,6 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // Retina / HiDPI fix — ostre czcionki na iPhone
     const dpr = window.devicePixelRatio || 1;
     const size = 220;
     canvas.width = size * dpr;
@@ -123,6 +122,12 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
     return null;
   }
 
+  function isInCenter(x, y) {
+    const cx = 110, cy = 110, inner = 62;
+    const dx = x - cx, dy = y - cy;
+    return Math.sqrt(dx * dx + dy * dy) < inner;
+  }
+
   function getScaledCoords(clientX, clientY) {
     const rect = canvasRef.current.getBoundingClientRect();
     const scaleX = 220 / rect.width;
@@ -132,16 +137,20 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
   function handleMouseMove(e) {
     const { x, y } = getScaledCoords(e.clientX, e.clientY);
     const cat = getCatFromPoint(x, y);
-    const cx = 110, cy = 110, inner = 62, dx = x - cx, dy = y - cy;
-    canvasRef.current.style.cursor = (cat || Math.sqrt(dx * dx + dy * dy) < inner) ? "pointer" : "default";
+    canvasRef.current.style.cursor = (cat || isInCenter(x, y)) ? "pointer" : "default";
     if (cat !== hovered) setHovered(cat);
   }
 
   function handleClick(e) {
     const { x, y } = getScaledCoords(e.clientX, e.clientY);
     const cat = getCatFromPoint(x, y);
-    // wycinek = przełącz, środek lub poza pierścieniem = zawsze reset
-    onFilterChange(cat ? (cat === activeFilter ? null : cat) : null);
+    if (cat) {
+      onFilterChange(cat === activeFilter ? null : cat);
+    } else if (isInCenter(x, y)) {
+      // tylko środek koła resetuje
+      onFilterChange(null);
+    }
+    // kliknięcie poza pierścieniem — nic nie robi
   }
 
   function handleTouch(e) {
@@ -149,7 +158,11 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
     const touch = e.changedTouches[0];
     const { x, y } = getScaledCoords(touch.clientX, touch.clientY);
     const cat = getCatFromPoint(x, y);
-    onFilterChange(cat ? (cat === activeFilter ? null : cat) : null);
+    if (cat) {
+      onFilterChange(cat === activeFilter ? null : cat);
+    } else if (isInCenter(x, y)) {
+      onFilterChange(null);
+    }
   }
 
   const grouped = getGrouped();
@@ -163,9 +176,7 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
         onClick={handleClick}
         onTouchEnd={handleTouch}
       />
-      {/* onClick stopPropagation — kliknięcie legendy nie propaguje do pie-card */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}
-        onClick={e => e.stopPropagation()}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
         {grouped.map(g => (
           <div key={g.name}
             onClick={() => onFilterChange(g.name === activeFilter ? null : g.name)}
@@ -490,8 +501,7 @@ export default function App() {
   return (
     <>
       <style>{globalStyles}</style>
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}
-        onClick={() => { if (activeFilter) setActiveFilter(null); }}>
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
 
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
@@ -500,9 +510,7 @@ export default function App() {
         </div>
 
         {/* Wykres */}
-        <div id="pie-card"
-          style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}
-          onClick={e => e.stopPropagation()}>
+        <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
           {assets.length > 0 ? (
             <PieChart assets={assets} categories={categories} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
           ) : (
@@ -517,7 +525,7 @@ export default function App() {
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
           <button id="add-btn"
             onMouseEnter={() => setHovAdd(true)} onMouseLeave={() => setHovAdd(false)}
-            onClick={e => { e.stopPropagation(); setModal("add"); }}
+            onClick={() => setModal("add")}
             style={{
               padding: "12px 36px", borderRadius: 12, border: "2px solid #00c896",
               background: hovAdd ? "#00c89612" : "transparent",
@@ -540,7 +548,7 @@ export default function App() {
             const color = name === "Wszystkie" ? "#00c896" : catColor(categories, name);
             return (
               <button key={name} className="chip-btn"
-                onClick={e => { e.stopPropagation(); setActiveFilter(name === "Wszystkie" ? null : (activeFilter === name ? null : name)); }}
+                onClick={() => setActiveFilter(name === "Wszystkie" ? null : (activeFilter === name ? null : name))}
                 style={{
                   padding: "6px 14px", borderRadius: 20,
                   border: `1px solid ${ia ? color : "#1e2a38"}`,
@@ -566,9 +574,9 @@ export default function App() {
           </div>
         ) : (
           visible.map(a => (
-            <div key={a.id} className="asset-row-wrap" onClick={e => e.stopPropagation()}>
+            <div key={a.id} className="asset-row-wrap">
               <AssetRow asset={a} total={total} categories={categories}
-                onClick={e => { e.stopPropagation(); setModal(a); }} />
+                onClick={() => setModal(a)} />
             </div>
           ))
         )}
