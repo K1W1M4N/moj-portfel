@@ -539,8 +539,6 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
           <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", marginTop: 2, color: change24h >= 0 ? "#00c896" : "#f05060" }}>
             {change24h >= 0 ? "▲" : "▼"} {Math.abs(change24h).toFixed(2)}% dziś
           </div>
-        ) : (
-          <div style={{ fontSize: 11, color, fontFamily: "'DM Mono', monospace", marginTop: 2 }}>{pct.toFixed(1)}%</div>
         )}
       </div>
       <div style={{ width: 50, height: 4, background: "#1e2a38", borderRadius: 2, flexShrink: 0, overflow: "hidden" }}>
