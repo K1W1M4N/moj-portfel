@@ -68,7 +68,7 @@ function useCryptoPrices(assets) {
     }
 
     fetchPrices();
-    const interval = setInterval(fetchPrices, 5 * 60 * 1000); // co 5 minut
+    const interval = setInterval(fetchPrices, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [assets.map(a => a.cryptoId).join(",")]);
 
@@ -76,10 +76,10 @@ function useCryptoPrices(assets) {
 }
 
 // ─── Wykres kołowy (Canvas) ──────────────────────────────────────────────────
-function PieChart({ assets, categories, activeFilter, onFilterChange }) {
+// hovered i setHovered przekazywane z zewnątrz (z App)
+function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, setHovered }) {
   const canvasRef = useRef(null);
   const sliceMapRef = useRef([]);
-  const [hovered, setHovered] = useState(null);
 
   const getGrouped = useCallback(() => {
     const total = assets.reduce((s, a) => s + a.value, 0);
@@ -118,7 +118,8 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
         name: g.name, color: g.color, pct: g.pct, value: g.value,
         start: start + Math.PI / 2, end: end + Math.PI / 2
       });
-      const isActive = activeFilter === g.name, isHov = hovered === g.name;
+      const isActive = activeFilter === g.name;
+      const isHov = hovered === g.name;
       const scale = (isActive || isHov) ? 1.05 : 1;
       ctx.save();
       ctx.translate(cx, cy); ctx.scale(scale, scale); ctx.translate(-cx, -cy);
@@ -129,7 +130,7 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
       ctx.lineTo(cx + inner * Math.cos(end), cy + inner * Math.sin(end));
       ctx.arc(cx, cy, inner, end, start, true);
       ctx.closePath();
-      ctx.globalAlpha = (activeFilter && activeFilter !== g.name) ? 0.28 : 1;
+      ctx.globalAlpha = (activeFilter && !isActive) ? 0.28 : 1;
       ctx.fillStyle = g.color; ctx.fill();
       ctx.globalAlpha = 1; ctx.restore();
     });
@@ -197,8 +198,10 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
     const { x, y } = getScaledCoords(e.clientX, e.clientY);
     const cat = getCatFromPoint(x, y);
     if (cat) {
+      setHovered(null);
       onFilterChange(cat === activeFilter ? null : cat);
     } else if (isInCenter(x, y)) {
+      setHovered(null);
       onFilterChange(null);
     }
   }
@@ -209,8 +212,10 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
     const { x, y } = getScaledCoords(touch.clientX, touch.clientY);
     const cat = getCatFromPoint(x, y);
     if (cat) {
+      setHovered(null);
       onFilterChange(cat === activeFilter ? null : cat);
     } else if (isInCenter(x, y)) {
+      setHovered(null);
       onFilterChange(null);
     }
   }
@@ -229,8 +234,8 @@ function PieChart({ assets, categories, activeFilter, onFilterChange }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
         {grouped.map(g => (
           <div key={g.name}
-            onClick={() => onFilterChange(g.name === activeFilter ? null : g.name)}
-            onTouchEnd={e => { e.preventDefault(); onFilterChange(g.name === activeFilter ? null : g.name); }}
+            onClick={() => { setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
+            onTouchEnd={e => { e.preventDefault(); setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
             onMouseEnter={() => setHovered(g.name)}
             onMouseLeave={() => setHovered(null)}
             style={{
@@ -324,13 +329,7 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
       const amount = parseFloat(String(form.cryptoAmount).replace(",", "."));
       const paid = parseFloat(String(form.cryptoPaid).replace(",", "."));
       if (!form.name.trim() || isNaN(amount) || amount <= 0 || isNaN(paid) || paid <= 0) return;
-      onSave({
-        ...form,
-        value: paid,
-        cryptoAmount: amount,
-        cryptoPaid: paid,
-        id: asset?.id || Date.now()
-      });
+      onSave({ ...form, value: paid, cryptoAmount: amount, cryptoPaid: paid, id: asset?.id || Date.now() });
     } else {
       const val = parseFloat(String(form.value).replace(",", "."));
       if (!form.name.trim() || isNaN(val) || val <= 0) return;
@@ -388,7 +387,6 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
           )}
         </div>
 
-        {/* Pola dla krypto */}
         {isCrypto && (
           <>
             <div style={{ marginBottom: 14 }}>
@@ -411,9 +409,7 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
                   value={form.cryptoIdCustom || ""}
                   onChange={e => setForm(f => ({ ...f, cryptoIdCustom: e.target.value }))}
                   onFocus={focusInp} onBlur={blurInp} />
-                <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 4 }}>
-                  Sprawdź ID na coingecko.com/pl
-                </div>
+                <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 4 }}>Sprawdź ID na coingecko.com/pl</div>
               </div>
             )}
 
@@ -439,8 +435,7 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
           </>
         )}
 
-        {/* Pola dla nie-krypto lub krypto "inne" bez ID */}
-        {(!isCrypto || !form.cryptoId || form.cryptoId === "other" && !form.cryptoIdCustom) && !isCrypto && (
+        {!isCrypto && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
             <div>
               <label style={labelSt}>Wartość (PLN)</label>
@@ -458,7 +453,6 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
           </div>
         )}
 
-        {/* Notatka dla krypto */}
         {isCrypto && form.cryptoId && (
           <div style={{ marginBottom: 14 }}>
             <label style={labelSt}>Notatka (opcjonalnie)</label>
@@ -490,7 +484,6 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
   const color = catColor(categories, asset.category);
   const [hov, setHov] = useState(false);
 
-  // Oblicz wartość dla krypto z live price
   let displayValue = asset.value;
   let pnlAmt = null;
   let pnlPct = null;
@@ -502,14 +495,11 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
     cryptoPrice = priceData.pln;
     displayValue = asset.cryptoAmount * cryptoPrice;
     change24h = priceData.pln_24h_change;
-
     if (asset.cryptoPaid && asset.cryptoPaid > 0) {
       pnlAmt = displayValue - asset.cryptoPaid;
       pnlPct = (pnlAmt / asset.cryptoPaid) * 100;
     }
   }
-
-  const pct = total > 0 ? (displayValue / total * 100) : 0;
 
   return (
     <div onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
@@ -605,12 +595,12 @@ export default function App() {
     try { const s = localStorage.getItem("pt-categories"); return s ? JSON.parse(s) : DEFAULT_CATEGORIES; } catch { return DEFAULT_CATEGORIES; }
   });
   const [activeFilter, setActiveFilter] = useState(null);
+  const [hovered, setHovered] = useState(null); // ← przeniesiony na poziom App
   const [modal, setModal] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
 
   const { prices, lastUpdated } = useCryptoPrices(assets);
 
-  // Aktualizuj wartości krypto w assets gdy przyjdą ceny
   const assetsWithLivePrices = assets.map(a => {
     if (a.cryptoId && a.cryptoId !== "other" && prices[a.cryptoId]) {
       return { ...a, value: a.cryptoAmount * prices[a.cryptoId].pln };
@@ -624,6 +614,12 @@ export default function App() {
   function handleStart() {
     try { localStorage.setItem("pt-welcomed", "1"); } catch {}
     setWelcomed(true);
+  }
+
+  // Zmiana filtra zawsze zeruje też hover
+  function handleFilterChange(cat) {
+    setHovered(null);
+    setActiveFilter(cat);
   }
 
   function handleSave(asset) {
@@ -681,13 +677,19 @@ export default function App() {
           <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
             PORTFOLIO TRACKER
           </div>
-
         </div>
 
         {/* Wykres */}
         <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
           {assetsWithLivePrices.length > 0 ? (
-            <PieChart assets={assetsWithLivePrices} categories={categories} activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+            <PieChart
+              assets={assetsWithLivePrices}
+              categories={categories}
+              activeFilter={activeFilter}
+              onFilterChange={handleFilterChange}
+              hovered={hovered}
+              setHovered={setHovered}
+            />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "24px 0" }}>
               <div style={{ width: 120, height: 120, borderRadius: "50%", border: "2px dashed #2a3a50", display: "flex", alignItems: "center", justifyContent: "center", color: "#4a5a6e", fontSize: 11, fontFamily: "'DM Mono', monospace" }}>BRAK DANYCH</div>
@@ -723,7 +725,7 @@ export default function App() {
             const color = name === "Wszystkie" ? "#00c896" : catColor(categories, name);
             return (
               <button key={name} className="chip-btn"
-                onClick={() => setActiveFilter(name === "Wszystkie" ? null : (activeFilter === name ? null : name))}
+                onClick={() => handleFilterChange(name === "Wszystkie" ? null : (activeFilter === name ? null : name))}
                 style={{
                   padding: "6px 14px", borderRadius: 20,
                   border: `1px solid ${ia ? color : "#1e2a38"}`,
