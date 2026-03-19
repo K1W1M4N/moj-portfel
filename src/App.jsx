@@ -583,6 +583,7 @@ export default function App() {
   const [hovAdd, setHovAdd] = useState(false);
 
   const { prices, lastUpdated } = useCryptoPrices(assets);
+  const { wiborHistory } = useWibor();
 
   const assetsWithLivePrices = assets.map(a => {
     if (a.cryptoId && a.cryptoId !== "other" && prices[a.cryptoId]) {
@@ -741,7 +742,7 @@ export default function App() {
           visible.map(a => (
             <div key={a.id} className="asset-row-wrap">
               {a.isBond ? (
-                <BondRow bond={a} onClick={() => setBondModal(a)} />
+               <BondRow bond={a} wiborHistory={wiborHistory} onClick={() => setBondModal(a)} />
               ) : (
                 <AssetRow asset={a} total={total} categories={categories} prices={prices}
                   onClick={() => setModal(a)} />
@@ -774,6 +775,7 @@ export default function App() {
       {bondModal && (
         <BondModal
           bond={bondModal === "add" ? null : bondModal}
+          wiborHistory={wiborHistory}
           onSave={asset => {
             if (asset.isBond) {
               const calc = calcBondCurrentValue(asset);
