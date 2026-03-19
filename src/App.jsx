@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { BondModal, BondRow, calcBondCurrentValue } from "./BondModal";
 
-// ─── Krypto lista ─────────────────────────────────────────────────────────────
 const CRYPTO_LIST = [
   { label: "Bitcoin (BTC)",   id: "bitcoin" },
   { label: "Ethereum (ETH)",  id: "ethereum" },
@@ -15,7 +14,6 @@ const CRYPTO_LIST = [
   { label: "Toncoin (TON)",   id: "the-open-network" },
 ];
 
-// ─── Kolory kategorii ────────────────────────────────────────────────────────
 const DEFAULT_CATEGORIES = [
   { name: "Konto oszczędnościowe", color: "#00c896" },
   { name: "Konto osobiste",        color: "#3b9eff" },
@@ -44,7 +42,6 @@ function fmtSmall(n) {
   return n.toLocaleString("pl-PL", { maximumFractionDigits: 4 });
 }
 
-// ─── Hook: pobieranie kursów krypto ──────────────────────────────────────────
 function useCryptoPrices(assets) {
   const [prices, setPrices] = useState({});
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -76,8 +73,6 @@ function useCryptoPrices(assets) {
   return { prices, lastUpdated };
 }
 
-// ─── Wykres kołowy (Canvas) ──────────────────────────────────────────────────
-// hovered i setHovered przekazywane z zewnątrz (z App)
 function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, setHovered }) {
   const canvasRef = useRef(null);
   const sliceMapRef = useRef([]);
@@ -198,13 +193,8 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
   function handleClick(e) {
     const { x, y } = getScaledCoords(e.clientX, e.clientY);
     const cat = getCatFromPoint(x, y);
-    if (cat) {
-      setHovered(null);
-      onFilterChange(cat === activeFilter ? null : cat);
-    } else if (isInCenter(x, y)) {
-      setHovered(null);
-      onFilterChange(null);
-    }
+    if (cat) { setHovered(null); onFilterChange(cat === activeFilter ? null : cat); }
+    else if (isInCenter(x, y)) { setHovered(null); onFilterChange(null); }
   }
 
   function handleTouch(e) {
@@ -212,13 +202,8 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
     const touch = e.changedTouches[0];
     const { x, y } = getScaledCoords(touch.clientX, touch.clientY);
     const cat = getCatFromPoint(x, y);
-    if (cat) {
-      setHovered(null);
-      onFilterChange(cat === activeFilter ? null : cat);
-    } else if (isInCenter(x, y)) {
-      setHovered(null);
-      onFilterChange(null);
-    }
+    if (cat) { setHovered(null); onFilterChange(cat === activeFilter ? null : cat); }
+    else if (isInCenter(x, y)) { setHovered(null); onFilterChange(null); }
   }
 
   const grouped = getGrouped();
@@ -257,7 +242,6 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
   );
 }
 
-// ─── Shared styles ───────────────────────────────────────────────────────────
 const labelSt = {
   fontSize: 11, color: "#5a6a7e", display: "block",
   marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em"
@@ -279,9 +263,7 @@ function neonBtnStyle(hov) {
     color: "#00c896", fontWeight: 700, fontSize: 13, cursor: "pointer",
     letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
     textShadow: "0 0 6px #00c89680",
-    boxShadow: hov
-      ? "0 0 14px #00c896, inset 0 0 10px #00c89620"
-      : "0 0 8px #00c89630, inset 0 0 6px #00c89610",
+    boxShadow: hov ? "0 0 14px #00c896, inset 0 0 10px #00c89620" : "0 0 8px #00c89630, inset 0 0 6px #00c89610",
     transition: "all .2s",
   };
 }
@@ -306,10 +288,8 @@ function closeBtnStyle(hov) {
   };
 }
 
-// ─── Modal dodawania / edycji ────────────────────────────────────────────────
-function AssetModal({ asset, categories, onSave, onDelete, onClose }) 
-  const [bondModal, setBondModal] = useState(null); // null | "add" | {bond object}
-                                                                      
+// ─── POPRAWKA: usunięto błędny useState z wnętrza AssetModal ─────────────────
+function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
   const isEdit = !!asset;
   const [form, setForm] = useState(
     asset ? { ...asset } : { name: "", category: categories[0]?.name || "", value: "", note: "", cryptoId: "", cryptoAmount: "", cryptoPaid: "" }
@@ -482,7 +462,6 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose })
   );
 }
 
-// ─── Wiersz aktywa ───────────────────────────────────────────────────────────
 function AssetRow({ asset, total, categories, prices, onClick }) {
   const color = catColor(categories, asset.category);
   const [hov, setHov] = useState(false);
@@ -539,7 +518,6 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
   );
 }
 
-// ─── Ekran powitalny ─────────────────────────────────────────────────────────
 function WelcomeScreen({ onStart }) {
   const [hov, setHov] = useState(false);
   return (
@@ -598,8 +576,9 @@ export default function App() {
     try { const s = localStorage.getItem("pt-categories"); return s ? JSON.parse(s) : DEFAULT_CATEGORIES; } catch { return DEFAULT_CATEGORIES; }
   });
   const [activeFilter, setActiveFilter] = useState(null);
-  const [hovered, setHovered] = useState(null); // ← przeniesiony na poziom App
+  const [hovered, setHovered] = useState(null);
   const [modal, setModal] = useState(null);
+  const [bondModal, setBondModal] = useState(null); // ← POPRAWKA: stan tutaj, nie w AssetModal
   const [hovAdd, setHovAdd] = useState(false);
 
   const { prices, lastUpdated } = useCryptoPrices(assets);
@@ -619,7 +598,6 @@ export default function App() {
     setWelcomed(true);
   }
 
-  // Zmiana filtra zawsze zeruje też hover
   function handleFilterChange(cat) {
     setHovered(null);
     setActiveFilter(cat);
@@ -659,9 +637,7 @@ export default function App() {
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #0a0e14; }
     ::-webkit-scrollbar-thumb { background: #1e2a38; border-radius: 3px; }
-    @media (max-width: 500px) {
-      .pie-legend { display: none !important; }
-    }
+    @media (max-width: 500px) { .pie-legend { display: none !important; } }
   `;
 
   if (!welcomed) return (
@@ -682,7 +658,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Wykres */}
         <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
           {assetsWithLivePrices.length > 0 ? (
             <PieChart
@@ -701,8 +676,19 @@ export default function App() {
           )}
         </div>
 
-        {/* Przycisk dodaj */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        {/* Przyciski dodaj */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+          <button
+            onClick={() => setBondModal("add")}
+            style={{
+              padding: "12px 24px", borderRadius: 12, border: "2px solid #f0a030",
+              background: "transparent", color: "#f0a030", fontWeight: 700, fontSize: 14,
+              cursor: "pointer", letterSpacing: ".04em", fontFamily: "'Sora', sans-serif",
+              boxShadow: "0 0 10px #f0a03040", transition: "all .2s",
+              WebkitTapHighlightColor: "transparent",
+            }}>
+            + Dodaj obligacje
+          </button>
           <button id="add-btn"
             onMouseEnter={() => setHovAdd(true)} onMouseLeave={() => setHovAdd(false)}
             onClick={() => setModal("add")}
@@ -721,7 +707,6 @@ export default function App() {
           </button>
         </div>
 
-        {/* Filtry */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           {["Wszystkie", ...usedCats.map(c => c.name)].map(name => {
             const ia = name === "Wszystkie" ? !activeFilter : activeFilter === name;
@@ -745,7 +730,6 @@ export default function App() {
           })}
         </div>
 
-        {/* Lista aktywów */}
         {visible.length === 0 ? (
           <div style={{ background: "#161d28", border: "1px dashed #1e2a38", borderRadius: 12, padding: 32, textAlign: "center", color: "#4a5a6e", fontSize: 13, lineHeight: 1.7 }}>
             {assets.length === 0
@@ -754,15 +738,15 @@ export default function App() {
           </div>
         ) : (
           visible.map(a => (
-  <div key={a.id} className="asset-row-wrap">
-    {a.isBond ? (
-      <BondRow bond={a} onClick={e => { e.stopPropagation(); setBondModal(a); }} />
-    ) : (
-      <AssetRow asset={a} total={total} categories={categories}
-        onClick={e => { e.stopPropagation(); setModal(a); }} />
-    )}
-  </div>
-))
+            <div key={a.id} className="asset-row-wrap">
+              {a.isBond ? (
+                <BondRow bond={a} onClick={() => setBondModal(a)} />
+              ) : (
+                <AssetRow asset={a} total={total} categories={categories} prices={prices}
+                  onClick={() => setModal(a)} />
+              )}
+            </div>
+          ))
         )}
 
         <div style={{ textAlign: "center", fontSize: 11, color: "#4a5a6e", marginTop: 28, paddingBottom: 16 }}>
@@ -775,6 +759,7 @@ export default function App() {
         </div>
       </div>
 
+      {/* ─── POPRAWKA: oba modale wewnątrz return, przed </> ─────────────────── */}
       {modal && (
         <AssetModal
           asset={modal === "add" ? null : modal}
@@ -784,21 +769,21 @@ export default function App() {
           onClose={() => setModal(null)}
         />
       )}
+
+      {bondModal && (
+        <BondModal
+          bond={bondModal === "add" ? null : bondModal}
+          onSave={asset => {
+            if (asset.isBond) {
+              const calc = calcBondCurrentValue(asset);
+              asset.value = calc.currentValue;
+            }
+            handleSave(asset);
+          }}
+          onDelete={handleDelete}
+          onClose={() => setBondModal(null)}
+        />
+      )}
     </>
   );
 }
-{bondModal && (
-  <BondModal
-    bond={bondModal === "add" ? null : bondModal}
-    onSave={asset => {
-      // Aktualizuj wartość obligacji przed zapisem
-      if (asset.isBond) {
-        const calc = calcBondCurrentValue(asset);
-        asset.value = calc.currentValue;
-      }
-      handleSave(asset);
-    }}
-    onDelete={handleDelete}
-    onClose={() => setBondModal(null)}
-  />
-)}
