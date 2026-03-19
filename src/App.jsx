@@ -307,7 +307,9 @@ function closeBtnStyle(hov) {
 }
 
 // ─── Modal dodawania / edycji ────────────────────────────────────────────────
-function AssetModal({ asset, categories, onSave, onDelete, onClose }) {const [bondModal, setBondModal] = useState(null); // null | "add" | {bond object}
+function AssetModal({ asset, categories, onSave, onDelete, onClose }) 
+  const [bondModal, setBondModal] = useState(null); // null | "add" | {bond object}
+                                                                      
   const isEdit = !!asset;
   const [form, setForm] = useState(
     asset ? { ...asset } : { name: "", category: categories[0]?.name || "", value: "", note: "", cryptoId: "", cryptoAmount: "", cryptoPaid: "" }
