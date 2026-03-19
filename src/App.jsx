@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { BondModal, BondRow, calcBondCurrentValue } from "./BondModal";
 
 // ─── Krypto lista ─────────────────────────────────────────────────────────────
 const CRYPTO_LIST = [
@@ -306,7 +307,7 @@ function closeBtnStyle(hov) {
 }
 
 // ─── Modal dodawania / edycji ────────────────────────────────────────────────
-function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
+function AssetModal({ asset, categories, onSave, onDelete, onClose }) {const [bondModal, setBondModal] = useState(null); // null | "add" | {bond object}
   const isEdit = !!asset;
   const [form, setForm] = useState(
     asset ? { ...asset } : { name: "", category: categories[0]?.name || "", value: "", note: "", cryptoId: "", cryptoAmount: "", cryptoPaid: "" }
@@ -751,11 +752,15 @@ export default function App() {
           </div>
         ) : (
           visible.map(a => (
-            <div key={a.id} className="asset-row-wrap">
-              <AssetRow asset={a} total={total} categories={categories} prices={prices}
-                onClick={() => setModal(a)} />
-            </div>
-          ))
+  <div key={a.id} className="asset-row-wrap">
+    {a.isBond ? (
+      <BondRow bond={a} onClick={e => { e.stopPropagation(); setBondModal(a); }} />
+    ) : (
+      <AssetRow asset={a} total={total} categories={categories}
+        onClick={e => { e.stopPropagation(); setModal(a); }} />
+    )}
+  </div>
+))
         )}
 
         <div style={{ textAlign: "center", fontSize: 11, color: "#4a5a6e", marginTop: 28, paddingBottom: 16 }}>
@@ -780,3 +785,18 @@ export default function App() {
     </>
   );
 }
+{bondModal && (
+  <BondModal
+    bond={bondModal === "add" ? null : bondModal}
+    onSave={asset => {
+      // Aktualizuj wartość obligacji przed zapisem
+      if (asset.isBond) {
+        const calc = calcBondCurrentValue(asset);
+        asset.value = calc.currentValue;
+      }
+      handleSave(asset);
+    }}
+    onDelete={handleDelete}
+    onClose={() => setBondModal(null)}
+  />
+)}
