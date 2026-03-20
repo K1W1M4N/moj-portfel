@@ -38,10 +38,10 @@ export const INFLATION_HISTORY = {
   "2024-01":0.0380,"2024-02":0.0290,"2024-03":0.0200,"2024-04":0.0240,
   "2024-05":0.0260,"2024-06":0.0250,"2024-07":0.0420,"2024-08":0.0420,
   "2024-09":0.0480,"2024-10":0.0490,"2024-11":0.0470,"2024-12":0.0460,
-  "2025-01":0.0520,"2025-02":0.0530,"2025-03":0.0490,"2025-04":0.0430,
-  "2025-05":0.0330,"2025-06":0.0260,"2025-07":0.0420,"2025-08":0.0410,
-  "2025-09":0.0430,"2025-10":0.0390,"2025-11":0.0420,"2025-12":0.0470,
-  "2026-01":0.0210,"2026-02":0.0210,
+  "2025-01":0.0527,"2025-02":0.0527,"2025-03":0.0490,"2025-04":0.0430,
+  "2025-05":0.0400,"2025-06":0.0260,"2025-07":0.0420,"2025-08":0.0410,
+  "2025-09":0.0430,"2025-10":0.0390,"2025-11":0.0470,"2025-12":0.0470,
+  "2026-01":0.0520,"2026-02":0.0210,
 };
 
 // Pobierz inflację dla danego miesiąca
@@ -64,12 +64,21 @@ export function getInflationForMonth(yearMonth) {
   return 0.04;
 }
 
-// Pobierz inflację z miesiąca poprzedzającego dany okres odsetkowy
-// (zgodnie z zasadami BGK dla obligacji indeksowanych)
+// Pobierz inflację dla danego okresu odsetkowego zgodnie z zasadami BGK
+//
+// WERYFIKACJA EMPIRYCZNA (EDO zakup 30.08.2024, rok 2 od 30.08.2025):
+// Bank podaje zysk odpowiadający stawce 6.10% = inflacja 4.1% + marża 2%
+// Inflacja 4.1% = GUS za sierpień 2025, ogłoszona we wrześniu 2025
+// Wniosek: BGK używa inflacji za MIESIĄC STARTU okresu odsetkowego
+// (czyli inflacji ogłoszonej przez GUS w miesiącu następującym po starcie,
+//  ale dotyczącej miesiąca startu)
+//
+// Innymi słowy: dla okresu zaczynającego się w sierpniu 2025
+// → bierzemy inflację GUS za sierpień 2025 (klucz "2025-08" = 4.10%)
 export function getInflationForBondPeriod(periodStartDate) {
   const d = new Date(periodStartDate);
-  const prevMonth = d.getMonth() === 0 ? 12 : d.getMonth();
-  const prevYear = d.getMonth() === 0 ? d.getFullYear() - 1 : d.getFullYear();
-  const yearMonth = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1; // 1-12
+  const yearMonth = `${year}-${String(month).padStart(2, "0")}`;
   return getInflationForMonth(yearMonth);
 }
