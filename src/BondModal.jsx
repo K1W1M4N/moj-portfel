@@ -143,36 +143,39 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose }) {
   return (
     <div onClick={e => e.target===e.currentTarget && onClose()}
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16}}>
-      <div style={{background:"#161d28",border:"1px solid #2a3a50",borderRadius:16,padding:28,width:"100%",maxWidth:500,maxHeight:"90vh",overflowY:"auto"}}>
+      <div style={{background:"#161d28",border:"1px solid #2a3a50",borderRadius:16,padding:"20px 16px",width:"100%",maxWidth:500,maxHeight:"90vh",overflowY:"auto"}}>
 
-        {/* Header */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-          <div>
-            <div style={{fontSize:18,fontWeight:700,color:"#e8f0f8",marginBottom:4}}>{bond.name}</div>
-            <div style={{fontSize:12,color:"#5a6a7e"}}>
-              {params?.label} · zakup: {new Date(bond.purchaseDate).toLocaleDateString("pl-PL")}
+        {/* Header — nazwa + przyciski w jednym wierszu */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,gap:8}}>
+          <div style={{minWidth:0,flex:1}}>
+            <div style={{fontSize:16,fontWeight:700,color:"#e8f0f8",marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+              {bond.name}
+            </div>
+            <div style={{fontSize:11,color:"#5a6a7e",display:"flex",flexWrap:"wrap",gap:"0 6px"}}>
+              <span>{params?.label}</span>
+              <span>·</span>
+              <span>zakup: {new Date(bond.purchaseDate).toLocaleDateString("pl-PL")}</span>
             </div>
           </div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            {/* Menu 3 kropki */}
+          <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
             <div style={{position:"relative"}}>
               <button onClick={()=>setMenuOpen(o=>!o)}
                 style={{background:menuOpen?"#1e2a38":"transparent",border:`1px solid ${menuOpen?"#2a3a50":"#1e2a38"}`,borderRadius:8,color:"#8a9bb0",cursor:"pointer",width:32,height:32,fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>
                 ···
               </button>
               {menuOpen && (
-                <div style={{position:"absolute",top:38,right:0,background:"#161d28",border:"1px solid #2a3a50",borderRadius:10,padding:"4px",minWidth:140,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",zIndex:10}}>
+                <div style={{position:"absolute",top:38,right:0,background:"#161d28",border:"1px solid #2a3a50",borderRadius:10,padding:"4px",minWidth:150,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",zIndex:10}}>
                   <button onClick={()=>{setMenuOpen(false);onEdit(bond);}}
                     style={{display:"block",width:"100%",padding:"9px 14px",background:"transparent",border:"none",color:"#e8f0f8",fontSize:13,cursor:"pointer",textAlign:"left",borderRadius:6,fontFamily:"'Sora',sans-serif"}}
                     onMouseEnter={e=>e.currentTarget.style.background="#1e2a38"}
                     onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    ✏️ Edytuj obligacje
+                    ✏️ Edytuj
                   </button>
                   <button onClick={()=>{setMenuOpen(false);onDelete(bond.id);onClose();}}
                     style={{display:"block",width:"100%",padding:"9px 14px",background:"transparent",border:"none",color:"#f05060",fontSize:13,cursor:"pointer",textAlign:"left",borderRadius:6,fontFamily:"'Sora',sans-serif"}}
                     onMouseEnter={e=>e.currentTarget.style.background="#f0506018"}
                     onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    🗑️ Usuń obligacje
+                    🗑️ Usuń
                   </button>
                 </div>
               )}
@@ -182,78 +185,86 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose }) {
           </div>
         </div>
 
-        {/* Obecna wartość */}
-        <div style={{background:"#0f1a27",borderRadius:12,padding:"16px 18px",marginBottom:14}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        {/* Obecna wartość — 2 kolumny × 2 wiersze */}
+        <div style={{background:"#0f1a27",borderRadius:12,padding:"14px 14px",marginBottom:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px 12px"}}>
             <div>
-              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Kwota zakupu</div>
-              <div style={{fontSize:16,fontWeight:600,color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>{fmt2(bond.purchaseAmount)}</div>
+              <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Kwota zakupu</div>
+              <div style={{fontSize:14,fontWeight:600,color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>{fmt2(bond.purchaseAmount)}</div>
             </div>
             <div>
-              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Obecna wartość</div>
-              <div style={{fontSize:16,fontWeight:600,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{fmt2(calc.currentValue)}</div>
+              <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Obecna wartość</div>
+              <div style={{fontSize:14,fontWeight:600,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{fmt2(calc.currentValue)}</div>
             </div>
             <div>
-              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Narosłe odsetki</div>
-              <div style={{fontSize:15,fontWeight:600,color:"#f0a030",fontFamily:"'DM Mono',monospace"}}>+{fmt2(earned)} (+{gainPct.toFixed(2)}%)</div>
+              <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Narosłe odsetki</div>
+              {/* Dwie linijki: kwota i procent osobno */}
+              <div style={{fontSize:13,fontWeight:600,color:"#f0a030",fontFamily:"'DM Mono',monospace"}}>+{fmt2(earned)}</div>
+              <div style={{fontSize:11,color:"#c07820",fontFamily:"'DM Mono',monospace"}}>(+{gainPct.toFixed(2)}%)</div>
             </div>
             <div>
-              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Przyrost dzienny</div>
-              <div style={{fontSize:15,fontWeight:600,color:"#a78bfa",fontFamily:"'DM Mono',monospace"}}>+{fmt2(calc.dailyGain)}/dzień</div>
+              <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Przyrost dzienny</div>
+              <div style={{fontSize:13,fontWeight:600,color:"#a78bfa",fontFamily:"'DM Mono',monospace"}}>+{fmt2(calc.dailyGain)}</div>
+              <div style={{fontSize:11,color:"#7a5bc4",fontFamily:"'DM Mono',monospace"}}>/dzień</div>
             </div>
           </div>
           {/* Pasek postępu */}
-          <div style={{marginTop:14}}>
-            <div style={{height:6,background:"#1e2a38",borderRadius:99,overflow:"hidden"}}>
+          <div style={{marginTop:12}}>
+            <div style={{height:5,background:"#1e2a38",borderRadius:99,overflow:"hidden"}}>
               <div style={{width:(calc.progress*100)+"%",height:"100%",background:"#f0a030",borderRadius:99,transition:"width .3s"}}/>
             </div>
-            <div style={{display:"flex",justifyContent:"space-between",marginTop:5,fontSize:11,color:"#5a6a7e"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:"#5a6a7e"}}>
               <span>{new Date(bond.purchaseDate).toLocaleDateString("pl-PL")}</span>
-              <span style={{color:"#f0a030"}}>{Math.round(calc.progress*100)}% czasu</span>
+              <span style={{color:"#f0a030"}}>{Math.round(calc.progress*100)}%</span>
               <span>{calc.maturityDate?.toLocaleDateString("pl-PL")}</span>
             </div>
           </div>
         </div>
 
-        {/* Estymowany zysk na koniec */}
-        <div style={{background:"#0a1a12",border:"1px solid #1a3a20",borderRadius:12,padding:"14px 18px",marginBottom:14}}>
-          <div style={{fontSize:11,color:"#5a6a7e",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>
+        {/* Estymacja — pełna szerokość, nie 2 kolumny */}
+        <div style={{background:"#0a1a12",border:"1px solid #1a3a20",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+          <div style={{fontSize:10,color:"#5a6a7e",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>
             Estymacja na dzień wykupu
-            {isInflationBond && <span style={{color:"#3a4a5e",marginLeft:6,textTransform:"none",fontSize:10}}>· zakłada stałą inflację {(latestInfl*100).toFixed(1)}%</span>}
+            {isInflationBond && <span style={{color:"#3a4a5e",marginLeft:6,textTransform:"none"}}>(inflacja {(latestInfl*100).toFixed(1)}%)</span>}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:8}}>
             <div>
-              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Wartość w dniu wykupu</div>
-              <div style={{fontSize:16,fontWeight:700,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{fmt2(calc.estimatedAtMaturity)}</div>
+              <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Wartość w wykupie</div>
+              <div style={{fontSize:15,fontWeight:700,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{fmt2(calc.estimatedAtMaturity)}</div>
             </div>
-            <div>
-              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Estymowany zysk</div>
-              <div style={{fontSize:16,fontWeight:700,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>+{fmt2(calc.estimatedProfit)} (+{estimatedProfitPct.toFixed(2)}%)</div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Estymowany zysk</div>
+              <div style={{fontSize:15,fontWeight:700,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>+{fmt2(calc.estimatedProfit)}</div>
+              <div style={{fontSize:11,color:"#009966",fontFamily:"'DM Mono',monospace"}}>(+{estimatedProfitPct.toFixed(2)}%)</div>
             </div>
           </div>
         </div>
 
         {/* Okresy odsetkowe */}
-        <div style={{background:"#0f1a27",borderRadius:12,padding:"14px 18px"}}>
-          <div style={{fontSize:11,color:"#5a6a7e",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Okresy odsetkowe</div>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        <div style={{background:"#0f1a27",borderRadius:12,padding:"12px 14px"}}>
+          <div style={{fontSize:10,color:"#5a6a7e",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>Okresy odsetkowe</div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
             {periods.map(({k, pStart, pEnd, rateLabel, isPast, isCurrent}) => (
-              <div key={k} style={{padding:"8px 10px",borderRadius:8,background:isCurrent?"#1a2a1a":isPast?"#0f1a27":"transparent",border:`1px solid ${isCurrent?"#00c89630":isPast?"#1e2a38":"#1e2a38"}`}}>
-                {/* Wiersz 1: numer + stawka */}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <div style={{width:6,height:6,borderRadius:"50%",background:isCurrent?"#00c896":isPast?"#2a3a50":"#3a4a5e",flexShrink:0}}/>
-                    <span style={{fontSize:12,fontWeight:isCurrent?600:400,color:isCurrent?"#e8f0f8":isPast?"#3a4a5e":"#5a6a7e"}}>
+              <div key={k} style={{padding:"7px 10px",borderRadius:8,background:isCurrent?"#1a2a1a":isPast?"transparent":"transparent",border:`1px solid ${isCurrent?"#00c89640":"#1e2a38"}`}}>
+                {/* Wiersz: numer roku + stawka (whiteSpace nowrap) */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+                    <div style={{width:5,height:5,borderRadius:"50%",background:isCurrent?"#00c896":isPast?"#2a3a50":"#3a4a5e",flexShrink:0}}/>
+                    <span style={{fontSize:12,fontWeight:isCurrent?600:400,color:isCurrent?"#e8f0f8":isPast?"#3a4a5e":"#5a6a7e",whiteSpace:"nowrap"}}>
                       Rok {k+1}
                     </span>
-                    {isCurrent && <span style={{fontSize:10,color:"#00c896"}}>← teraz</span>}
+                    {isCurrent && (
+                      <span style={{fontSize:9,color:"#00c896",background:"#00c89620",padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap"}}>
+                        teraz
+                      </span>
+                    )}
                   </div>
-                  <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:isCurrent?"#f0a030":isPast?"#3a4a5e":"#5a6a7e",fontWeight:isCurrent?600:400,flexShrink:0}}>
+                  <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:isCurrent?"#f0a030":isPast?"#3a4a5e":"#5a6a7e",fontWeight:isCurrent?600:400,whiteSpace:"nowrap",flexShrink:0}}>
                     {rateLabel}
                   </div>
                 </div>
-                {/* Wiersz 2: daty */}
-                <div style={{fontSize:11,color:isPast?"#2a3a50":"#4a5a6e",marginTop:3,marginLeft:12}}>
+                {/* Daty w osobnym wierszu */}
+                <div style={{fontSize:10,color:isPast?"#2a3a4e":"#3a4a5e",marginTop:2,marginLeft:10}}>
                   {pStart.toLocaleDateString("pl-PL")} – {pEnd.toLocaleDateString("pl-PL")}
                 </div>
               </div>
