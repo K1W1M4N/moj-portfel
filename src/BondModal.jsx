@@ -271,12 +271,13 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
 export function BondRow({ bond, onClick }) {
   const calc = calcBondCurrentValue(bond);
   const [hov, setHov] = useState(false);
-  const gainPct = bond.purchaseAmount > 0 ? ((calc.currentValue-bond.purchaseAmount)/bond.purchaseAmount*100) : 0;
+  const earned = calc.earned;
+  const gainPct = bond.purchaseAmount > 0 ? (earned / bond.purchaseAmount * 100) : 0;
 
   return (
     <div onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
       style={{display:"flex",alignItems:"center",gap:12,padding:"13px 18px",background:hov?"#111720":"#161d28",borderRadius:12,marginBottom:8,border:`1px solid ${hov?"#f0a03050":"#1e2a38"}`,cursor:"pointer",transition:"all .15s"}}>
-      <div style={{width:4,height:36,borderRadius:2,background:"#f0a030",flexShrink:0}}/>
+      <div style={{width:4,height:44,borderRadius:2,background:"#f0a030",flexShrink:0}}/>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:14,fontWeight:500,color:"#e8f0f8"}}>{bond.name}</div>
         <div style={{fontSize:11,color:"#4a5a6e",marginTop:2}}>
@@ -285,7 +286,9 @@ export function BondRow({ bond, onClick }) {
       </div>
       <div style={{textAlign:"right",flexShrink:0}}>
         <div style={{fontSize:15,fontWeight:600,fontFamily:"'DM Mono',monospace",color:"#e8f0f8"}}>{fmt(calc.currentValue)}</div>
-        <div style={{fontSize:11,color:"#f0a030",fontFamily:"'DM Mono',monospace",marginTop:2}}>+{fmt(calc.dailyGain)}/dzień · +{gainPct.toFixed(2)}%</div>
+        <div style={{fontSize:11,color:"#00c896",fontFamily:"'DM Mono',monospace",marginTop:2}}>
+          +{fmt(earned)} (+{gainPct.toFixed(2)}%)
+        </div>
       </div>
       <div style={{width:50,height:4,background:"#1e2a38",borderRadius:2,flexShrink:0,overflow:"hidden"}}>
         <div style={{width:(calc.progress*100)+"%",height:"100%",background:"#f0a030",borderRadius:2}}/>
