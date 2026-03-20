@@ -698,36 +698,45 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
     pnlPct = (pnlAmt / asset.purchaseAmount) * 100;
   }
 
+  const hasSubline = asset.cryptoAmount || pnlAmt !== null || change24h !== null;
+
   return (
     <div onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
-        display: "flex", alignItems: "center", gap: 12, padding: "13px 18px",
+        display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
         background: hov ? "#111720" : "#161d28", borderRadius: 12, marginBottom: 8,
         border: `1px solid ${hov ? color + "50" : "#1e2a38"}`, cursor: "pointer", transition: "all .15s"
       }}>
-      <div style={{ width: 4, height: (asset.cryptoId || pnlAmt !== null) ? 44 : 36, borderRadius: 2, background: color, flexShrink: 0 }} />
+      <div style={{ width: 4, borderRadius: 2, background: color, flexShrink: 0, alignSelf: "stretch" }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 500, color: "#e8f0f8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{asset.name}</div>
-        {asset.cryptoAmount ? (
-          <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 2 }}>
-            {fmtSmall(asset.cryptoAmount)} {CRYPTO_LIST.find(c => c.id === asset.cryptoId)?.label.split(" ")[0] || ""}
-            {cryptoPrice && <span style={{ marginLeft: 6, color: "#5a6a7e" }}>@ {fmt(cryptoPrice)}</span>}
+        {/* Wiersz 1: nazwa + wartość */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "#e8f0f8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+            {asset.name}
           </div>
-        ) : (
-          <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 2 }}>{asset.note || asset.category}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'DM Mono', monospace", color: "#e8f0f8", flexShrink: 0 }}>
+            {fmt(displayValue)}
+          </div>
+        </div>
+        {/* Wiersz 2: podtytuł + zysk */}
+        {hasSubline && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: "#4a5a6e", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {asset.cryptoAmount
+                ? `${fmtSmall(asset.cryptoAmount)} ${CRYPTO_LIST.find(c => c.id === asset.cryptoId)?.label.split(" ")[0] || ""}${cryptoPrice ? ` @ ${fmt(cryptoPrice)}` : ""}`
+                : asset.note || asset.category}
+            </div>
+            {pnlAmt !== null ? (
+              <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0, whiteSpace: "nowrap", color: pnlAmt >= 0 ? "#00c896" : "#f05060" }}>
+                {pnlAmt >= 0 ? "+" : ""}{fmt(pnlAmt)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+              </div>
+            ) : change24h !== null ? (
+              <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0, whiteSpace: "nowrap", color: change24h >= 0 ? "#00c896" : "#f05060" }}>
+                {change24h >= 0 ? "▲" : "▼"} {Math.abs(change24h).toFixed(2)}% dziś
+              </div>
+            ) : null}
+          </div>
         )}
-      </div>
-      <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'DM Mono', monospace", color: "#e8f0f8" }}>{fmt(displayValue)}</div>
-        {pnlAmt !== null ? (
-          <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", marginTop: 2, color: pnlAmt >= 0 ? "#00c896" : "#f05060" }}>
-            {pnlAmt >= 0 ? "+" : ""}{fmt(pnlAmt)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
-          </div>
-        ) : change24h !== null ? (
-          <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", marginTop: 2, color: change24h >= 0 ? "#00c896" : "#f05060" }}>
-            {change24h >= 0 ? "▲" : "▼"} {Math.abs(change24h).toFixed(2)}% dziś
-          </div>
-        ) : null}
       </div>
     </div>
   );
@@ -854,7 +863,30 @@ export default function App() {
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #0a0e14; }
     ::-webkit-scrollbar-thumb { background: #1e2a38; border-radius: 3px; }
-    @media (max-width: 500px) { .pie-legend { display: none !important; } }
+
+    /* ── Mobile fixes ─────────────────────────────────────── */
+    @media (max-width: 500px) {
+      .pie-legend { display: none !important; }
+
+      /* Mniejszy padding na mobile */
+      #main-container { padding: 16px 12px !important; }
+
+      /* Chip-filtry: mniejsze żeby się mieściły */
+      .chip-btn { padding: 5px 10px !important; font-size: 11px !important; }
+
+      /* Przyciski Dodaj: stack pionowo */
+      #add-btns { flex-direction: column !important; }
+      #add-btns button { width: 100% !important; }
+
+      /* Nagłówek: mniejszy tekst */
+      #header-title { font-size: 10px !important; letter-spacing: .12em !important; }
+    }
+
+    @media (max-width: 380px) {
+      /* Bardzo małe ekrany: jeszcze mniejszy font w wierszach */
+      .asset-row-name { font-size: 12px !important; }
+      .asset-row-value { font-size: 13px !important; }
+    }
   `;
 
   if (!welcomed) return (
@@ -867,7 +899,7 @@ export default function App() {
   return (
     <>
       <style>{globalStyles}</style>
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
+      <div id="main-container" style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
 
         {/* Nagłówek z menu */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
@@ -908,7 +940,7 @@ export default function App() {
               )}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+            <div id="add-btns" style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
               <button
                 onClick={() => setBondModal("add")}
                 style={{
