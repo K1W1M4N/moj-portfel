@@ -1,29 +1,7 @@
 // src/BondModal.jsx
 import { useState, useEffect } from "react";
-import { getRateForPurchase, fetchLatestRates, BOND_RATES_HISTORY } from "./bondRates";
-
-// ─── Dane inflacji GUS ────────────────────────────────────────────────────────
-const INFLACJA = {
-  "2020-01":0.036,"2020-02":0.043,"2020-03":0.047,"2020-04":0.030,"2020-05":0.029,
-  "2020-06":0.031,"2020-07":0.030,"2020-08":0.029,"2020-09":0.031,"2020-10":0.030,
-  "2020-11":0.028,"2020-12":0.025,"2021-01":0.026,"2021-02":0.024,"2021-03":0.032,
-  "2021-04":0.042,"2021-05":0.047,"2021-06":0.052,"2021-07":0.050,"2021-08":0.054,
-  "2021-09":0.056,"2021-10":0.068,"2021-11":0.077,"2021-12":0.083,"2022-01":0.096,
-  "2022-02":0.087,"2022-03":0.111,"2022-04":0.123,"2022-05":0.137,"2022-06":0.156,
-  "2022-07":0.158,"2022-08":0.161,"2022-09":0.172,"2022-10":0.178,"2022-11":0.177,
-  "2022-12":0.168,"2023-01":0.167,"2023-02":0.182,"2023-03":0.161,"2023-04":0.148,
-  "2023-05":0.130,"2023-06":0.115,"2023-07":0.102,"2023-08":0.103,"2023-09":0.085,
-  "2023-10":0.065,"2023-11":0.062,"2023-12":0.062,"2024-01":0.038,"2024-02":0.029,
-  "2024-03":0.020,"2024-04":0.024,"2024-05":0.026,"2024-06":0.025,"2024-07":0.042,
-  "2024-08":0.042,"2024-09":0.048,"2024-10":0.049,"2024-11":0.047,"2024-12":0.046,
-  "2025-01":0.052,"2025-02":0.053,"2025-03":0.049,"2025-04":0.043,"2025-05":0.033,
-  "2025-06":0.026,"2025-07":0.042,"2025-08":0.041,"2025-09":0.043,"2025-10":0.039,
-  "2025-11":0.042,"2025-12":0.047,"2026-01":0.050,"2026-02":0.053,"2026-03":0.053,
-};
-
-function getInflacja(year, month) {
-  return INFLACJA[`${year}-${String(month).padStart(2,"0")}`] ?? 0.04;
-}
+import { getRateForPurchase, fetchLatestRates } from "./bondRates";
+import { INFLATION_HISTORY, getInflationForBondPeriod } from "./inflationData";
 
 // ─── Typy obligacji ───────────────────────────────────────────────────────────
 export const BOND_TYPES = {
@@ -37,6 +15,8 @@ export const BOND_TYPES = {
 };
 
 // ─── Silnik obliczeń (oficjalny wzór MF) ─────────────────────────────────────
+// Wzór: WP_k = N_(k-1) * (1 + r_k * a_k / ACT_k) - b
+// Inflacja pobierana z inflationData.js (aktualizowanego automatycznie przez GH Actions)
 function calcSingleBond(params, purchaseDate, today, rate1) {
   let val = 100.0;
   for (let k = 0; k < params.periods; k++) {
@@ -49,9 +29,9 @@ function calcSingleBond(params, purchaseDate, today, rate1) {
     if (k === 0) {
       rate = rate1;
     } else if (params.rateType === "inflation") {
-      const prevMonth = pStart.getMonth() === 0 ? 12 : pStart.getMonth();
-      const prevYear  = pStart.getMonth() === 0 ? pStart.getFullYear() - 1 : pStart.getFullYear();
-      rate = Math.max(0, getInflacja(prevYear, prevMonth)) + params.margin;
+      // Inflacja z miesiąca poprzedzającego 1. dzień okresu odsetkowego (zasada BGK)
+      const inflation = getInflationForBondPeriod(pStart);
+      rate = Math.max(0, inflation) + params.margin;
     } else {
       rate = rate1;
     }
@@ -116,28 +96,29 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
   const [hovDel,  setHovDel]  = useState(false);
   const [hovClose,setHovClose]= useState(false);
 
-  // Pobierz aktualne stawki przy otwarciu modalu
   useEffect(() => {
     fetchLatestRates().then(() => setRatesLoaded(true));
   }, []);
 
-  // Automatycznie dobierz stawkę gdy zmienia się typ lub data
   useEffect(() => {
-    if (!form.purchaseDate || form.rate) return; // nie nadpisuj jeśli użytkownik wpisał ręcznie
+    if (!form.purchaseDate || form.rate) return;
     const detected = getRateForPurchase(form.type, form.purchaseDate);
     setAutoRate(detected);
   }, [form.type, form.purchaseDate, ratesLoaded]);
 
   const params = BOND_TYPES[form.type];
   const qty = parseInt(form.quantity) || 0;
-  const bondRate = form.rate
-    ? parseFloat(form.rate) / 100
-    : (autoRate || params?.defaultRate);
+  const bondRate = form.rate ? parseFloat(form.rate) / 100 : (autoRate || params?.defaultRate);
 
   let preview = null;
   if (qty > 0 && form.purchaseDate && bondRate) {
     preview = calcBondCurrentValue({ type:form.type, purchaseDate:form.purchaseDate, quantity:qty, rate:bondRate });
   }
+
+  // Dla obligacji indeksowanych — pokaż informację o inflacji użytej do obliczeń
+  const showInflationInfo = params?.rateType === "inflation" && form.purchaseDate;
+  const latestInflationKey = Object.keys(INFLATION_HISTORY).sort().pop();
+  const latestInflation = INFLATION_HISTORY[latestInflationKey];
 
   function submit() {
     if (!qty || !form.purchaseDate || !params) return;
@@ -185,6 +166,23 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
           </select>
         </div>
 
+        {/* Inflacja info dla obligacji indeksowanych */}
+        {showInflationInfo && (
+          <div style={{background:"#0f1a27",border:"1px solid #1e3a50",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#5a7a9e",lineHeight:1.7}}>
+            <span style={{color:"#3b9eff",fontWeight:600}}>Indeksowana inflacją GUS </span>
+            · marża {((params.margin)*100).toFixed(1)}%
+            <br/>
+            Ostatnia inflacja GUS: <span style={{color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>
+              {(latestInflation*100).toFixed(1)}%
+            </span>
+            <span style={{color:"#4a5a6e",marginLeft:6}}>({latestInflationKey})</span>
+            <br/>
+            Stawka bieżącego okresu: <span style={{color:"#00c896",fontFamily:"'DM Mono',monospace"}}>
+              {((Math.max(0,latestInflation)+params.margin)*100).toFixed(2)}%
+            </span>
+          </div>
+        )}
+
         {/* Ilość + data */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
           <div>
@@ -201,7 +199,7 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
           </div>
         </div>
 
-        {/* Stawka — auto lub ręczna */}
+        {/* Stawka */}
         <div style={{marginBottom:14}}>
           <label style={labelSt}>
             Oprocentowanie roku 1 (%)
