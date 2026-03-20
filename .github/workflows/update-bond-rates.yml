@@ -2,9 +2,8 @@ name: Aktualizuj stawki obligacji
 
 on:
   schedule:
-    # Uruchamia się 2. dnia każdego miesiąca o 8:00 (nowe stawki ogłaszane ~1. dnia)
     - cron: '0 8 2 * *'
-  workflow_dispatch: # możliwość ręcznego uruchomienia
+  workflow_dispatch:
 
 jobs:
   update-rates:
@@ -15,6 +14,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -24,7 +25,7 @@ jobs:
       - name: Instaluj zależności
         run: pip install requests openpyxl beautifulsoup4
 
- - name: Pobierz i zaktualizuj stawki
+      - name: Pobierz i zaktualizuj stawki
         run: python scripts/fetch_bond_rates.py
         working-directory: ${{ github.workspace }}
 
