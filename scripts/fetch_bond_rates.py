@@ -7,68 +7,75 @@ Skrypt aktualizujący stawki obligacji skarbowych w bondRates.js
 import re
 import sys
 import requests
-from datetime import datetime
-from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
 import openpyxl
 from io import BytesIO
 
-BLOG_URL = "https://marciniwuc.com/obligacje-indeksowane-inflacja-kalkulator/"
-
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "pl-PL,pl;q=0.9",
+    "Accept": "*/*",
     "Connection": "keep-alive",
 }
 
-# Typy które mają stałą stawkę roku 1 w kalkulatorze Marcina Iwucia
-# ROR i DOR pomijamy — mają zmienną stopę NBP, nie stałą stawkę roku 1
-BOND_TYPES_TO_UPDATE = ["TOS", "COI", "EDO", "ROS", "ROD"]
-
-# Kolumna 2 (index=2) w Excelu to "% dla pierwszego okresu odsetkowego"
-# Wiersz dla każdego typu zaczyna się od nazwy w kolumnie 0
-BOND_ROW_NAMES = {
-    "TOS": "TOS",
-    "COI": "COI",
-    "EDO": "EDO",
-    "ROS": "ROS",
-    "ROD": "ROD",
+MONTHS_PL = {
+    1: "styczen", 2: "luty", 3: "marzec", 4: "kwiecien",
+    5: "maj", 6: "czerwiec", 7: "lipiec", 8: "sierpien",
+    9: "wrzesien", 10: "pazdziernik", 11: "listopad", 12: "grudzien"
 }
 
-def get_excel_url():
-    print("Pobieram stronę bloga...")
-    session = requests.Session()
-    resp = session.get(BLOG_URL, headers=HEADERS, timeout=30)
-    resp.raise_for_status()
+BOND_TYPES_TO_UPDATE = ["TOS", "COI", "EDO", "ROS", "ROD"]
 
-    xlsx_pattern = r'https://marciniwuc\.com/wp-content/uploads/\d{4}/\d{2}/Kalkulator-obligacji[^"\']*\.xlsx'
-    matches = re.findall(xlsx_pattern, resp.text)
-    if matches:
-        print(f"Znalazłem kalkulator: {matches[0]}")
-        return matches[0], session
+def build_excel_urls(dt):
+    """
+    Buduj możliwe URL do Excela dla danego miesiąca.
+    Format: /wp-content/uploads/YYYY/MM/Kalkulator-obligacji-MIESIAC-YYYY-Finanse-Bardzo-Osobiste.xlsx
+    Marcin publikuje nowy kalkulator zazwyczaj w miesiącu poprzednim.
+    """
+    year = dt.year
+    month = dt.month
+    month_name = MONTHS_PL[month]
+    # Plik jest uploadowany miesiąc wcześniej (np. marzec 2026 uploadowany w lutym 2026)
+    upload_month = f"{month - 1:02d}" if month > 1 else "12"
+    upload_year = year if month > 1 else year - 1
 
-    raise Exception("Nie znalazłem linku do kalkulatora Excel!")
+    urls = [
+        f"https://marciniwuc.com/wp-content/uploads/{upload_year}/{upload_month}/Kalkulator-obligacji-{month_name}-{year}-Finanse-Bardzo-Osobiste.xlsx",
+        f"https://marciniwuc.com/wp-content/uploads/{year}/{month:02d}/Kalkulator-obligacji-{month_name}-{year}-Finanse-Bardzo-Osobiste.xlsx",
+    ]
+    return urls
 
-def download_excel(url, session):
-    print(f"Pobieram Excel: {url}")
-    resp = session.get(url, headers=HEADERS, timeout=60)
-    resp.raise_for_status()
-    print(f"Pobrano {len(resp.content)} bajtów")
-    return BytesIO(resp.content)
+def download_excel(dt):
+    """Spróbuj pobrać Excel dla danego miesiąca"""
+    urls = build_excel_urls(dt)
+    for url in urls:
+        print(f"Próbuję: {url}")
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=60)
+            if resp.status_code == 200 and len(resp.content) > 10000:
+                print(f"✓ Pobrano {len(resp.content)} bajtów")
+                return BytesIO(resp.content)
+            else:
+                print(f"  Status: {resp.status_code}, rozmiar: {len(resp.content)}")
+        except Exception as e:
+            print(f"  Błąd: {e}")
+
+    # Spróbuj poprzedni miesiąc
+    prev = dt.replace(day=1) - timedelta(days=1)
+    print(f"\nPróbuję poprzedni miesiąc: {prev.strftime('%Y-%m')}")
+    for url in build_excel_urls(prev):
+        print(f"Próbuję: {url}")
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=60)
+            if resp.status_code == 200 and len(resp.content) > 10000:
+                print(f"✓ Pobrano {len(resp.content)} bajtów")
+                return BytesIO(resp.content)
+        except Exception as e:
+            print(f"  Błąd: {e}")
+
+    raise Exception("Nie udało się pobrać kalkulatora Excel!")
 
 def extract_rates_from_excel(excel_file):
-    """
-    Wyciągnij stawki z arkusza 'WPISZ ZAŁOŻENIA'.
-    Struktura (potwierdzona z logów):
-    Wiersz 29: nagłówki kolumn
-    Wiersz 30: ROR  | col1=zapadalność | col2=stawka_rok1 | ...
-    Wiersz 31: DOR  | ...
-    Wiersz 32: TOS  | ...
-    Wiersz 33: COI  | ...
-    Wiersz 34: EDO  | ...
-    Wiersz 35: ROS  | ...
-    Wiersz 36: ROD  | ...
-    """
+    """Wyciągnij stawki roku 1 z arkusza WPISZ ZAŁOŻENIA"""
     wb = openpyxl.load_workbook(excel_file, data_only=True)
     ws = wb["WPISZ ZAŁOŻENIA"]
 
@@ -80,10 +87,8 @@ def extract_rates_from_excel(excel_file):
         if not row[0]:
             continue
         row0 = str(row[0]).strip()
-
         for bond_type in BOND_TYPES_TO_UPDATE:
             if row0.startswith(bond_type):
-                # Kolumna 2 (index=2) = stawka roku 1
                 rate_val = row[2]
                 if isinstance(rate_val, float) and 0.005 < rate_val < 0.30:
                     rates[bond_type] = rate_val
@@ -130,11 +135,11 @@ def update_bond_rates_js(rates, year_month, js_file_path="src/bondRates.js"):
 
 def main():
     print("=== Aktualizacja stawek obligacji skarbowych ===")
-    print(f"Data: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+    now = datetime.now()
+    print(f"Data: {now.strftime('%Y-%m-%d %H:%M')}\n")
 
     try:
-        excel_url, session = get_excel_url()
-        excel_file = download_excel(excel_url, session)
+        excel_file = download_excel(now)
         rates, year_month = extract_rates_from_excel(excel_file)
         print(f"\nZnalezione stawki dla {year_month}: {rates}")
         updated = update_bond_rates_js(rates, year_month)
