@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { BondModal, BondRow, calcBondCurrentValue } from "./BondModal";
+import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./BondModal";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
 
@@ -794,6 +794,7 @@ export default function App() {
   const [hovered, setHovered] = useState(null);
   const [modal, setModal] = useState(null);
   const [bondModal, setBondModal] = useState(null);
+  const [bondDetail, setBondDetail] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
   const [currentView, setCurrentView] = useState("portfolio"); // "portfolio" | "bonds"
 
@@ -970,7 +971,7 @@ export default function App() {
               visible.map(a => (
                 <div key={a.id} className="asset-row-wrap">
                   {a.isBond ? (
-                    <BondRow bond={a} onClick={() => setBondModal(a)} />
+                    <BondRow bond={a} onClick={() => setBondDetail(a)} />
                   ) : (
                     <AssetRow asset={a} total={total} categories={categories} prices={prices}
                       onClick={() => setModal(a)} />
@@ -1009,6 +1010,15 @@ export default function App() {
           onSave={handleSave}
           onDelete={handleDelete}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {bondDetail && (
+        <BondDetailPanel
+          bond={bondDetail}
+          onEdit={bond => { setBondDetail(null); setBondModal(bond); }}
+          onDelete={handleDelete}
+          onClose={() => setBondDetail(null)}
         />
       )}
 
