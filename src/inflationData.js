@@ -5,7 +5,7 @@
 // Format: "YYYY-MM": wartość jako ułamek dziesiętny (np. 0.047 = 4.7%)
 // Źródło: GUS - wskaźniki cen towarów i usług konsumpcyjnych (CPI YoY)
 // Aktualizowana automatycznie przez GitHub Actions (.github/workflows/update-inflation.yml)
-// Ostatnia aktualizacja: 2026-03
+// Ostatnia aktualizacja: 2026-02
 
 export const INFLATION_HISTORY = {
   "2015-01":0.0197,"2015-02":0.0185,"2015-03":0.0173,"2015-04":0.0161,
@@ -41,7 +41,7 @@ export const INFLATION_HISTORY = {
   "2025-01":0.0520,"2025-02":0.0530,"2025-03":0.0490,"2025-04":0.0430,
   "2025-05":0.0330,"2025-06":0.0260,"2025-07":0.0420,"2025-08":0.0410,
   "2025-09":0.0430,"2025-10":0.0390,"2025-11":0.0420,"2025-12":0.0470,
-  "2026-01":0.0500,"2026-02":0.0530,"2026-03":0.0530,
+  "2026-01":0.0210,"2026-02":0.0210,
 };
 
 // Pobierz inflację dla danego miesiąca
