@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { BondModal, BondRow, calcBondCurrentValue } from "./BondModal";
 import { BOND_RATES_HISTORY } from "./bondRates";
+import { INFLATION_HISTORY } from "./inflationData";
 
 const CRYPTO_LIST = [
   { label: "Bitcoin (BTC)",   id: "bitcoin" },
@@ -691,6 +692,10 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
       pnlAmt = displayValue - asset.cryptoPaid;
       pnlPct = (pnlAmt / asset.cryptoPaid) * 100;
     }
+  } else if (asset.purchaseAmount && asset.purchaseAmount > 0) {
+    // Dla aktywów z kwotą zakupu (obligacje, lokaty itp.) — pokaż zysk
+    pnlAmt = displayValue - asset.purchaseAmount;
+    pnlPct = (pnlAmt / asset.purchaseAmount) * 100;
   }
 
   return (
@@ -700,7 +705,7 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
         background: hov ? "#111720" : "#161d28", borderRadius: 12, marginBottom: 8,
         border: `1px solid ${hov ? color + "50" : "#1e2a38"}`, cursor: "pointer", transition: "all .15s"
       }}>
-      <div style={{ width: 4, height: asset.cryptoId ? 44 : 36, borderRadius: 2, background: color, flexShrink: 0 }} />
+      <div style={{ width: 4, height: (asset.cryptoId || pnlAmt !== null) ? 44 : 36, borderRadius: 2, background: color, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: "#e8f0f8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{asset.name}</div>
         {asset.cryptoAmount ? (
@@ -981,6 +986,17 @@ export default function App() {
                   Kursy krypto: {lastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
                 </div>
               )}
+              {(() => {
+                const keys = Object.keys(INFLATION_HISTORY).sort();
+                const latestKey = keys[keys.length - 1];
+                const latestVal = INFLATION_HISTORY[latestKey];
+                return latestKey ? (
+                  <div style={{ marginTop: 4, color: "#3a4a5e" }}>
+                    Inflacja GUS: <span style={{ color: "#3b9eff" }}>{(latestVal * 100).toFixed(1)}%</span>
+                    <span style={{ marginLeft: 4, color: "#2a3a4e" }}>({latestKey})</span>
+                  </div>
+                ) : null;
+              })()}
             </div>
           </>
         )}
