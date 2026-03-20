@@ -24,8 +24,11 @@ jobs:
       - name: Instaluj zależności
         run: pip install requests openpyxl beautifulsoup4
 
-      - name: Pobierz i zaktualizuj stawki
-        run: python scripts/fetch_bond_rates.py
+     - name: Pobierz i zaktualizuj stawki
+        run: |
+          echo "Katalog roboczy: $(pwd)"
+          echo "Pliki w src/: $(ls src/)"
+          python scripts/fetch_bond_rates.py
 
       - name: Commituj zmiany jeśli są
         run: |
