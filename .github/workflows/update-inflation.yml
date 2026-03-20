@@ -1,0 +1,42 @@
+name: Aktualizuj dane inflacji GUS
+
+on:
+  schedule:
+    # GUS publikuje dane CPI ok. 15. dnia miesiąca za poprzedni miesiąc
+    # Uruchamiamy 20. dnia o 9:00 żeby mieć pewność że dane są już dostępne
+    - cron: '0 9 20 * *'
+  workflow_dispatch:
+
+jobs:
+  update-inflation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instaluj zależności
+        run: pip install requests beautifulsoup4
+
+      - name: Pobierz i zaktualizuj dane inflacji
+        run: python scripts/fetch_inflation.py
+        working-directory: ${{ github.workspace }}
+
+      - name: Commituj zmiany jeśli są
+        run: |
+          git config user.name "Inflation Data Bot"
+          git config user.email "bot@github.com"
+          git diff --quiet || (
+            git add src/inflationData.js &&
+            git commit -m "auto: aktualizacja inflacji GUS $(date +'%Y-%m')" &&
+            git push
+          )
