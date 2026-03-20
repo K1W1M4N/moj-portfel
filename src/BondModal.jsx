@@ -238,14 +238,23 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose }) {
           <div style={{fontSize:11,color:"#5a6a7e",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Okresy odsetkowe</div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {periods.map(({k, pStart, pEnd, rateLabel, isPast, isCurrent}) => (
-              <div key={k} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:isCurrent?"#1a2a1a":isPast?"#0f1a27":"transparent",border:`1px solid ${isCurrent?"#00c89630":isPast?"#1e2a38":"#1e2a38"}`}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:isCurrent?"#00c896":isPast?"#2a3a50":"#3a4a5e",flexShrink:0}}/>
-                <div style={{flex:1,fontSize:12,color:isCurrent?"#e8f0f8":isPast?"#3a4a5e":"#5a6a7e"}}>
-                  Rok {k+1} · {pStart.toLocaleDateString("pl-PL","pl")} – {pEnd.toLocaleDateString("pl-PL")}
+              <div key={k} style={{padding:"8px 10px",borderRadius:8,background:isCurrent?"#1a2a1a":isPast?"#0f1a27":"transparent",border:`1px solid ${isCurrent?"#00c89630":isPast?"#1e2a38":"#1e2a38"}`}}>
+                {/* Wiersz 1: numer + stawka */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{width:6,height:6,borderRadius:"50%",background:isCurrent?"#00c896":isPast?"#2a3a50":"#3a4a5e",flexShrink:0}}/>
+                    <span style={{fontSize:12,fontWeight:isCurrent?600:400,color:isCurrent?"#e8f0f8":isPast?"#3a4a5e":"#5a6a7e"}}>
+                      Rok {k+1}
+                    </span>
+                    {isCurrent && <span style={{fontSize:10,color:"#00c896"}}>← teraz</span>}
+                  </div>
+                  <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:isCurrent?"#f0a030":isPast?"#3a4a5e":"#5a6a7e",fontWeight:isCurrent?600:400,flexShrink:0}}>
+                    {rateLabel}
+                  </div>
                 </div>
-                <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:isCurrent?"#f0a030":isPast?"#3a4a5e":"#5a6a7e",fontWeight:isCurrent?600:400}}>
-                  {rateLabel}
-                  {isCurrent && <span style={{marginLeft:6,fontSize:10,color:"#00c896"}}>← teraz</span>}
+                {/* Wiersz 2: daty */}
+                <div style={{fontSize:11,color:isPast?"#2a3a50":"#4a5a6e",marginTop:3,marginLeft:12}}>
+                  {pStart.toLocaleDateString("pl-PL")} – {pEnd.toLocaleDateString("pl-PL")}
                 </div>
               </div>
             ))}
@@ -437,24 +446,43 @@ export function BondRow({ bond, onClick }) {
   const earned = calc.earned;
   const gainPct = bond.purchaseAmount > 0 ? (earned / bond.purchaseAmount * 100) : 0;
 
+  // Skrócona nazwa: "EDO – 100 szt. (6.80%)" → "EDO · 100 szt."
+  const shortName = `${bond.type || bond.name?.split("–")[0]?.trim()} · ${bond.quantity} szt.`;
+  const rateLabel = bond.rate ? ` (${(bond.rate*100).toFixed(2)}%)` : "";
+
   return (
     <div onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
-      style={{display:"flex",alignItems:"center",gap:12,padding:"13px 18px",background:hov?"#111720":"#161d28",borderRadius:12,marginBottom:8,border:`1px solid ${hov?"#f0a03050":"#1e2a38"}`,cursor:"pointer",transition:"all .15s"}}>
-      <div style={{width:4,height:44,borderRadius:2,background:"#f0a030",flexShrink:0}}/>
+      style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:hov?"#111720":"#161d28",borderRadius:12,marginBottom:8,border:`1px solid ${hov?"#f0a03050":"#1e2a38"}`,cursor:"pointer",transition:"all .15s"}}>
+
+      {/* Pasek lewostronny */}
+      <div style={{width:4,borderRadius:2,background:"#f0a030",flexShrink:0,alignSelf:"stretch"}}/>
+
+      {/* Treść */}
       <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:14,fontWeight:500,color:"#e8f0f8"}}>{bond.name}</div>
-        <div style={{fontSize:11,color:"#4a5a6e",marginTop:2}}>
-          zakup: {new Date(bond.purchaseDate).toLocaleDateString("pl-PL")} · wykup: {new Date(bond.maturityDate).toLocaleDateString("pl-PL")} · {Math.round(calc.progress*100)}% czasu
+        {/* Wiersz 1: nazwa + wartość */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
+          <div style={{fontSize:13,fontWeight:600,color:"#e8f0f8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+            {bond.name}
+          </div>
+          <div style={{fontSize:14,fontWeight:600,fontFamily:"'DM Mono',monospace",color:"#e8f0f8",flexShrink:0}}>
+            {fmt2(calc.currentValue)}
+          </div>
         </div>
-      </div>
-      <div style={{textAlign:"right",flexShrink:0}}>
-        <div style={{fontSize:15,fontWeight:600,fontFamily:"'DM Mono',monospace",color:"#e8f0f8"}}>{fmt2(calc.currentValue)}</div>
-        <div style={{fontSize:11,color:"#00c896",fontFamily:"'DM Mono',monospace",marginTop:2}}>
-          +{fmt2(earned)} ({fmt0(calc.dailyGain)}/dzień) (+{gainPct.toFixed(2)}%)
+
+        {/* Wiersz 2: daty w jednej linii + zysk */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginTop:4}}>
+          <div style={{fontSize:11,color:"#4a5a6e",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>
+            {new Date(bond.purchaseDate).toLocaleDateString("pl-PL")} → {new Date(bond.maturityDate).toLocaleDateString("pl-PL")} · {Math.round(calc.progress*100)}%
+          </div>
+          <div style={{fontSize:11,color:"#00c896",fontFamily:"'DM Mono',monospace",flexShrink:0,whiteSpace:"nowrap"}}>
+            +{fmt2(earned)} (+{gainPct.toFixed(2)}%)
+          </div>
         </div>
-      </div>
-      <div style={{width:50,height:4,background:"#1e2a38",borderRadius:2,flexShrink:0,overflow:"hidden"}}>
-        <div style={{width:(calc.progress*100)+"%",height:"100%",background:"#f0a030",borderRadius:2}}/>
+
+        {/* Wiersz 3: pasek postępu */}
+        <div style={{height:3,background:"#1e2a38",borderRadius:99,overflow:"hidden",marginTop:6}}>
+          <div style={{width:(calc.progress*100)+"%",height:"100%",background:"#f0a030",borderRadius:99}}/>
+        </div>
       </div>
     </div>
   );
