@@ -1,0 +1,38 @@
+name: Aktualizuj stawki obligacji
+
+on:
+  schedule:
+    # Uruchamia się 2. dnia każdego miesiąca o 8:00 (nowe stawki ogłaszane ~1. dnia)
+    - cron: '0 8 2 * *'
+  workflow_dispatch: # możliwość ręcznego uruchomienia
+
+jobs:
+  update-rates:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instaluj zależności
+        run: pip install requests openpyxl beautifulsoup4
+
+      - name: Pobierz i zaktualizuj stawki
+        run: python scripts/fetch_bond_rates.py
+
+      - name: Commituj zmiany jeśli są
+        run: |
+          git config user.name "Bond Rates Bot"
+          git config user.email "bot@github.com"
+          git diff --quiet || (
+            git add src/bondRates.js &&
+            git commit -m "auto: aktualizacja stawek obligacji $(date +'%Y-%m')" &&
+            git push
+          )
