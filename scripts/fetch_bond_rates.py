@@ -14,14 +14,11 @@ from io import BytesIO
 
 BLOG_URL = "https://marciniwuc.com/obligacje-indeksowane-inflacja-kalkulator/"
 
-# Nagłówki udające prawdziwą przeglądarkę
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "pl-PL,pl;q=0.9",
     "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
 }
 
 def get_excel_url():
@@ -31,23 +28,39 @@ def get_excel_url():
     resp = session.get(BLOG_URL, headers=HEADERS, timeout=30)
     resp.raise_for_status()
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    print(f"Status: {resp.status_code}, długość: {len(resp.text)}")
 
-    # Szukaj linku do pliku XLSX kalkulatora
+    # Szukaj bezpośrednio w HTML przez regex — szukamy XLSX z wp-content/uploads
+    # Link wygląda tak: https://marciniwuc.com/wp-content/uploads/2026/02/Kalkulator-obligacji-*.xlsx
+    xlsx_pattern = r'https://marciniwuc\.com/wp-content/uploads/\d{4}/\d{2}/Kalkulator-obligacji[^"\']*\.xlsx'
+    matches = re.findall(xlsx_pattern, resp.text)
+
+    if matches:
+        # Weź pierwszy znaleziony link (to kalkulator główny)
+        url = matches[0]
+        print(f"Znalazłem kalkulator: {url}")
+        return url, session
+
+    # Alternatywnie — szukaj przez BeautifulSoup
+    soup = BeautifulSoup(resp.text, "html.parser")
     for link in soup.find_all("a", href=True):
         href = link["href"]
-        if "Kalkulator-obligacji" in href and href.endswith(".xlsx"):
-            print(f"Znalazłem kalkulator: {href}")
+        if "wp-content/uploads" in href and ".xlsx" in href and "Kalkulator" in href:
+            print(f"Znalazłem przez BS4: {href}")
             return href, session
+
+    # Debug — pokaż wszystkie linki do xlsx
+    all_xlsx = re.findall(r'https?://[^\s"\']*\.xlsx', resp.text)
+    print(f"Wszystkie linki xlsx na stronie: {all_xlsx}")
 
     raise Exception("Nie znalazłem linku do kalkulatora Excel na stronie!")
 
 def download_excel(url, session):
-    """Pobierz plik Excel używając tej samej sesji"""
+    """Pobierz plik Excel"""
     print(f"Pobieram Excel: {url}")
-    excel_headers = {**HEADERS, "Accept": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,*/*"}
-    resp = session.get(url, headers=excel_headers, timeout=60)
+    resp = session.get(url, headers=HEADERS, timeout=60)
     resp.raise_for_status()
+    print(f"Pobrano {len(resp.content)} bajtów")
     return BytesIO(resp.content)
 
 def extract_rates_from_excel(excel_file):
@@ -58,43 +71,46 @@ def extract_rates_from_excel(excel_file):
     now = datetime.now()
     year_month = f"{now.year}-{now.month:02d}"
     rates = {}
-
-    # Typy obligacji do szukania
     bond_types = ["TOS", "COI", "EDO", "ROS", "ROD", "ROR", "DOR"]
 
-    # Szukaj w arkuszu WPISZ ZAŁOŻENIA
+    # Szukaj w arkuszu z założeniami
     target_sheet = None
-    for name in ["WPISZ ZAŁOŻENIA", "ZAŁOŻENIA", "Sheet1"]:
+    for name in ["WPISZ ZAŁOŻENIA", "ZAŁOŻENIA", "Założenia"]:
         if name in wb.sheetnames:
             target_sheet = wb[name]
             break
     if not target_sheet:
         target_sheet = wb.active
 
-    print(f"Szukam stawek w arkuszu: {target_sheet.title}")
+    print(f"Szukam w arkuszu: {target_sheet.title}")
 
-    # Przejdź wszystkie wiersze
+    # Wypisz pierwsze 40 wierszy dla debugowania
+    print("\nPierwsze 40 wierszy arkusza:")
+    for i, row in enumerate(target_sheet.iter_rows(values_only=True)):
+        if i > 40:
+            break
+        non_empty = [(j, v) for j, v in enumerate(row) if v is not None]
+        if non_empty:
+            print(f"  Wiersz {i+1}: {non_empty}")
+
+    # Szukaj stawek
     for row in target_sheet.iter_rows():
         for i, cell in enumerate(row):
             if not cell.value:
                 continue
             cell_str = str(cell.value).strip()
-
             for bond_type in bond_types:
                 if bond_type in cell_str and bond_type not in rates:
-                    # Szukaj wartości procentowej w tej samej lub następnej kolumnie
-                    for offset in range(1, 5):
+                    for offset in range(1, 6):
                         try:
-                            next_cell = row[i + offset]
-                            val = next_cell.value
-                            if isinstance(val, float) and 0.005 < val < 0.30:
-                                rates[bond_type] = val
-                                print(f"  {bond_type}: {val*100:.2f}%")
+                            next_val = row[i + offset].value
+                            if isinstance(next_val, float) and 0.005 < next_val < 0.30:
+                                rates[bond_type] = next_val
+                                print(f"  {bond_type}: {next_val*100:.2f}%")
                                 break
-                            elif isinstance(val, (int, float)) and 0.5 < val < 30:
-                                # Wartość podana w procentach (np. 5.65 zamiast 0.0565)
-                                rates[bond_type] = val / 100
-                                print(f"  {bond_type}: {val:.2f}%")
+                            elif isinstance(next_val, (int, float)) and 0.5 < next_val < 30:
+                                rates[bond_type] = next_val / 100
+                                print(f"  {bond_type}: {next_val:.2f}%")
                                 break
                         except IndexError:
                             break
@@ -115,8 +131,6 @@ def update_bond_rates_js(rates, year_month, js_file_path="src/bondRates.js"):
     updated = False
 
     for bond_type, rate in rates.items():
-        # Sprawdź czy ten miesiąc już istnieje dla tego typu
-        # Szukaj bloku np. TOS: { ... }
         block_pattern = rf'({bond_type}:\s*\{{)(.*?)(\n  \}})'
         match = re.search(block_pattern, content, re.DOTALL)
 
@@ -124,17 +138,13 @@ def update_bond_rates_js(rates, year_month, js_file_path="src/bondRates.js"):
             print(f"  {bond_type}: nie znaleziono bloku w bondRates.js")
             continue
 
-        block_content = match.group(2)
-
-        if year_month in block_content:
+        if year_month in match.group(2):
             print(f"  {bond_type}: {year_month} już istnieje, pomijam")
             continue
 
-        # Dodaj nowy wpis na końcu bloku
         new_line = f'\n    "{year_month}":{rate:.4f},'
-        new_block = match.group(1) + block_content + new_line + match.group(3)
+        new_block = match.group(1) + match.group(2) + new_line + match.group(3)
         content = content[:match.start()] + new_block + content[match.end():]
-
         print(f"  ✓ {bond_type}: dodano {year_month} = {rate*100:.2f}%")
         updated = True
 
