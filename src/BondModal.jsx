@@ -14,9 +14,7 @@ export const BOND_TYPES = {
   "ROD": { label:"ROD (12-latki, inflacja)", months:144, periods:12, defaultRate:0.065, rateType:"inflation", margin:0.025, coupon:false, earlyRedemptionCost:3.0 },
 };
 
-// ─── Silnik obliczeń (oficjalny wzór MF) ─────────────────────────────────────
-// Wzór: WP_k = N_(k-1) * (1 + r_k * a_k / ACT_k) - b
-// Inflacja pobierana z inflationData.js (aktualizowanego automatycznie przez GH Actions)
+// ─── Silnik obliczeń ──────────────────────────────────────────────────────────
 function calcSingleBond(params, purchaseDate, today, rate1) {
   let val = 100.0;
   for (let k = 0; k < params.periods; k++) {
@@ -29,7 +27,6 @@ function calcSingleBond(params, purchaseDate, today, rate1) {
     if (k === 0) {
       rate = rate1;
     } else if (params.rateType === "inflation") {
-      // Inflacja z miesiąca poprzedzającego 1. dzień okresu odsetkowego (zasada BGK)
       const inflation = getInflationForBondPeriod(pStart);
       rate = Math.max(0, inflation) + params.margin;
     } else {
@@ -69,10 +66,17 @@ export function calcBondCurrentValue(bond) {
   let valueYesterday = 0;
   for (let i = 0; i < quantity; i++) valueYesterday += calcSingleBond(params, purchase, yesterday, bondRate);
 
+  // Estymacja zysku na koniec — zakładamy obecną stawkę dla przyszłych okresów
+  const maturity = new Date(maturityDate); maturity.setHours(0,0,0,0);
+  let totalAtMaturity = 0;
+  for (let i = 0; i < quantity; i++) totalAtMaturity += calcSingleBond(params, purchase, maturity, bondRate);
+
   return {
     currentValue: Math.round(totalValue * 100) / 100,
     earned: Math.round((totalValue - totalNominal) * 100) / 100,
     dailyGain: Math.round((totalValue - valueYesterday) * 100) / 100,
+    estimatedAtMaturity: Math.round(totalAtMaturity * 100) / 100,
+    estimatedProfit: Math.round((totalAtMaturity - totalNominal) * 100) / 100,
     progress, maturityDate, totalNominal, bondRate,
   };
 }
@@ -82,9 +86,178 @@ const labelSt = { fontSize:11, color:"#5a6a7e", display:"block", marginBottom:5,
 const baseInp = { display:"block", width:"100%", padding:"9px 12px", fontSize:13, borderRadius:8, background:"#1a2535", border:"1px solid #243040", color:"#e8f0f8", fontFamily:"'Sora', sans-serif", outline:"none", WebkitAppearance:"none", boxSizing:"border-box", transition:"border-color .15s, box-shadow .15s" };
 const focusInp = e => { e.target.style.borderColor="#f0a030"; e.target.style.boxShadow="0 0 0 3px #f0a03018"; };
 const blurInp  = e => { e.target.style.borderColor="#243040"; e.target.style.boxShadow="none"; };
-const fmt = n => new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:2}).format(n);
+const fmt2 = n => new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:2}).format(n);
+const fmt0 = n => new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:0}).format(n);
 
-// ─── Modal ────────────────────────────────────────────────────────────────────
+// ─── Panel szczegółów obligacji ───────────────────────────────────────────────
+export function BondDetailPanel({ bond, onEdit, onDelete, onClose }) {
+  const calc = calcBondCurrentValue(bond);
+  const params = BOND_TYPES[bond.type];
+  const [menuOpen, setMenuOpen] = useState(false);
+  const earned = calc.earned;
+  const gainPct = bond.purchaseAmount > 0 ? (earned / bond.purchaseAmount * 100) : 0;
+  const estimatedProfitPct = bond.purchaseAmount > 0 ? (calc.estimatedProfit / bond.purchaseAmount * 100) : 0;
+
+  // Inflacja dla obligacji indeksowanych
+  const isInflationBond = params?.rateType === "inflation";
+  const latestInflKey = Object.keys(INFLATION_HISTORY).sort().pop();
+  const latestInfl = INFLATION_HISTORY[latestInflKey];
+  const currentPeriodRate = isInflationBond
+    ? Math.max(0, latestInfl) + params.margin
+    : bond.rate;
+
+  // Oblicz stawki dla każdego okresu
+  const periods = [];
+  if (params) {
+    for (let k = 0; k < params.periods; k++) {
+      const pStart = new Date(bond.purchaseDate);
+      pStart.setFullYear(pStart.getFullYear() + k);
+      const pEnd = new Date(bond.purchaseDate);
+      pEnd.setFullYear(pEnd.getFullYear() + k + 1);
+      const today = new Date();
+
+      let rate, rateLabel;
+      if (k === 0) {
+        rate = bond.rate;
+        rateLabel = `${(rate*100).toFixed(2)}% (stała)`;
+      } else if (params.rateType === "inflation") {
+        const infl = getInflationForBondPeriod(pStart);
+        rate = Math.max(0, infl) + params.margin;
+        const inflKey = (() => {
+          const pm = pStart.getMonth() === 0 ? 12 : pStart.getMonth();
+          const py = pStart.getMonth() === 0 ? pStart.getFullYear()-1 : pStart.getFullYear();
+          return `${py}-${String(pm).padStart(2,"0")}`;
+        })();
+        rateLabel = `${(rate*100).toFixed(2)}% (infl. ${(infl*100).toFixed(1)}% + ${(params.margin*100).toFixed(1)}%)`;
+      } else {
+        rate = bond.rate;
+        rateLabel = `${(rate*100).toFixed(2)}%`;
+      }
+
+      const isPast = today > pEnd;
+      const isCurrent = today >= pStart && today <= pEnd;
+      periods.push({ k, pStart, pEnd, rate, rateLabel, isPast, isCurrent });
+    }
+  }
+
+  return (
+    <div onClick={e => e.target===e.currentTarget && onClose()}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16}}>
+      <div style={{background:"#161d28",border:"1px solid #2a3a50",borderRadius:16,padding:28,width:"100%",maxWidth:500,maxHeight:"90vh",overflowY:"auto"}}>
+
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:700,color:"#e8f0f8",marginBottom:4}}>{bond.name}</div>
+            <div style={{fontSize:12,color:"#5a6a7e"}}>
+              {params?.label} · zakup: {new Date(bond.purchaseDate).toLocaleDateString("pl-PL")}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            {/* Menu 3 kropki */}
+            <div style={{position:"relative"}}>
+              <button onClick={()=>setMenuOpen(o=>!o)}
+                style={{background:menuOpen?"#1e2a38":"transparent",border:`1px solid ${menuOpen?"#2a3a50":"#1e2a38"}`,borderRadius:8,color:"#8a9bb0",cursor:"pointer",width:32,height:32,fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                ···
+              </button>
+              {menuOpen && (
+                <div style={{position:"absolute",top:38,right:0,background:"#161d28",border:"1px solid #2a3a50",borderRadius:10,padding:"4px",minWidth:140,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",zIndex:10}}>
+                  <button onClick={()=>{setMenuOpen(false);onEdit(bond);}}
+                    style={{display:"block",width:"100%",padding:"9px 14px",background:"transparent",border:"none",color:"#e8f0f8",fontSize:13,cursor:"pointer",textAlign:"left",borderRadius:6,fontFamily:"'Sora',sans-serif"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="#1e2a38"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    ✏️ Edytuj obligacje
+                  </button>
+                  <button onClick={()=>{setMenuOpen(false);onDelete(bond.id);onClose();}}
+                    style={{display:"block",width:"100%",padding:"9px 14px",background:"transparent",border:"none",color:"#f05060",fontSize:13,cursor:"pointer",textAlign:"left",borderRadius:6,fontFamily:"'Sora',sans-serif"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="#f0506018"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    🗑️ Usuń obligacje
+                  </button>
+                </div>
+              )}
+            </div>
+            <button onClick={onClose}
+              style={{background:"transparent",border:"1px solid #f0506030",borderRadius:6,color:"#f05060",cursor:"pointer",width:30,height:30,fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+          </div>
+        </div>
+
+        {/* Obecna wartość */}
+        <div style={{background:"#0f1a27",borderRadius:12,padding:"16px 18px",marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div>
+              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Kwota zakupu</div>
+              <div style={{fontSize:16,fontWeight:600,color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>{fmt2(bond.purchaseAmount)}</div>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Obecna wartość</div>
+              <div style={{fontSize:16,fontWeight:600,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{fmt2(calc.currentValue)}</div>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Narosłe odsetki</div>
+              <div style={{fontSize:15,fontWeight:600,color:"#f0a030",fontFamily:"'DM Mono',monospace"}}>+{fmt2(earned)} (+{gainPct.toFixed(2)}%)</div>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Przyrost dzienny</div>
+              <div style={{fontSize:15,fontWeight:600,color:"#a78bfa",fontFamily:"'DM Mono',monospace"}}>+{fmt2(calc.dailyGain)}/dzień</div>
+            </div>
+          </div>
+          {/* Pasek postępu */}
+          <div style={{marginTop:14}}>
+            <div style={{height:6,background:"#1e2a38",borderRadius:99,overflow:"hidden"}}>
+              <div style={{width:(calc.progress*100)+"%",height:"100%",background:"#f0a030",borderRadius:99,transition:"width .3s"}}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:5,fontSize:11,color:"#5a6a7e"}}>
+              <span>{new Date(bond.purchaseDate).toLocaleDateString("pl-PL")}</span>
+              <span style={{color:"#f0a030"}}>{Math.round(calc.progress*100)}% czasu</span>
+              <span>{calc.maturityDate?.toLocaleDateString("pl-PL")}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Estymowany zysk na koniec */}
+        <div style={{background:"#0a1a12",border:"1px solid #1a3a20",borderRadius:12,padding:"14px 18px",marginBottom:14}}>
+          <div style={{fontSize:11,color:"#5a6a7e",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>
+            Estymacja na dzień wykupu
+            {isInflationBond && <span style={{color:"#3a4a5e",marginLeft:6,textTransform:"none",fontSize:10}}>· zakłada stałą inflację {(latestInfl*100).toFixed(1)}%</span>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div>
+              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Wartość w dniu wykupu</div>
+              <div style={{fontSize:16,fontWeight:700,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{fmt2(calc.estimatedAtMaturity)}</div>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#5a6a7e",marginBottom:4}}>Estymowany zysk</div>
+              <div style={{fontSize:16,fontWeight:700,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>+{fmt2(calc.estimatedProfit)} (+{estimatedProfitPct.toFixed(2)}%)</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Okresy odsetkowe */}
+        <div style={{background:"#0f1a27",borderRadius:12,padding:"14px 18px"}}>
+          <div style={{fontSize:11,color:"#5a6a7e",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Okresy odsetkowe</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {periods.map(({k, pStart, pEnd, rateLabel, isPast, isCurrent}) => (
+              <div key={k} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:isCurrent?"#1a2a1a":isPast?"#0f1a27":"transparent",border:`1px solid ${isCurrent?"#00c89630":isPast?"#1e2a38":"#1e2a38"}`}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:isCurrent?"#00c896":isPast?"#2a3a50":"#3a4a5e",flexShrink:0}}/>
+                <div style={{flex:1,fontSize:12,color:isCurrent?"#e8f0f8":isPast?"#3a4a5e":"#5a6a7e"}}>
+                  Rok {k+1} · {pStart.toLocaleDateString("pl-PL","pl")} – {pEnd.toLocaleDateString("pl-PL")}
+                </div>
+                <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:isCurrent?"#f0a030":isPast?"#3a4a5e":"#5a6a7e",fontWeight:isCurrent?600:400}}>
+                  {rateLabel}
+                  {isCurrent && <span style={{marginLeft:6,fontSize:10,color:"#00c896"}}>← teraz</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal dodawania/edycji ───────────────────────────────────────────────────
 export function BondModal({ bond, onSave, onDelete, onClose }) {
   const isEdit = !!bond;
   const todayStr = new Date().toISOString().split("T")[0];
@@ -100,10 +273,14 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
     fetchLatestRates().then(() => setRatesLoaded(true));
   }, []);
 
+  // Auto-dobierz stawkę gdy zmienia się typ lub data (tylko gdy nie wpisano ręcznie)
   useEffect(() => {
-    if (!form.purchaseDate || form.rate) return;
+    if (!form.purchaseDate) return;
+    // Zawsze próbuj dobrać automatycznie — nadpisze tylko jeśli pole jest puste
     const detected = getRateForPurchase(form.type, form.purchaseDate);
     setAutoRate(detected);
+    // Wyczyść ręczny wpis gdy zmienia się typ lub data
+    setForm(f => ({ ...f, rate: "" }));
   }, [form.type, form.purchaseDate, ratesLoaded]);
 
   const params = BOND_TYPES[form.type];
@@ -115,10 +292,9 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
     preview = calcBondCurrentValue({ type:form.type, purchaseDate:form.purchaseDate, quantity:qty, rate:bondRate });
   }
 
-  // Dla obligacji indeksowanych — pokaż informację o inflacji użytej do obliczeń
-  const showInflationInfo = params?.rateType === "inflation" && form.purchaseDate;
-  const latestInflationKey = Object.keys(INFLATION_HISTORY).sort().pop();
-  const latestInflation = INFLATION_HISTORY[latestInflationKey];
+  const isInflationBond = params?.rateType === "inflation";
+  const latestInflKey = Object.keys(INFLATION_HISTORY).sort().pop();
+  const latestInfl = INFLATION_HISTORY[latestInflKey];
 
   function submit() {
     if (!qty || !form.purchaseDate || !params) return;
@@ -154,11 +330,10 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
             style={{background:hovClose?"#f0506018":"#161d28",border:`1px solid ${hovClose?"#f05060":"#f0506030"}`,borderRadius:6,color:"#f05060",cursor:"pointer",fontSize:18,width:30,height:30,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
         </div>
 
-        {/* Typ */}
         <div style={{marginBottom:14}}>
           <label style={labelSt}>Rodzaj obligacji</label>
           <select style={baseInp} value={form.type}
-            onChange={e => setForm(f=>({...f,type:e.target.value,rate:""}))}
+            onChange={e => setForm(f=>({...f,type:e.target.value}))}
             onFocus={focusInp} onBlur={blurInp}>
             {Object.entries(BOND_TYPES).map(([k,v])=>(
               <option key={k} value={k} style={{background:"#1a2535"}}>{v.label}</option>
@@ -166,24 +341,15 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
           </select>
         </div>
 
-        {/* Inflacja info dla obligacji indeksowanych */}
-        {showInflationInfo && (
+        {isInflationBond && (
           <div style={{background:"#0f1a27",border:"1px solid #1e3a50",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#5a7a9e",lineHeight:1.7}}>
-            <span style={{color:"#3b9eff",fontWeight:600}}>Indeksowana inflacją GUS </span>
-            · marża {((params.margin)*100).toFixed(1)}%
-            <br/>
-            Ostatnia inflacja GUS: <span style={{color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>
-              {(latestInflation*100).toFixed(1)}%
-            </span>
-            <span style={{color:"#4a5a6e",marginLeft:6}}>({latestInflationKey})</span>
-            <br/>
-            Stawka bieżącego okresu: <span style={{color:"#00c896",fontFamily:"'DM Mono',monospace"}}>
-              {((Math.max(0,latestInflation)+params.margin)*100).toFixed(2)}%
-            </span>
+            <span style={{color:"#3b9eff",fontWeight:600}}>Indeksowana inflacją GUS</span> · marża {((params.margin)*100).toFixed(1)}%
+            <br/>Ostatnia inflacja GUS: <span style={{color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>{(latestInfl*100).toFixed(1)}%</span>
+            <span style={{color:"#4a5a6e",marginLeft:6}}>({latestInflKey})</span>
+            <br/>Stawka bieżącego okresu: <span style={{color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{((Math.max(0,latestInfl)+params.margin)*100).toFixed(2)}%</span>
           </div>
         )}
 
-        {/* Ilość + data */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
           <div>
             <label style={labelSt}>Liczba obligacji (1 szt. = 100 zł)</label>
@@ -194,12 +360,11 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
           <div>
             <label style={labelSt}>Data zakupu</label>
             <input style={baseInp} type="date" value={form.purchaseDate}
-              onChange={e=>setForm(f=>({...f,purchaseDate:e.target.value,rate:""}))}
+              onChange={e=>setForm(f=>({...f,purchaseDate:e.target.value}))}
               onFocus={focusInp} onBlur={blurInp}/>
           </div>
         </div>
 
-        {/* Stawka */}
         <div style={{marginBottom:14}}>
           <label style={labelSt}>
             Oprocentowanie roku 1 (%)
@@ -214,12 +379,11 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
             onFocus={focusInp} onBlur={blurInp}/>
           <div style={{fontSize:11,color:"#4a5a6e",marginTop:4}}>
             {autoRate && !form.rate
-              ? `Stawka dobrana automatycznie dla ${form.type} z ${form.purchaseDate?.substring(0,7)}. Zostaw puste lub wpisz ręcznie.`
+              ? `Dobrano automatycznie dla ${form.type} z ${form.purchaseDate?.substring(0,7)}.`
               : "Znajdziesz na obligacjeskarbowe.pl → lista emisyjna Twojej serii"}
           </div>
         </div>
 
-        {/* Notatka */}
         <div style={{marginBottom:14}}>
           <label style={labelSt}>Notatka (opcjonalnie)</label>
           <input style={baseInp} placeholder="np. TOS1227, IKE..." value={form.note}
@@ -227,15 +391,14 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
             onFocus={focusInp} onBlur={blurInp}/>
         </div>
 
-        {/* Podgląd */}
         {preview && (
           <div style={{background:"#0f1a27",border:"1px solid #1a3a20",borderRadius:12,padding:"14px 16px",marginBottom:18}}>
-            <div style={{fontSize:11,color:"#5a7a9e",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Stan obecny</div>
+            <div style={{fontSize:11,color:"#5a7a9e",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Podgląd</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div><div style={{fontSize:11,color:"#5a7a9e"}}>Kwota zakupu</div><div style={{fontSize:15,fontWeight:600,color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>{fmt(qty*100)}</div></div>
-              <div><div style={{fontSize:11,color:"#5a7a9e"}}>Obecna wartość</div><div style={{fontSize:15,fontWeight:600,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{fmt(preview.currentValue)}</div></div>
-              <div><div style={{fontSize:11,color:"#5a7a9e"}}>Narosłe odsetki</div><div style={{fontSize:14,fontWeight:600,color:"#f0a030",fontFamily:"'DM Mono',monospace"}}>+{fmt(preview.earned)}</div></div>
-              <div><div style={{fontSize:11,color:"#5a7a9e"}}>Przyrost dzienny</div><div style={{fontSize:14,fontWeight:600,color:"#a78bfa",fontFamily:"'DM Mono',monospace"}}>+{fmt(preview.dailyGain)}/dzień</div></div>
+              <div><div style={{fontSize:11,color:"#5a7a9e"}}>Kwota zakupu</div><div style={{fontSize:15,fontWeight:600,color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>{fmt2(qty*100)}</div></div>
+              <div><div style={{fontSize:11,color:"#5a7a9e"}}>Obecna wartość</div><div style={{fontSize:15,fontWeight:600,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{fmt2(preview.currentValue)}</div></div>
+              <div><div style={{fontSize:11,color:"#5a7a9e"}}>Narosłe odsetki</div><div style={{fontSize:14,fontWeight:600,color:"#f0a030",fontFamily:"'DM Mono',monospace"}}>+{fmt2(preview.earned)}</div></div>
+              <div><div style={{fontSize:11,color:"#5a7a9e"}}>Przyrost dzienny</div><div style={{fontSize:14,fontWeight:600,color:"#a78bfa",fontFamily:"'DM Mono',monospace"}}>+{fmt2(preview.dailyGain)}/dzień</div></div>
             </div>
             <div style={{marginTop:10}}>
               <div style={{height:6,background:"#1e2a38",borderRadius:99,overflow:"hidden"}}>
@@ -285,9 +448,9 @@ export function BondRow({ bond, onClick }) {
         </div>
       </div>
       <div style={{textAlign:"right",flexShrink:0}}>
-        <div style={{fontSize:15,fontWeight:600,fontFamily:"'DM Mono',monospace",color:"#e8f0f8"}}>{fmt(calc.currentValue)}</div>
+        <div style={{fontSize:15,fontWeight:600,fontFamily:"'DM Mono',monospace",color:"#e8f0f8"}}>{fmt2(calc.currentValue)}</div>
         <div style={{fontSize:11,color:"#00c896",fontFamily:"'DM Mono',monospace",marginTop:2}}>
-          +{fmt(earned)} (+{gainPct.toFixed(2)}%)
+          +{fmt2(earned)} ({fmt0(calc.dailyGain)}/dzień) (+{gainPct.toFixed(2)}%)
         </div>
       </div>
       <div style={{width:50,height:4,background:"#1e2a38",borderRadius:2,flexShrink:0,overflow:"hidden"}}>
