@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { BondModal, BondRow, calcBondCurrentValue } from "./BondModal";
-import { useWibor } from "./useWibor";
+import { BOND_RATES_HISTORY } from "./bondRates";
 
 const CRYPTO_LIST = [
   { label: "Bitcoin (BTC)",   id: "bitcoin" },
@@ -74,6 +74,211 @@ function useCryptoPrices(assets) {
   return { prices, lastUpdated };
 }
 
+// ─── Widok Obligacji ─────────────────────────────────────────────────────────
+const BOND_DESCRIPTIONS = {
+  TOS: { full: "Trzyletnie Oszczędnościowe Skarbowe", desc: "Stałe oprocentowanie przez 3 lata. Odsetki kapitalizowane rocznie — wypłata w dniu wykupu.", color: "#f0a030", years: 3 },
+  COI: { full: "Czteroletnie Oszczędnościowe Indeksowane", desc: "Rok 1: stałe. Rok 2–4: inflacja GUS + marża 1,5%. Odsetki wypłacane co rok.", color: "#a78bfa", years: 4 },
+  EDO: { full: "Emerytalne Dziesięcioletnie Oszczędnościowe", desc: "Rok 1: stałe. Rok 2–10: inflacja GUS + marża 2%. Odsetki kapitalizowane rocznie.", color: "#00c896", years: 10 },
+  ROS: { full: "Rodzinne Sześcioletnie Oszczędnościowe", desc: "Rok 1: stałe. Rok 2–6: inflacja GUS + marża 2%. Dostępne dla beneficjentów 500+.", color: "#3b9eff", years: 6 },
+  ROD: { full: "Rodzinne Dwunastoletnie Oszczędnościowe", desc: "Rok 1: stałe. Rok 2–12: inflacja GUS + marża 2,5%. Najwyższa marża spośród wszystkich obligacji.", color: "#ff5ecb", years: 12 },
+  ROR: { full: "Roczne Oszczędnościowe o Zmiennej Stopie", desc: "Oprocentowanie zmienne — stopa referencyjna NBP. Odsetki wypłacane co miesiąc.", color: "#00d4f0", years: 1 },
+  DOR: { full: "Dwuletnie Oszczędnościowe o Zmiennej Stopie", desc: "Rok 1: stałe. Rok 2: stopa referencyjna NBP + marża 0,15%. Odsetki wypłacane co miesiąc.", color: "#e8e040", years: 2 },
+};
+
+function getLatestRate(bondType) {
+  const rates = BOND_RATES_HISTORY[bondType];
+  if (!rates) return null;
+  const keys = Object.keys(rates).sort();
+  if (keys.length === 0) return null;
+  return { rate: rates[keys[keys.length - 1]], month: keys[keys.length - 1] };
+}
+
+function getLastUpdateDate() {
+  // Znajdź najnowszą datę aktualizacji spośród wszystkich typów
+  let latest = "";
+  Object.values(BOND_RATES_HISTORY).forEach(rates => {
+    const keys = Object.keys(rates).sort();
+    if (keys.length > 0 && keys[keys.length - 1] > latest) {
+      latest = keys[keys.length - 1];
+    }
+  });
+  return latest;
+}
+
+function BondRatesView() {
+  const lastUpdate = getLastUpdateDate();
+  const [expanded, setExpanded] = useState(null);
+
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 16px 32px" }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 13, color: "#5a6a7e" }}>
+          Aktualne stawki obligacji skarbowych
+          {lastUpdate && (
+            <span style={{ marginLeft: 8, color: "#4a5a6e", fontSize: 11 }}>
+              · dane z {lastUpdate}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+        {Object.entries(BOND_DESCRIPTIONS).map(([type, info]) => {
+          const latest = getLatestRate(type);
+          const isOpen = expanded === type;
+          const rates = BOND_RATES_HISTORY[type] || {};
+          const recentKeys = Object.keys(rates).sort().slice(-6).reverse();
+
+          return (
+            <div key={type}
+              onClick={() => setExpanded(isOpen ? null : type)}
+              style={{
+                background: "#161d28",
+                border: `1px solid ${isOpen ? info.color + "60" : "#1e2a38"}`,
+                borderRadius: 14,
+                padding: "16px 18px",
+                cursor: "pointer",
+                transition: "all .2s",
+                boxShadow: isOpen ? `0 0 20px ${info.color}20` : "none",
+              }}>
+
+              {/* Header karty */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: info.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>{type}</span>
+                    <span style={{ fontSize: 11, color: "#4a5a6e" }}>{info.years} {info.years === 1 ? "rok" : info.years < 5 ? "lata" : "lat"}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#5a6a7e", marginLeft: 16 }}>{info.full}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  {latest ? (
+                    <>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: info.color, fontFamily: "'DM Mono', monospace" }}>
+                        {(latest.rate * 100).toFixed(2)}%
+                      </div>
+                      <div style={{ fontSize: 10, color: "#4a5a6e" }}>rok 1 · {latest.month}</div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 12, color: "#4a5a6e" }}>brak danych</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Opis */}
+              <div style={{ fontSize: 12, color: "#5a7a9e", lineHeight: 1.6, marginBottom: isOpen ? 14 : 0 }}>
+                {info.desc}
+              </div>
+
+              {/* Rozwinięta historia stawek */}
+              {isOpen && recentKeys.length > 0 && (
+                <div style={{ marginTop: 12, borderTop: "1px solid #1e2a38", paddingTop: 12 }}>
+                  <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Historia stawek (rok 1)</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {recentKeys.map(key => (
+                      <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 12, color: "#5a6a7e", fontFamily: "'DM Mono', monospace" }}>{key}</span>
+                        <span style={{ fontSize: 12, color: key === latest?.month ? info.color : "#8a9bb0", fontWeight: key === latest?.month ? 600 : 400, fontFamily: "'DM Mono', monospace" }}>
+                          {(rates[key] * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ textAlign: "right", marginTop: 8, fontSize: 11, color: "#3a4a5e" }}>
+                {isOpen ? "▲ zwiń" : "▼ historia"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Menu ─────────────────────────────────────────────────────────────────────
+function MenuDropdown({ onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("touchstart", handleClick);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("touchstart", handleClick);
+    };
+  }, []);
+
+  const items = [
+    { id: "bonds", label: "Obligacje", icon: "📋", desc: "Aktualne stawki" },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: open ? "#1e2a38" : "transparent",
+          border: `1px solid ${open ? "#2a3a50" : "#1e2a38"}`,
+          borderRadius: 10, color: "#8a9bb0", cursor: "pointer",
+          width: 36, height: 36, display: "flex", alignItems: "center",
+          justifyContent: "center", transition: "all .15s",
+          flexDirection: "column", gap: 4, padding: "8px 9px",
+        }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {[0,1,2].map(i => (
+            <div key={i} style={{
+              width: 16, height: 2, borderRadius: 1,
+              background: open ? "#e8f0f8" : "#5a6a7e",
+              transition: "all .15s",
+              transform: open && i === 0 ? "translateY(6px) rotate(45deg)" :
+                         open && i === 1 ? "scaleX(0)" :
+                         open && i === 2 ? "translateY(-6px) rotate(-45deg)" : "none",
+            }} />
+          ))}
+        </div>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: 44, right: 0,
+          background: "#161d28", border: "1px solid #2a3a50",
+          borderRadius: 12, padding: "6px", minWidth: 180,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.4)", zIndex: 100,
+        }}>
+          {items.map(item => (
+            <button key={item.id}
+              onClick={() => { onNavigate(item.id); setOpen(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                width: "100%", padding: "10px 12px", borderRadius: 8,
+                border: "none", background: "transparent", cursor: "pointer",
+                textAlign: "left", transition: "background .1s",
+                WebkitTapHighlightColor: "transparent",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <span style={{ fontSize: 16 }}>{item.icon}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "#e8f0f8", fontFamily: "'Sora', sans-serif" }}>{item.label}</div>
+                <div style={{ fontSize: 11, color: "#4a5a6e", fontFamily: "'Sora', sans-serif" }}>{item.desc}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Wykres kołowy ────────────────────────────────────────────────────────────
 function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, setHovered }) {
   const canvasRef = useRef(null);
   const sliceMapRef = useRef([]);
@@ -289,7 +494,6 @@ function closeBtnStyle(hov) {
   };
 }
 
-// ─── POPRAWKA: usunięto błędny useState z wnętrza AssetModal ─────────────────
 function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
   const isEdit = !!asset;
   const [form, setForm] = useState(
@@ -565,7 +769,7 @@ function WelcomeScreen({ onStart }) {
   );
 }
 
-// ─── Główna aplikacja ────────────────────────────────────────────────────────
+// ─── Główna aplikacja ─────────────────────────────────────────────────────────
 export default function App() {
   const [welcomed, setWelcomed] = useState(() => {
     try { return localStorage.getItem("pt-welcomed") === "1"; } catch { return false; }
@@ -579,11 +783,11 @@ export default function App() {
   const [activeFilter, setActiveFilter] = useState(null);
   const [hovered, setHovered] = useState(null);
   const [modal, setModal] = useState(null);
-  const [bondModal, setBondModal] = useState(null); // ← POPRAWKA: stan tutaj, nie w AssetModal
+  const [bondModal, setBondModal] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
+  const [currentView, setCurrentView] = useState("portfolio"); // "portfolio" | "bonds"
 
   const { prices, lastUpdated } = useCryptoPrices(assets);
-  const { wiborHistory } = useWibor();
 
   const assetsWithLivePrices = assets.map(a => {
     if (a.cryptoId && a.cryptoId !== "other" && prices[a.cryptoId]) {
@@ -654,114 +858,129 @@ export default function App() {
       <style>{globalStyles}</style>
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
 
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
-            PORTFOLIO TRACKER
-          </div>
-        </div>
-
-        <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
-          {assetsWithLivePrices.length > 0 ? (
-            <PieChart
-              assets={assetsWithLivePrices}
-              categories={categories}
-              activeFilter={activeFilter}
-              onFilterChange={handleFilterChange}
-              hovered={hovered}
-              setHovered={setHovered}
-            />
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "24px 0" }}>
-              <div style={{ width: 120, height: 120, borderRadius: "50%", border: "2px dashed #2a3a50", display: "flex", alignItems: "center", justifyContent: "center", color: "#4a5a6e", fontSize: 11, fontFamily: "'DM Mono', monospace" }}>BRAK DANYCH</div>
-              <div style={{ fontSize: 13, color: "#4a5a6e" }}>Dodaj pierwsze aktywo żeby zobaczyć wykres</div>
-            </div>
-          )}
-        </div>
-
-        {/* Przyciski dodaj */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-          <button
-            onClick={() => setBondModal("add")}
-            style={{
-              padding: "12px 24px", borderRadius: 12, border: "2px solid #f0a030",
-              background: "transparent", color: "#f0a030", fontWeight: 700, fontSize: 14,
-              cursor: "pointer", letterSpacing: ".04em", fontFamily: "'Sora', sans-serif",
-              boxShadow: "0 0 10px #f0a03040", transition: "all .2s",
-              WebkitTapHighlightColor: "transparent",
-            }}>
-            + Dodaj obligacje
-          </button>
-          <button id="add-btn"
-            onMouseEnter={() => setHovAdd(true)} onMouseLeave={() => setHovAdd(false)}
-            onClick={() => setModal("add")}
-            style={{
-              padding: "12px 36px", borderRadius: 12, border: "2px solid #00c896",
-              background: hovAdd ? "#00c89612" : "transparent",
-              color: "#00c896", fontWeight: 700, fontSize: 14, cursor: "pointer",
-              letterSpacing: ".04em", fontFamily: "'Sora', sans-serif",
-              textShadow: "0 0 8px #00c896, 0 0 18px #00c89680",
-              boxShadow: hovAdd
-                ? "0 0 16px #00c896, 0 0 40px #00c89660, inset 0 0 16px #00c89620"
-                : "0 0 10px #00c89640, 0 0 28px #00c89620, inset 0 0 8px #00c89610",
-              transition: "all .2s", WebkitTapHighlightColor: "transparent",
-            }}>
-            + Dodaj aktywo
-          </button>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          {["Wszystkie", ...usedCats.map(c => c.name)].map(name => {
-            const ia = name === "Wszystkie" ? !activeFilter : activeFilter === name;
-            const color = name === "Wszystkie" ? "#00c896" : catColor(categories, name);
-            return (
-              <button key={name} className="chip-btn"
-                onClick={() => handleFilterChange(name === "Wszystkie" ? null : (activeFilter === name ? null : name))}
-                style={{
-                  padding: "6px 14px", borderRadius: 20,
-                  border: `1px solid ${ia ? color : "#1e2a38"}`,
-                  background: ia ? color + "22" : "transparent",
-                  color: ia ? color : "#8a9bb0", fontSize: 12, cursor: "pointer",
-                  fontFamily: "'Sora', sans-serif", fontWeight: ia ? 600 : 400,
-                  boxShadow: ia ? `0 0 10px ${color}30` : "none",
-                  transition: "all .15s", WebkitAppearance: "none", appearance: "none",
-                  WebkitTapHighlightColor: "transparent",
-                }}>
-                {name}
+        {/* Nagłówek z menu */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
+          <div style={{ flex: 1 }} />
+          <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace", textAlign: "center", flex: 1 }}>
+            {currentView === "bonds" ? (
+              <button onClick={() => setCurrentView("portfolio")}
+                style={{ background: "none", border: "none", color: "#5a6a7e", cursor: "pointer", fontSize: 11, letterSpacing: ".1em", fontFamily: "'DM Mono', monospace", display: "flex", alignItems: "center", gap: 6, margin: "0 auto" }}>
+                ← PORTFOLIO TRACKER
               </button>
-            );
-          })}
+            ) : "PORTFOLIO TRACKER"}
+          </div>
+          <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+            <MenuDropdown onNavigate={id => setCurrentView(id === "bonds" ? "bonds" : "portfolio")} />
+          </div>
         </div>
 
-        {visible.length === 0 ? (
-          <div style={{ background: "#161d28", border: "1px dashed #1e2a38", borderRadius: 12, padding: 32, textAlign: "center", color: "#4a5a6e", fontSize: 13, lineHeight: 1.7 }}>
-            {assets.length === 0
-              ? <><span>Nie masz jeszcze żadnych aktywów.</span><br /><span>Kliknij <span style={{ color: "#00c896" }}>+ Dodaj aktywo</span> żeby zacząć.</span></>
-              : "Brak aktywów w tej kategorii."}
-          </div>
+        {/* Widok Obligacji */}
+        {currentView === "bonds" ? (
+          <BondRatesView />
         ) : (
-          visible.map(a => (
-            <div key={a.id} className="asset-row-wrap">
-              {a.isBond ? (
-               <BondRow bond={a} wiborHistory={wiborHistory} onClick={() => setBondModal(a)} />
+          <>
+            <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
+              {assetsWithLivePrices.length > 0 ? (
+                <PieChart
+                  assets={assetsWithLivePrices}
+                  categories={categories}
+                  activeFilter={activeFilter}
+                  onFilterChange={handleFilterChange}
+                  hovered={hovered}
+                  setHovered={setHovered}
+                />
               ) : (
-                <AssetRow asset={a} total={total} categories={categories} prices={prices}
-                  onClick={() => setModal(a)} />
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "24px 0" }}>
+                  <div style={{ width: 120, height: 120, borderRadius: "50%", border: "2px dashed #2a3a50", display: "flex", alignItems: "center", justifyContent: "center", color: "#4a5a6e", fontSize: 11, fontFamily: "'DM Mono', monospace" }}>BRAK DANYCH</div>
+                  <div style={{ fontSize: 13, color: "#4a5a6e" }}>Dodaj pierwsze aktywo żeby zobaczyć wykres</div>
+                </div>
               )}
             </div>
-          ))
-        )}
 
-        <div style={{ textAlign: "center", fontSize: 11, color: "#4a5a6e", marginTop: 28, paddingBottom: 16 }}>
-          Kliknij aktywo aby edytować · dane zapisane lokalnie w przeglądarce
-          {lastUpdated && (
-            <div style={{ marginTop: 4 }}>
-              Kursy krypto: {lastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+            <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+              <button
+                onClick={() => setBondModal("add")}
+                style={{
+                  padding: "12px 24px", borderRadius: 12, border: "2px solid #f0a030",
+                  background: "transparent", color: "#f0a030", fontWeight: 700, fontSize: 14,
+                  cursor: "pointer", letterSpacing: ".04em", fontFamily: "'Sora', sans-serif",
+                  boxShadow: "0 0 10px #f0a03040", transition: "all .2s",
+                  WebkitTapHighlightColor: "transparent",
+                }}>
+                + Dodaj obligacje
+              </button>
+              <button id="add-btn"
+                onMouseEnter={() => setHovAdd(true)} onMouseLeave={() => setHovAdd(false)}
+                onClick={() => setModal("add")}
+                style={{
+                  padding: "12px 36px", borderRadius: 12, border: "2px solid #00c896",
+                  background: hovAdd ? "#00c89612" : "transparent",
+                  color: "#00c896", fontWeight: 700, fontSize: 14, cursor: "pointer",
+                  letterSpacing: ".04em", fontFamily: "'Sora', sans-serif",
+                  textShadow: "0 0 8px #00c896, 0 0 18px #00c89680",
+                  boxShadow: hovAdd
+                    ? "0 0 16px #00c896, 0 0 40px #00c89660, inset 0 0 16px #00c89620"
+                    : "0 0 10px #00c89640, 0 0 28px #00c89620, inset 0 0 8px #00c89610",
+                  transition: "all .2s", WebkitTapHighlightColor: "transparent",
+                }}>
+                + Dodaj aktywo
+              </button>
             </div>
-          )}
-        </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              {["Wszystkie", ...usedCats.map(c => c.name)].map(name => {
+                const ia = name === "Wszystkie" ? !activeFilter : activeFilter === name;
+                const color = name === "Wszystkie" ? "#00c896" : catColor(categories, name);
+                return (
+                  <button key={name} className="chip-btn"
+                    onClick={() => handleFilterChange(name === "Wszystkie" ? null : (activeFilter === name ? null : name))}
+                    style={{
+                      padding: "6px 14px", borderRadius: 20,
+                      border: `1px solid ${ia ? color : "#1e2a38"}`,
+                      background: ia ? color + "22" : "transparent",
+                      color: ia ? color : "#8a9bb0", fontSize: 12, cursor: "pointer",
+                      fontFamily: "'Sora', sans-serif", fontWeight: ia ? 600 : 400,
+                      boxShadow: ia ? `0 0 10px ${color}30` : "none",
+                      transition: "all .15s", WebkitAppearance: "none", appearance: "none",
+                      WebkitTapHighlightColor: "transparent",
+                    }}>
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {visible.length === 0 ? (
+              <div style={{ background: "#161d28", border: "1px dashed #1e2a38", borderRadius: 12, padding: 32, textAlign: "center", color: "#4a5a6e", fontSize: 13, lineHeight: 1.7 }}>
+                {assets.length === 0
+                  ? <><span>Nie masz jeszcze żadnych aktywów.</span><br /><span>Kliknij <span style={{ color: "#00c896" }}>+ Dodaj aktywo</span> żeby zacząć.</span></>
+                  : "Brak aktywów w tej kategorii."}
+              </div>
+            ) : (
+              visible.map(a => (
+                <div key={a.id} className="asset-row-wrap">
+                  {a.isBond ? (
+                    <BondRow bond={a} onClick={() => setBondModal(a)} />
+                  ) : (
+                    <AssetRow asset={a} total={total} categories={categories} prices={prices}
+                      onClick={() => setModal(a)} />
+                  )}
+                </div>
+              ))
+            )}
+
+            <div style={{ textAlign: "center", fontSize: 11, color: "#4a5a6e", marginTop: 28, paddingBottom: 16 }}>
+              Kliknij aktywo aby edytować · dane zapisane lokalnie w przeglądarce
+              {lastUpdated && (
+                <div style={{ marginTop: 4 }}>
+                  Kursy krypto: {lastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* ─── POPRAWKA: oba modale wewnątrz return, przed </> ─────────────────── */}
       {modal && (
         <AssetModal
           asset={modal === "add" ? null : modal}
@@ -775,7 +994,6 @@ export default function App() {
       {bondModal && (
         <BondModal
           bond={bondModal === "add" ? null : bondModal}
-          wiborHistory={wiborHistory}
           onSave={asset => {
             if (asset.isBond) {
               const calc = calcBondCurrentValue(asset);
