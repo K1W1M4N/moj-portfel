@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Skrypt aktualizujący stawki obligacji skarbowych w bondRates.js
-Źródło: strona marciniwuc.com (kalkulator aktualizowany co miesiąc)
+Źródło: kalkulator Marcina Iwucia (aktualizowany co miesiąc)
 """
 
 import re
@@ -21,42 +21,35 @@ HEADERS = {
     "Connection": "keep-alive",
 }
 
+# Typy które mają stałą stawkę roku 1 w kalkulatorze Marcina Iwucia
+# ROR i DOR pomijamy — mają zmienną stopę NBP, nie stałą stawkę roku 1
+BOND_TYPES_TO_UPDATE = ["TOS", "COI", "EDO", "ROS", "ROD"]
+
+# Kolumna 2 (index=2) w Excelu to "% dla pierwszego okresu odsetkowego"
+# Wiersz dla każdego typu zaczyna się od nazwy w kolumnie 0
+BOND_ROW_NAMES = {
+    "TOS": "TOS",
+    "COI": "COI",
+    "EDO": "EDO",
+    "ROS": "ROS",
+    "ROD": "ROD",
+}
+
 def get_excel_url():
-    """Pobierz URL do aktualnego kalkulatora Excel ze strony bloga"""
     print("Pobieram stronę bloga...")
     session = requests.Session()
     resp = session.get(BLOG_URL, headers=HEADERS, timeout=30)
     resp.raise_for_status()
 
-    print(f"Status: {resp.status_code}, długość: {len(resp.text)}")
-
-    # Szukaj bezpośrednio w HTML przez regex — szukamy XLSX z wp-content/uploads
-    # Link wygląda tak: https://marciniwuc.com/wp-content/uploads/2026/02/Kalkulator-obligacji-*.xlsx
     xlsx_pattern = r'https://marciniwuc\.com/wp-content/uploads/\d{4}/\d{2}/Kalkulator-obligacji[^"\']*\.xlsx'
     matches = re.findall(xlsx_pattern, resp.text)
-
     if matches:
-        # Weź pierwszy znaleziony link (to kalkulator główny)
-        url = matches[0]
-        print(f"Znalazłem kalkulator: {url}")
-        return url, session
+        print(f"Znalazłem kalkulator: {matches[0]}")
+        return matches[0], session
 
-    # Alternatywnie — szukaj przez BeautifulSoup
-    soup = BeautifulSoup(resp.text, "html.parser")
-    for link in soup.find_all("a", href=True):
-        href = link["href"]
-        if "wp-content/uploads" in href and ".xlsx" in href and "Kalkulator" in href:
-            print(f"Znalazłem przez BS4: {href}")
-            return href, session
-
-    # Debug — pokaż wszystkie linki do xlsx
-    all_xlsx = re.findall(r'https?://[^\s"\']*\.xlsx', resp.text)
-    print(f"Wszystkie linki xlsx na stronie: {all_xlsx}")
-
-    raise Exception("Nie znalazłem linku do kalkulatora Excel na stronie!")
+    raise Exception("Nie znalazłem linku do kalkulatora Excel!")
 
 def download_excel(url, session):
-    """Pobierz plik Excel"""
     print(f"Pobieram Excel: {url}")
     resp = session.get(url, headers=HEADERS, timeout=60)
     resp.raise_for_status()
@@ -64,61 +57,41 @@ def download_excel(url, session):
     return BytesIO(resp.content)
 
 def extract_rates_from_excel(excel_file):
-    """Wyciągnij stawki roku 1 dla każdego typu obligacji z Excela"""
+    """
+    Wyciągnij stawki z arkusza 'WPISZ ZAŁOŻENIA'.
+    Struktura (potwierdzona z logów):
+    Wiersz 29: nagłówki kolumn
+    Wiersz 30: ROR  | col1=zapadalność | col2=stawka_rok1 | ...
+    Wiersz 31: DOR  | ...
+    Wiersz 32: TOS  | ...
+    Wiersz 33: COI  | ...
+    Wiersz 34: EDO  | ...
+    Wiersz 35: ROS  | ...
+    Wiersz 36: ROD  | ...
+    """
     wb = openpyxl.load_workbook(excel_file, data_only=True)
-    print(f"Arkusze: {wb.sheetnames}")
+    ws = wb["WPISZ ZAŁOŻENIA"]
 
     now = datetime.now()
     year_month = f"{now.year}-{now.month:02d}"
     rates = {}
-    bond_types = ["TOS", "COI", "EDO", "ROS", "ROD", "ROR", "DOR"]
 
-    # Szukaj w arkuszu z założeniami
-    target_sheet = None
-    for name in ["WPISZ ZAŁOŻENIA", "ZAŁOŻENIA", "Założenia"]:
-        if name in wb.sheetnames:
-            target_sheet = wb[name]
-            break
-    if not target_sheet:
-        target_sheet = wb.active
+    for row in ws.iter_rows(values_only=True):
+        if not row[0]:
+            continue
+        row0 = str(row[0]).strip()
 
-    print(f"Szukam w arkuszu: {target_sheet.title}")
-
-    # Wypisz pierwsze 40 wierszy dla debugowania
-    print("\nPierwsze 40 wierszy arkusza:")
-    for i, row in enumerate(target_sheet.iter_rows(values_only=True)):
-        if i > 40:
-            break
-        non_empty = [(j, v) for j, v in enumerate(row) if v is not None]
-        if non_empty:
-            print(f"  Wiersz {i+1}: {non_empty}")
-
-    # Szukaj stawek
-    for row in target_sheet.iter_rows():
-        for i, cell in enumerate(row):
-            if not cell.value:
-                continue
-            cell_str = str(cell.value).strip()
-            for bond_type in bond_types:
-                if bond_type in cell_str and bond_type not in rates:
-                    for offset in range(1, 6):
-                        try:
-                            next_val = row[i + offset].value
-                            if isinstance(next_val, float) and 0.005 < next_val < 0.30:
-                                rates[bond_type] = next_val
-                                print(f"  {bond_type}: {next_val*100:.2f}%")
-                                break
-                            elif isinstance(next_val, (int, float)) and 0.5 < next_val < 30:
-                                rates[bond_type] = next_val / 100
-                                print(f"  {bond_type}: {next_val:.2f}%")
-                                break
-                        except IndexError:
-                            break
+        for bond_type in BOND_TYPES_TO_UPDATE:
+            if row0.startswith(bond_type):
+                # Kolumna 2 (index=2) = stawka roku 1
+                rate_val = row[2]
+                if isinstance(rate_val, float) and 0.005 < rate_val < 0.30:
+                    rates[bond_type] = rate_val
+                    print(f"  {bond_type}: {rate_val*100:.2f}%")
 
     return rates, year_month
 
 def update_bond_rates_js(rates, year_month, js_file_path="src/bondRates.js"):
-    """Zaktualizuj plik bondRates.js o nowe stawki"""
     if not rates:
         print("Brak stawek do aktualizacji!")
         return False
