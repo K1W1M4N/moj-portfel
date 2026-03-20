@@ -127,17 +127,12 @@ function BondRatesView() {
           const latest = getLatestRate(type);
           const isOpen = expanded === type;
           const rates = BOND_RATES_HISTORY[type] || {};
-         const allKeys = Object.keys(rates).sort().reverse();
-const recentKeys = allKeys.filter((key, i) => {
-  if (i === 0) return true; // zawsze pokaż najnowszą
-  return rates[key] !== rates[allKeys[i - 1]]; // pokaż tylko gdy stawka się zmieniła
-}).slice(0, 8);
-```
-
-To wyświetli tylko wpisy gdzie stawka faktycznie się zmieniła, max 8 pozycji. Efekt będzie dokładnie taki jak w Twoim przykładzie:
-```
-2026-03: 5.65%
-2024-12: 5.95%
+          const allKeys = Object.keys(rates).sort().reverse();
+          const recentKeys = allKeys.filter((key, i) => {
+            if (i === 0) return true;
+            const prevKey = allKeys[i - 1];
+            return rates[key] !== rates[prevKey];
+          }).slice(0, 8);
 
           return (
             <div key={type}
