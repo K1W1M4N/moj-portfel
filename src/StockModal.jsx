@@ -1,5 +1,4 @@
 // src/StockModal.jsx
-// Obsługa akcji i ETF-ów z live cenami z Twelve Data
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const TWELVE_DATA_KEY = "a681abc9ebc045a39c938d8b058567d9";
@@ -17,21 +16,50 @@ const baseInp = {
 };
 const focusInp = e => { e.target.style.borderColor = "#e8e040"; e.target.style.boxShadow = "0 0 0 3px #e8e04018"; };
 const blurInp  = e => { e.target.style.borderColor = "#243040"; e.target.style.boxShadow = "none"; };
-const fmtPLN = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 }).format(n);
+const fmtPLN  = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 }).format(n);
 const fmtPLN2 = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 2 }).format(n);
-const fmtCur = (n, cur) => n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + " " + (cur || "");
+const fmtCur  = (n, cur) => n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + " " + (cur || "");
 
-// ─── Kurs walutowy ────────────────────────────────────────────────────────────
+// ─── Cache kursów NBP (żeby nie odpytywać za każdym razem) ────────────────────
+const fxCache = {};
+
+// ─── Kurs walutowy z NBP — darmowe, bez limitu ────────────────────────────────
 async function fetchFxRate(currency) {
   if (!currency || currency === "PLN") return 1;
+  if (fxCache[currency]) return fxCache[currency];
+
+  // Fallback na wypadek gdyby NBP nie odpowiedziało
+  const fallback = { USD: 3.95, EUR: 4.27, GBP: 5.0, CHF: 4.4, GBX: 0.049 };
+
   try {
+    // NBP API — darmowe, bez klucza, oficjalne kursy NBP
     const res = await fetch(
-      `https://api.twelvedata.com/price?symbol=${currency}/PLN&apikey=${TWELVE_DATA_KEY}`
+      `https://api.nbp.pl/api/exchangerates/rates/a/${currency}/last/1/?format=json`
     );
+    if (!res.ok) throw new Error("NBP error");
     const data = await res.json();
-    if (data.price) return parseFloat(data.price);
-  } catch (e) {}
-  const fallback = { USD: 3.95, EUR: 4.27, GBP: 5.0, CHF: 4.4 };
+    const rate = data.rates?.[0]?.mid;
+    if (rate) {
+      fxCache[currency] = rate;
+      return rate;
+    }
+  } catch (e) {
+    // Tablica B NBP (dla mniej popularnych walut)
+    try {
+      const res2 = await fetch(
+        `https://api.nbp.pl/api/exchangerates/rates/b/${currency}/last/1/?format=json`
+      );
+      if (res2.ok) {
+        const data2 = await res2.json();
+        const rate2 = data2.rates?.[0]?.mid;
+        if (rate2) {
+          fxCache[currency] = rate2;
+          return rate2;
+        }
+      }
+    } catch (e2) {}
+  }
+
   return fallback[currency] || 4.0;
 }
 
@@ -54,9 +82,9 @@ export function useStockPrices(assets) {
       );
       const data = await res.json();
 
-      // Zbierz unikalne waluty i pobierz kursy fx
-      const currencies = [...new Set(stockAssets.map(a => a.stockCurrency).filter(Boolean))];
-      const fxRates = {};
+      // Kursy walut z NBP — jedno zapytanie na walutę, nie na symbol
+      const currencies = [...new Set(stockAssets.map(a => a.stockCurrency).filter(c => c && c !== "PLN"))];
+      const fxRates = { PLN: 1 };
       await Promise.all(currencies.map(async cur => {
         fxRates[cur] = await fetchFxRate(cur);
       }));
@@ -64,29 +92,33 @@ export function useStockPrices(assets) {
       const newPrices = {};
 
       if (symbols.length === 1) {
-        // Single symbol — odpowiedź płaska
-        if (data.price) {
+        // Single symbol — odpowiedź jest płaska { price: "..." }
+        const priceVal = data?.price;
+        if (priceVal && !isNaN(parseFloat(priceVal))) {
           const asset = stockAssets.find(a => a.stockSymbol === symbols[0]);
           const currency = asset?.stockCurrency || "PLN";
-          const priceOrig = parseFloat(data.price);
+          const priceOrig = parseFloat(priceVal);
           const fx = fxRates[currency] || 1;
           newPrices[symbols[0]] = { priceOrig, pricePLN: priceOrig * fx, currency, fx };
         }
       } else {
-        // Multi symbol
+        // Multi symbol — odpowiedź to obiekt { SYMBOL: { price: "..." } }
         for (const sym of symbols) {
-          if (data[sym]?.price) {
+          const priceVal = data?.[sym]?.price;
+          if (priceVal && !isNaN(parseFloat(priceVal))) {
             const asset = stockAssets.find(a => a.stockSymbol === sym);
             const currency = asset?.stockCurrency || "PLN";
-            const priceOrig = parseFloat(data[sym].price);
+            const priceOrig = parseFloat(priceVal);
             const fx = fxRates[currency] || 1;
             newPrices[sym] = { priceOrig, pricePLN: priceOrig * fx, currency, fx };
           }
         }
       }
 
-      setStockPrices(newPrices);
-      setStockLastUpdated(new Date());
+      if (Object.keys(newPrices).length > 0) {
+        setStockPrices(prev => ({ ...prev, ...newPrices }));
+        setStockLastUpdated(new Date());
+      }
     } catch (e) {
       console.warn("Twelve Data error:", e);
     }
@@ -102,6 +134,20 @@ export function useStockPrices(assets) {
 }
 
 // ─── Wyszukiwarka symboli ─────────────────────────────────────────────────────
+// Priorytet giełd europejskich i polskich żeby IUSQ podpowiadał XETR jako pierwsze
+const EXCHANGE_PRIORITY = ["WSE", "XETR", "XWAR", "XAMS", "XPAR", "XLON", "XNAS", "XNYS"];
+
+function sortByExchange(results) {
+  return [...results].sort((a, b) => {
+    const ai = EXCHANGE_PRIORITY.indexOf(a.exchange);
+    const bi = EXCHANGE_PRIORITY.indexOf(b.exchange);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+}
+
 function SymbolSearch({ initialValue, onSelect }) {
   const [query, setQuery] = useState(initialValue || "");
   const [results, setResults] = useState([]);
@@ -132,13 +178,14 @@ function SymbolSearch({ initialValue, onSelect }) {
     timerRef.current = setTimeout(async () => {
       try {
         const res = await fetch(
-          `https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(q)}&apikey=${TWELVE_DATA_KEY}`
+          `https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(q)}&outputsize=30&apikey=${TWELVE_DATA_KEY}`
         );
         const data = await res.json();
         const filtered = (data.data || [])
-          .filter(r => ["Common Stock", "ETF", "Index"].includes(r.instrument_type))
-          .slice(0, 8);
-        setResults(filtered);
+          .filter(r => ["Common Stock", "ETF"].includes(r.instrument_type));
+        // Sortuj według priorytetu giełd i ogranicz do 6
+        const sorted = sortByExchange(filtered).slice(0, 6);
+        setResults(sorted);
       } catch (e) {
         setResults([]);
       }
@@ -157,6 +204,21 @@ function SymbolSearch({ initialValue, onSelect }) {
       currency: item.currency,
       type: item.instrument_type,
     });
+  }
+
+  // Etykieta giełdy — przyjazna nazwa dla użytkownika
+  function exchangeLabel(exchange) {
+    const map = {
+      XETR: "Frankfurt (XETRA)",
+      WSE:  "GPW Warszawa",
+      XWAR: "GPW Warszawa",
+      XAMS: "Amsterdam",
+      XPAR: "Paryż",
+      XLON: "Londyn",
+      XNAS: "NASDAQ",
+      XNYS: "NYSE",
+    };
+    return map[exchange] || exchange;
   }
 
   return (
@@ -179,6 +241,9 @@ function SymbolSearch({ initialValue, onSelect }) {
           {loading && (
             <div style={{ padding: "12px 14px", fontSize: 12, color: "#5a6a7e" }}>Szukam...</div>
           )}
+          {!loading && results.length === 0 && query.length >= 2 && (
+            <div style={{ padding: "12px 14px", fontSize: 12, color: "#5a6a7e" }}>Brak wyników. Spróbuj wpisać samą nazwę bez końcówki (np. "IUSQ" zamiast "IUSQ.DE")</div>
+          )}
           {results.map((item, i) => (
             <div key={i}
               onClick={() => handleSelect(item)}
@@ -199,7 +264,7 @@ function SymbolSearch({ initialValue, onSelect }) {
                 </div>
                 <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
                   <span style={{ fontSize: 10, color: "#5a6a7e", background: "#1e2a38", padding: "2px 6px", borderRadius: 4 }}>
-                    {item.exchange}
+                    {exchangeLabel(item.exchange)}
                   </span>
                   <span style={{ fontSize: 10, color: "#4a8a6e", background: "#0a2018", padding: "2px 6px", borderRadius: 4 }}>
                     {item.currency}
@@ -231,6 +296,7 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
   const [currentPrice, setCurrentPrice] = useState(null);
   const [fxRate, setFxRate]     = useState(null);
   const [loadingPrice, setLoadingPrice] = useState(false);
+  const [priceError, setPriceError] = useState(false);
   const [hovSave, setHovSave]   = useState(false);
   const [hovDel, setHovDel]     = useState(false);
   const [hovClose, setHovClose] = useState(false);
@@ -240,20 +306,30 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
     if (!selected?.symbol) return;
     setLoadingPrice(true);
     setCurrentPrice(null);
+    setPriceError(false);
+
     async function load() {
       try {
+        // Pobierz cenę i kurs FX równolegle
         const [priceRes, fx] = await Promise.all([
-          fetch(`https://api.twelvedata.com/price?symbol=${selected.symbol}&apikey=${TWELVE_DATA_KEY}`),
+          fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(selected.symbol)}&apikey=${TWELVE_DATA_KEY}`),
           fetchFxRate(selected.currency),
         ]);
         const priceData = await priceRes.json();
-        if (priceData.price) setCurrentPrice(parseFloat(priceData.price));
+
+        if (priceData?.price && !isNaN(parseFloat(priceData.price))) {
+          setCurrentPrice(parseFloat(priceData.price));
+        } else {
+          setPriceError(true);
+        }
         setFxRate(fx);
-      } catch (e) {}
+      } catch (e) {
+        setPriceError(true);
+      }
       setLoadingPrice(false);
     }
     load();
-  }, [selected?.symbol]);
+  }, [selected?.symbol, selected?.currency]);
 
   const qty = parseFloat(String(quantity).replace(",", ".")) || 0;
   const avg = parseFloat(String(avgPrice).replace(",", ".")) || 0;
@@ -309,10 +385,10 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
           <label style={labelSt}>Wyszukaj akcję lub ETF</label>
           <SymbolSearch
             initialValue={stock ? `${stock.stockSymbol} — ${stock.stockName}` : ""}
-            onSelect={sel => { setSelected(sel); setCurrentPrice(null); setFxRate(null); }}
+            onSelect={sel => { setSelected(sel); setCurrentPrice(null); setFxRate(null); setPriceError(false); }}
           />
           <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 4 }}>
-            Wpisz nazwę lub ticker, np. "IUSQ", "Apple", "PKN ORLEN"
+            Wpisz ticker bez końcówki giełdy, np. "IUSQ" zamiast "IUSQ.DE"
           </div>
         </div>
 
@@ -329,7 +405,9 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
                 <span style={{ fontSize: 11, color: "#4a8a6e", background: "#0a2018", padding: "2px 8px", borderRadius: 4 }}>{currency}</span>
               </div>
             </div>
-            {loadingPrice && <div style={{ fontSize: 11, color: "#5a6a7e", marginTop: 6 }}>Pobieram aktualną cenę...</div>}
+            {loadingPrice && (
+              <div style={{ fontSize: 11, color: "#5a6a7e", marginTop: 6 }}>Pobieram aktualną cenę...</div>
+            )}
             {currentPrice && !loadingPrice && (
               <div style={{ marginTop: 6, fontSize: 12, color: "#8a9bb0" }}>
                 Aktualna cena:{" "}
@@ -341,6 +419,11 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
                     ≈ {fmtPLN2(currentPrice * fxRate)}
                   </span>
                 )}
+              </div>
+            )}
+            {priceError && !loadingPrice && (
+              <div style={{ fontSize: 11, color: "#f05060", marginTop: 6 }}>
+                Nie udało się pobrać ceny. Możesz dodać aktywo — cena zaktualizuje się później.
               </div>
             )}
           </div>
@@ -417,7 +500,8 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
               flex: 1, padding: "10px 16px", borderRadius: 8,
               border: "2px solid #e8e040",
               background: hovSave && canSave ? "#e8e04012" : "transparent",
-              color: "#e8e040", fontWeight: 700, fontSize: 13, cursor: canSave ? "pointer" : "not-allowed",
+              color: "#e8e040", fontWeight: 700, fontSize: 13,
+              cursor: canSave ? "pointer" : "not-allowed",
               fontFamily: "'Sora', sans-serif", transition: "all .2s",
               opacity: canSave ? 1 : 0.4,
             }}>
@@ -490,7 +574,7 @@ export function StockRow({ stock, stockPrices, onClick }) {
               </span>
             )}
             {!hasLivePrice && (
-              <span style={{ color: "#3a4a5e", marginLeft: 4 }}>• ładowanie kursu...</span>
+              <span style={{ color: "#3a4a5e", marginLeft: 4 }}>• odświeżanie...</span>
             )}
           </div>
           {hasLivePrice && (
