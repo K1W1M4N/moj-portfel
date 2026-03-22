@@ -1,0 +1,505 @@
+// src/StockModal.jsx
+// Obsługa akcji i ETF-ów z live cenami z Twelve Data
+import { useState, useEffect, useRef, useCallback } from "react";
+
+const TWELVE_DATA_KEY = "a681abc9ebc045a39c938d8b058567d9";
+
+const labelSt = {
+  fontSize: 11, color: "#5a6a7e", display: "block",
+  marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em"
+};
+const baseInp = {
+  display: "block", width: "100%", padding: "9px 12px", fontSize: 13,
+  borderRadius: 8, background: "#1a2535", border: "1px solid #243040",
+  color: "#e8f0f8", fontFamily: "'Sora', sans-serif", outline: "none",
+  WebkitAppearance: "none", MozAppearance: "none", appearance: "none",
+  boxSizing: "border-box", transition: "border-color .15s, box-shadow .15s",
+};
+const focusInp = e => { e.target.style.borderColor = "#e8e040"; e.target.style.boxShadow = "0 0 0 3px #e8e04018"; };
+const blurInp  = e => { e.target.style.borderColor = "#243040"; e.target.style.boxShadow = "none"; };
+const fmtPLN = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 }).format(n);
+const fmtPLN2 = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 2 }).format(n);
+const fmtCur = (n, cur) => n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + " " + (cur || "");
+
+// ─── Kurs walutowy ────────────────────────────────────────────────────────────
+async function fetchFxRate(currency) {
+  if (!currency || currency === "PLN") return 1;
+  try {
+    const res = await fetch(
+      `https://api.twelvedata.com/price?symbol=${currency}/PLN&apikey=${TWELVE_DATA_KEY}`
+    );
+    const data = await res.json();
+    if (data.price) return parseFloat(data.price);
+  } catch (e) {}
+  const fallback = { USD: 3.95, EUR: 4.27, GBP: 5.0, CHF: 4.4 };
+  return fallback[currency] || 4.0;
+}
+
+// ─── Hook: live ceny dla aktywów giełdowych ───────────────────────────────────
+export function useStockPrices(assets) {
+  const [stockPrices, setStockPrices] = useState({});
+  const [stockLastUpdated, setStockLastUpdated] = useState(null);
+
+  const stockAssets = assets.filter(a => a.isStock && a.stockSymbol);
+  const symbolKey = stockAssets.map(a => a.stockSymbol).join(",");
+
+  const fetchAll = useCallback(async () => {
+    if (stockAssets.length === 0) return;
+    const symbols = [...new Set(stockAssets.map(a => a.stockSymbol))];
+
+    try {
+      const symbolStr = symbols.join(",");
+      const res = await fetch(
+        `https://api.twelvedata.com/price?symbol=${symbolStr}&apikey=${TWELVE_DATA_KEY}`
+      );
+      const data = await res.json();
+
+      // Zbierz unikalne waluty i pobierz kursy fx
+      const currencies = [...new Set(stockAssets.map(a => a.stockCurrency).filter(Boolean))];
+      const fxRates = {};
+      await Promise.all(currencies.map(async cur => {
+        fxRates[cur] = await fetchFxRate(cur);
+      }));
+
+      const newPrices = {};
+
+      if (symbols.length === 1) {
+        // Single symbol — odpowiedź płaska
+        if (data.price) {
+          const asset = stockAssets.find(a => a.stockSymbol === symbols[0]);
+          const currency = asset?.stockCurrency || "PLN";
+          const priceOrig = parseFloat(data.price);
+          const fx = fxRates[currency] || 1;
+          newPrices[symbols[0]] = { priceOrig, pricePLN: priceOrig * fx, currency, fx };
+        }
+      } else {
+        // Multi symbol
+        for (const sym of symbols) {
+          if (data[sym]?.price) {
+            const asset = stockAssets.find(a => a.stockSymbol === sym);
+            const currency = asset?.stockCurrency || "PLN";
+            const priceOrig = parseFloat(data[sym].price);
+            const fx = fxRates[currency] || 1;
+            newPrices[sym] = { priceOrig, pricePLN: priceOrig * fx, currency, fx };
+          }
+        }
+      }
+
+      setStockPrices(newPrices);
+      setStockLastUpdated(new Date());
+    } catch (e) {
+      console.warn("Twelve Data error:", e);
+    }
+  }, [symbolKey]);
+
+  useEffect(() => {
+    fetchAll();
+    const interval = setInterval(fetchAll, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchAll]);
+
+  return { stockPrices, stockLastUpdated };
+}
+
+// ─── Wyszukiwarka symboli ─────────────────────────────────────────────────────
+function SymbolSearch({ initialValue, onSelect }) {
+  const [query, setQuery] = useState(initialValue || "");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef(null);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+    };
+  }, []);
+
+  function handleInput(e) {
+    const q = e.target.value;
+    setQuery(q);
+    setOpen(true);
+    clearTimeout(timerRef.current);
+    if (q.length < 2) { setResults([]); setLoading(false); return; }
+    setLoading(true);
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(q)}&apikey=${TWELVE_DATA_KEY}`
+        );
+        const data = await res.json();
+        const filtered = (data.data || [])
+          .filter(r => ["Common Stock", "ETF", "Index"].includes(r.instrument_type))
+          .slice(0, 8);
+        setResults(filtered);
+      } catch (e) {
+        setResults([]);
+      }
+      setLoading(false);
+    }, 450);
+  }
+
+  function handleSelect(item) {
+    setQuery(`${item.symbol} — ${item.instrument_name}`);
+    setOpen(false);
+    setResults([]);
+    onSelect({
+      symbol: item.symbol,
+      name: item.instrument_name,
+      exchange: item.exchange,
+      currency: item.currency,
+      type: item.instrument_type,
+    });
+  }
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <input
+        style={{ ...baseInp }}
+        placeholder="Wpisz nazwę lub ticker, np. IUSQ, Apple, PKN..."
+        value={query}
+        onChange={handleInput}
+        onFocus={e => { setOpen(true); focusInp(e); }}
+        onBlur={blurInp}
+        autoComplete="off"
+      />
+      {open && (loading || results.length > 0) && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+          background: "#161d28", border: "1px solid #2a3a50", borderRadius: 10,
+          zIndex: 300, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+        }}>
+          {loading && (
+            <div style={{ padding: "12px 14px", fontSize: 12, color: "#5a6a7e" }}>Szukam...</div>
+          )}
+          {results.map((item, i) => (
+            <div key={i}
+              onClick={() => handleSelect(item)}
+              onTouchEnd={e => { e.preventDefault(); handleSelect(item); }}
+              style={{
+                padding: "10px 14px", cursor: "pointer",
+                borderBottom: i < results.length - 1 ? "1px solid #1e2a38" : "none",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#e8e040", fontFamily: "'DM Mono', monospace" }}>
+                    {item.symbol}
+                  </span>
+                  <span style={{ fontSize: 12, color: "#e8f0f8", marginLeft: 8 }}>{item.instrument_name}</span>
+                </div>
+                <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                  <span style={{ fontSize: 10, color: "#5a6a7e", background: "#1e2a38", padding: "2px 6px", borderRadius: 4 }}>
+                    {item.exchange}
+                  </span>
+                  <span style={{ fontSize: 10, color: "#4a8a6e", background: "#0a2018", padding: "2px 6px", borderRadius: 4 }}>
+                    {item.currency}
+                  </span>
+                </div>
+              </div>
+              <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 2 }}>{item.instrument_type}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Modal dodawania/edycji akcji/ETF ─────────────────────────────────────────
+export function StockModal({ stock, onSave, onDelete, onClose }) {
+  const isEdit = !!stock;
+  const [selected, setSelected] = useState(stock ? {
+    symbol: stock.stockSymbol,
+    name: stock.stockName,
+    exchange: stock.stockExchange,
+    currency: stock.stockCurrency,
+    type: stock.stockType,
+  } : null);
+  const [quantity, setQuantity] = useState(stock?.stockQuantity?.toString() || "");
+  const [avgPrice, setAvgPrice] = useState(stock?.stockAvgPrice?.toString() || "");
+  const [note, setNote]         = useState(stock?.note || "");
+  const [currentPrice, setCurrentPrice] = useState(null);
+  const [fxRate, setFxRate]     = useState(null);
+  const [loadingPrice, setLoadingPrice] = useState(false);
+  const [hovSave, setHovSave]   = useState(false);
+  const [hovDel, setHovDel]     = useState(false);
+  const [hovClose, setHovClose] = useState(false);
+
+  // Pobierz aktualną cenę gdy wybrano symbol
+  useEffect(() => {
+    if (!selected?.symbol) return;
+    setLoadingPrice(true);
+    setCurrentPrice(null);
+    async function load() {
+      try {
+        const [priceRes, fx] = await Promise.all([
+          fetch(`https://api.twelvedata.com/price?symbol=${selected.symbol}&apikey=${TWELVE_DATA_KEY}`),
+          fetchFxRate(selected.currency),
+        ]);
+        const priceData = await priceRes.json();
+        if (priceData.price) setCurrentPrice(parseFloat(priceData.price));
+        setFxRate(fx);
+      } catch (e) {}
+      setLoadingPrice(false);
+    }
+    load();
+  }, [selected?.symbol]);
+
+  const qty = parseFloat(String(quantity).replace(",", ".")) || 0;
+  const avg = parseFloat(String(avgPrice).replace(",", ".")) || 0;
+  const currency = selected?.currency || "PLN";
+  const fx = fxRate || 1;
+
+  const paidPLN = qty > 0 && avg > 0 ? qty * avg * fx : 0;
+  const currentValuePLN = currentPrice && qty > 0 ? qty * currentPrice * fx : null;
+  const pnlPLN = currentValuePLN !== null && paidPLN > 0 ? currentValuePLN - paidPLN : null;
+  const pnlPct = pnlPLN !== null && paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : null;
+
+  const canSave = selected && qty > 0 && avg > 0;
+
+  function submit() {
+    if (!canSave) return;
+    const value = currentValuePLN ?? paidPLN;
+    onSave({
+      id: stock?.id || Date.now(),
+      name: selected.name || selected.symbol,
+      category: "Akcje / ETF",
+      value,
+      note,
+      isStock: true,
+      stockSymbol: selected.symbol,
+      stockName: selected.name,
+      stockExchange: selected.exchange,
+      stockCurrency: currency,
+      stockType: selected.type,
+      stockQuantity: qty,
+      stockAvgPrice: avg,
+      stockPaidPLN: paidPLN,
+    });
+    onClose();
+  }
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}>
+      <div style={{ background: "#161d28", border: "1px solid #2a3a50", borderRadius: 16, padding: 28, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto" }}>
+
+        {/* Nagłówek */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#e8f0f8" }}>
+            {isEdit ? "Edytuj akcje / ETF" : "Dodaj akcje / ETF"}
+          </div>
+          <button onClick={onClose}
+            onMouseEnter={() => setHovClose(true)} onMouseLeave={() => setHovClose(false)}
+            style={{ background: hovClose ? "#f0506018" : "#161d28", border: `1px solid ${hovClose ? "#f05060" : "#f0506030"}`, borderRadius: 6, color: "#f05060", cursor: "pointer", fontSize: 18, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+        </div>
+
+        {/* Wyszukiwarka */}
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelSt}>Wyszukaj akcję lub ETF</label>
+          <SymbolSearch
+            initialValue={stock ? `${stock.stockSymbol} — ${stock.stockName}` : ""}
+            onSelect={sel => { setSelected(sel); setCurrentPrice(null); setFxRate(null); }}
+          />
+          <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 4 }}>
+            Wpisz nazwę lub ticker, np. "IUSQ", "Apple", "PKN ORLEN"
+          </div>
+        </div>
+
+        {/* Wybrany instrument */}
+        {selected && (
+          <div style={{ background: "#0f1a27", border: "1px solid #1e3040", borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+              <div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#e8e040", fontFamily: "'DM Mono', monospace" }}>{selected.symbol}</span>
+                <span style={{ fontSize: 12, color: "#e8f0f8", marginLeft: 8 }}>{selected.name}</span>
+              </div>
+              <div style={{ display: "flex", gap: 5 }}>
+                <span style={{ fontSize: 11, color: "#5a6a7e", background: "#1e2a38", padding: "2px 8px", borderRadius: 4 }}>{selected.exchange}</span>
+                <span style={{ fontSize: 11, color: "#4a8a6e", background: "#0a2018", padding: "2px 8px", borderRadius: 4 }}>{currency}</span>
+              </div>
+            </div>
+            {loadingPrice && <div style={{ fontSize: 11, color: "#5a6a7e", marginTop: 6 }}>Pobieram aktualną cenę...</div>}
+            {currentPrice && !loadingPrice && (
+              <div style={{ marginTop: 6, fontSize: 12, color: "#8a9bb0" }}>
+                Aktualna cena:{" "}
+                <span style={{ color: "#e8e040", fontFamily: "'DM Mono', monospace", fontWeight: 600 }}>
+                  {fmtCur(currentPrice, currency)}
+                </span>
+                {currency !== "PLN" && fxRate && (
+                  <span style={{ marginLeft: 8, color: "#5a6a7e" }}>
+                    ≈ {fmtPLN2(currentPrice * fxRate)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Ilość i średni kurs */}
+        {selected && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={labelSt}>Ilość jednostek</label>
+              <input style={{ ...baseInp, MozAppearance: "textfield" }} type="number" step="any"
+                placeholder="np. 10 lub 5.234"
+                value={quantity}
+                onChange={e => setQuantity(e.target.value)}
+                onFocus={focusInp} onBlur={blurInp} />
+            </div>
+            <div>
+              <label style={labelSt}>Średnia cena zakupu ({currency})</label>
+              <input style={{ ...baseInp, MozAppearance: "textfield" }} type="number" step="any"
+                placeholder="z XTB / brokera"
+                value={avgPrice}
+                onChange={e => setAvgPrice(e.target.value)}
+                onFocus={focusInp} onBlur={blurInp}
+                onKeyDown={e => e.key === "Enter" && submit()} />
+              <div style={{ fontSize: 11, color: "#4a5a6e", marginTop: 4 }}>
+                XTB → pozycja → "Średnia cena"
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Podgląd */}
+        {selected && qty > 0 && avg > 0 && (
+          <div style={{ background: "#0f1a27", border: "1px solid #1a3a20", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: "#5a7a9e", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Podsumowanie</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#5a7a9e" }}>Zapłacono łącznie</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>{fmtPLN(paidPLN)}</div>
+                <div style={{ fontSize: 11, color: "#4a5a6e" }}>{qty} × {fmtCur(avg, currency)}</div>
+              </div>
+              {currentValuePLN !== null && (
+                <div>
+                  <div style={{ fontSize: 11, color: "#5a7a9e" }}>Aktualna wartość</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#e8e040", fontFamily: "'DM Mono', monospace" }}>{fmtPLN(currentValuePLN)}</div>
+                  {pnlPLN !== null && (
+                    <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
+                      {pnlPLN >= 0 ? "+" : ""}{fmtPLN(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct?.toFixed(1)}%)
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Notatka */}
+        {selected && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelSt}>Notatka (opcjonalnie)</label>
+            <input style={baseInp} placeholder="np. XTB, zakup marzec 2024..."
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              onFocus={focusInp} onBlur={blurInp} />
+          </div>
+        )}
+
+        {/* Przyciski */}
+        <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+          <button onClick={submit}
+            onMouseEnter={() => setHovSave(true)} onMouseLeave={() => setHovSave(false)}
+            disabled={!canSave}
+            style={{
+              flex: 1, padding: "10px 16px", borderRadius: 8,
+              border: "2px solid #e8e040",
+              background: hovSave && canSave ? "#e8e04012" : "transparent",
+              color: "#e8e040", fontWeight: 700, fontSize: 13, cursor: canSave ? "pointer" : "not-allowed",
+              fontFamily: "'Sora', sans-serif", transition: "all .2s",
+              opacity: canSave ? 1 : 0.4,
+            }}>
+            {isEdit ? "Zapisz zmiany" : "Dodaj do portfela"}
+          </button>
+          {isEdit && (
+            <button onClick={() => { onDelete(stock.id); onClose(); }}
+              onMouseEnter={() => setHovDel(true)} onMouseLeave={() => setHovDel(false)}
+              style={{ padding: "10px 16px", borderRadius: 8, border: `1px solid ${hovDel ? "#f05060" : "#f0506040"}`, background: hovDel ? "#f0506018" : "transparent", color: "#f05060", fontSize: 13, cursor: "pointer", transition: "all .15s" }}>
+              Usuń
+            </button>
+          )}
+          <button onClick={onClose}
+            style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #f0506040", background: "transparent", color: "#f05060", fontSize: 13, cursor: "pointer" }}>
+            Anuluj
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Wiersz akcji/ETF na liście ───────────────────────────────────────────────
+export function StockRow({ stock, stockPrices, onClick }) {
+  const [hov, setHov] = useState(false);
+  const color = "#e8e040";
+
+  const priceData = stockPrices[stock.stockSymbol];
+  const currentValuePLN = priceData
+    ? stock.stockQuantity * priceData.pricePLN
+    : stock.value;
+  const paidPLN = stock.stockPaidPLN || stock.value;
+  const pnlPLN = currentValuePLN - paidPLN;
+  const pnlPct = paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : 0;
+  const hasLivePrice = !!priceData;
+
+  const fmtPLN0 = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 }).format(n);
+
+  return (
+    <div onClick={onClick}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
+        background: hov ? "#111720" : "#161d28", borderRadius: 12, marginBottom: 8,
+        border: `1px solid ${hov ? color + "50" : "#1e2a38"}`, cursor: "pointer", transition: "all .15s"
+      }}>
+      <div style={{ width: 4, borderRadius: 2, background: color, flexShrink: 0, alignSelf: "stretch" }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Wiersz 1: ticker + wartość */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+          <div style={{ minWidth: 0, overflow: "hidden" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#e8e040", fontFamily: "'DM Mono', monospace" }}>
+              {stock.stockSymbol}
+            </span>
+            <span style={{ fontSize: 12, color: "#e8f0f8", marginLeft: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {stock.stockName || stock.name}
+            </span>
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'DM Mono', monospace", color: "#e8f0f8", flexShrink: 0 }}>
+            {fmtPLN0(currentValuePLN)}
+          </div>
+        </div>
+        {/* Wiersz 2: szczegóły + zysk */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
+          <div style={{ fontSize: 11, color: "#4a5a6e", whiteSpace: "nowrap" }}>
+            {stock.stockQuantity} szt.
+            {priceData && (
+              <span style={{ marginLeft: 4, color: "#5a6a7e" }}>
+                @ {priceData.priceOrig.toFixed(2)} {stock.stockCurrency}
+              </span>
+            )}
+            {!hasLivePrice && (
+              <span style={{ color: "#3a4a5e", marginLeft: 4 }}>• ładowanie kursu...</span>
+            )}
+          </div>
+          {hasLivePrice && (
+            <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0, whiteSpace: "nowrap", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
+              {pnlPLN >= 0 ? "+" : ""}{fmtPLN0(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
