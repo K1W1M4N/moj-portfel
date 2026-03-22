@@ -1,19 +1,20 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./BondModal";
+import { StockModal, StockRow, useStockPrices } from "./StockModal";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
 
 const CRYPTO_LIST = [
-  { label: "Bitcoin (BTC)",   id: "bitcoin" },
-  { label: "Ethereum (ETH)",  id: "ethereum" },
-  { label: "BNB",             id: "binancecoin" },
-  { label: "Solana (SOL)",    id: "solana" },
-  { label: "XRP",             id: "ripple" },
+  { label: "Bitcoin (BTC)",    id: "bitcoin" },
+  { label: "Ethereum (ETH)",   id: "ethereum" },
+  { label: "BNB",              id: "binancecoin" },
+  { label: "Solana (SOL)",     id: "solana" },
+  { label: "XRP",              id: "ripple" },
   { label: "Dogecoin (DOGE)", id: "dogecoin" },
-  { label: "USDT",            id: "tether" },
-  { label: "USDC",            id: "usd-coin" },
-  { label: "Shiba Inu (SHIB)",id: "shiba-inu" },
-  { label: "Toncoin (TON)",   id: "the-open-network" },
+  { label: "USDT",             id: "tether" },
+  { label: "USDC",             id: "usd-coin" },
+  { label: "Shiba Inu (SHIB)", id: "shiba-inu" },
+  { label: "Toncoin (TON)",    id: "the-open-network" },
 ];
 
 const DEFAULT_CATEGORIES = [
@@ -75,7 +76,7 @@ function useCryptoPrices(assets) {
   return { prices, lastUpdated };
 }
 
-// ─── Widok Obligacji ─────────────────────────────────────────────────────────
+// ─── Widok Obligacji ──────────────────────────────────────────────────────────
 const BOND_DESCRIPTIONS = {
   TOS: { full: "Trzyletnie Oszczędnościowe Skarbowe", desc: "Stałe oprocentowanie przez 3 lata. Odsetki kapitalizowane rocznie — wypłata w dniu wykupu.", color: "#f0a030", years: 3 },
   COI: { full: "Czteroletnie Oszczędnościowe Indeksowane", desc: "Rok 1: stałe. Rok 2–4: inflacja GUS + marża 1,5%. Odsetki wypłacane co rok.", color: "#a78bfa", years: 4 },
@@ -95,7 +96,6 @@ function getLatestRate(bondType) {
 }
 
 function getLastUpdateDate() {
-  // Znajdź najnowszą datę aktualizacji spośród wszystkich typów
   let latest = "";
   Object.values(BOND_RATES_HISTORY).forEach(rates => {
     const keys = Object.keys(rates).sort();
@@ -141,14 +141,10 @@ function BondRatesView() {
               style={{
                 background: "#161d28",
                 border: `1px solid ${isOpen ? info.color + "60" : "#1e2a38"}`,
-                borderRadius: 14,
-                padding: "16px 18px",
-                cursor: "pointer",
+                borderRadius: 14, padding: "16px 18px", cursor: "pointer",
                 transition: "all .2s",
                 boxShadow: isOpen ? `0 0 20px ${info.color}20` : "none",
               }}>
-
-              {/* Header karty */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -171,13 +167,9 @@ function BondRatesView() {
                   )}
                 </div>
               </div>
-
-              {/* Opis */}
               <div style={{ fontSize: 12, color: "#5a7a9e", lineHeight: 1.6, marginBottom: isOpen ? 14 : 0 }}>
                 {info.desc}
               </div>
-
-              {/* Rozwinięta historia stawek */}
               {isOpen && recentKeys.length > 0 && (
                 <div style={{ marginTop: 12, borderTop: "1px solid #1e2a38", paddingTop: 12 }}>
                   <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Historia stawek (rok 1)</div>
@@ -193,7 +185,6 @@ function BondRatesView() {
                   </div>
                 </div>
               )}
-
               <div style={{ textAlign: "right", marginTop: 8, fontSize: 11, color: "#3a4a5e" }}>
                 {isOpen ? "▲ zwiń" : "▼ historia"}
               </div>
@@ -239,7 +230,7 @@ function MenuDropdown({ onNavigate }) {
           flexDirection: "column", gap: 4, padding: "8px 9px",
         }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          {[0,1,2].map(i => (
+          {[0, 1, 2].map(i => (
             <div key={i} style={{
               width: 16, height: 2, borderRadius: 1,
               background: open ? "#e8f0f8" : "#5a6a7e",
@@ -458,7 +449,6 @@ const labelSt = {
   fontSize: 11, color: "#5a6a7e", display: "block",
   marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em"
 };
-
 const baseInp = {
   display: "block", width: "100%", padding: "9px 12px", fontSize: 13,
   borderRadius: 8, background: "#1a2535", border: "1px solid #243040",
@@ -508,20 +498,20 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
   const [addingCat, setAddingCat] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [hovSave, setHovSave] = useState(false);
-  const [hovDel, setHovDel] = useState(false);
+  const [hovDel, setHovDel]   = useState(false);
   const [hovCancel, setHovCancel] = useState(false);
-  const [hovClose, setHovClose] = useState(false);
+  const [hovClose, setHovClose]   = useState(false);
 
   const isCrypto = form.category === "Krypto";
   const isCustomCrypto = form.cryptoId === "other";
 
   function focusInp(e) { e.target.style.borderColor = "#00c896"; e.target.style.boxShadow = "0 0 0 3px #00c89618"; }
-  function blurInp(e) { e.target.style.borderColor = "#243040"; e.target.style.boxShadow = "none"; }
+  function blurInp(e)  { e.target.style.borderColor = "#243040"; e.target.style.boxShadow = "none"; }
 
   function submit() {
     if (isCrypto && form.cryptoId && form.cryptoId !== "other") {
       const amount = parseFloat(String(form.cryptoAmount).replace(",", "."));
-      const paid = parseFloat(String(form.cryptoPaid).replace(",", "."));
+      const paid   = parseFloat(String(form.cryptoPaid).replace(",", "."));
       if (!form.name.trim() || isNaN(amount) || amount <= 0 || isNaN(paid) || paid <= 0) return;
       onSave({ ...form, value: paid, cryptoAmount: amount, cryptoPaid: paid, id: asset?.id || Date.now() });
     } else {
@@ -545,7 +535,7 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
 
         <div style={{ marginBottom: 14 }}>
           <label style={labelSt}>Nazwa aktywa</label>
-          <input style={baseInp} placeholder="np. Mój Bitcoin, ETF IUSQ..."
+          <input style={baseInp} placeholder="np. Mój Bitcoin, Konto PKO..."
             value={form.name} autoFocus
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             onFocus={focusInp} onBlur={blurInp} />
@@ -693,7 +683,6 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
       pnlPct = (pnlAmt / asset.cryptoPaid) * 100;
     }
   } else if (asset.purchaseAmount && asset.purchaseAmount > 0) {
-    // Dla aktywów z kwotą zakupu (obligacje, lokaty itp.) — pokaż zysk
     pnlAmt = displayValue - asset.purchaseAmount;
     pnlPct = (pnlAmt / asset.purchaseAmount) * 100;
   }
@@ -709,7 +698,6 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
       }}>
       <div style={{ width: 4, borderRadius: 2, background: color, flexShrink: 0, alignSelf: "stretch" }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Wiersz 1: nazwa + wartość */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: "#e8f0f8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
             {asset.name}
@@ -718,7 +706,6 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
             {fmt(displayValue)}
           </div>
         </div>
-        {/* Wiersz 2: podtytuł + zysk */}
         {hasSubline && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
             <div style={{ fontSize: 11, color: "#4a5a6e", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -804,12 +791,18 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [bondModal, setBondModal] = useState(null);
   const [bondDetail, setBondDetail] = useState(null);
+  const [stockModal, setStockModal] = useState(null); // null | "add" | asset
   const [hovAdd, setHovAdd] = useState(false);
-  const [currentView, setCurrentView] = useState("portfolio"); // "portfolio" | "bonds"
+  const [currentView, setCurrentView] = useState("portfolio");
 
   const { prices, lastUpdated } = useCryptoPrices(assets);
+  const { stockPrices, stockLastUpdated } = useStockPrices(assets);
 
+  // Aktualizuj wartości live
   const assetsWithLivePrices = assets.map(a => {
+    if (a.isStock && a.stockSymbol && stockPrices[a.stockSymbol]) {
+      return { ...a, value: a.stockQuantity * stockPrices[a.stockSymbol].pricePLN };
+    }
     if (a.cryptoId && a.cryptoId !== "other" && prices[a.cryptoId]) {
       return { ...a, value: a.cryptoAmount * prices[a.cryptoId].pln };
     }
@@ -848,6 +841,11 @@ export default function App() {
   const visible = activeFilter ? assetsWithLivePrices.filter(a => a.category === activeFilter) : assetsWithLivePrices;
   const usedCats = categories.filter(c => assetsWithLivePrices.some(a => a.category === c.name));
 
+  // Ostatnia aktualizacja (krypto lub akcje — nowsza)
+  const anyLastUpdated = stockLastUpdated && lastUpdated
+    ? (stockLastUpdated > lastUpdated ? stockLastUpdated : lastUpdated)
+    : stockLastUpdated || lastUpdated;
+
   const globalStyles = `
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -863,29 +861,12 @@ export default function App() {
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #0a0e14; }
     ::-webkit-scrollbar-thumb { background: #1e2a38; border-radius: 3px; }
-
-    /* ── Mobile fixes ─────────────────────────────────────── */
     @media (max-width: 500px) {
       .pie-legend { display: none !important; }
-
-      /* Mniejszy padding na mobile */
       #main-container { padding: 16px 12px !important; }
-
-      /* Chip-filtry: mniejsze żeby się mieściły */
       .chip-btn { padding: 5px 10px !important; font-size: 11px !important; }
-
-      /* Przyciski Dodaj: stack pionowo */
       #add-btns { flex-direction: column !important; }
       #add-btns button { width: 100% !important; }
-
-      /* Nagłówek: mniejszy tekst */
-      #header-title { font-size: 10px !important; letter-spacing: .12em !important; }
-    }
-
-    @media (max-width: 380px) {
-      /* Bardzo małe ekrany: jeszcze mniejszy font w wierszach */
-      .asset-row-name { font-size: 12px !important; }
-      .asset-row-value { font-size: 13px !important; }
     }
   `;
 
@@ -901,7 +882,7 @@ export default function App() {
       <style>{globalStyles}</style>
       <div id="main-container" style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
 
-        {/* Nagłówek z menu */}
+        {/* Nagłówek */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
           <div style={{ flex: 1 }} />
           <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace", textAlign: "center", flex: 1 }}>
@@ -917,11 +898,11 @@ export default function App() {
           </div>
         </div>
 
-        {/* Widok Obligacji */}
         {currentView === "bonds" ? (
           <BondRatesView />
         ) : (
           <>
+            {/* Wykres */}
             <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
               {assetsWithLivePrices.length > 0 ? (
                 <PieChart
@@ -940,36 +921,49 @@ export default function App() {
               )}
             </div>
 
+            {/* Przyciski dodawania */}
             <div id="add-btns" style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
               <button
                 onClick={() => setBondModal("add")}
                 style={{
-                  padding: "12px 24px", borderRadius: 12, border: "2px solid #f0a030",
-                  background: "transparent", color: "#f0a030", fontWeight: 700, fontSize: 14,
-                  cursor: "pointer", letterSpacing: ".04em", fontFamily: "'Sora', sans-serif",
-                  boxShadow: "0 0 10px #f0a03040", transition: "all .2s",
+                  padding: "11px 20px", borderRadius: 12, border: "2px solid #f0a030",
+                  background: "transparent", color: "#f0a030", fontWeight: 700, fontSize: 13,
+                  cursor: "pointer", letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
+                  boxShadow: "0 0 8px #f0a03030", transition: "all .2s",
                   WebkitTapHighlightColor: "transparent",
                 }}>
-                + Dodaj obligacje
+                + Obligacje
+              </button>
+              <button
+                onClick={() => setStockModal("add")}
+                style={{
+                  padding: "11px 20px", borderRadius: 12, border: "2px solid #e8e040",
+                  background: "transparent", color: "#e8e040", fontWeight: 700, fontSize: 13,
+                  cursor: "pointer", letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
+                  boxShadow: "0 0 8px #e8e04030", transition: "all .2s",
+                  WebkitTapHighlightColor: "transparent",
+                }}>
+                + Akcje / ETF
               </button>
               <button id="add-btn"
                 onMouseEnter={() => setHovAdd(true)} onMouseLeave={() => setHovAdd(false)}
                 onClick={() => setModal("add")}
                 style={{
-                  padding: "12px 36px", borderRadius: 12, border: "2px solid #00c896",
+                  padding: "11px 28px", borderRadius: 12, border: "2px solid #00c896",
                   background: hovAdd ? "#00c89612" : "transparent",
-                  color: "#00c896", fontWeight: 700, fontSize: 14, cursor: "pointer",
-                  letterSpacing: ".04em", fontFamily: "'Sora', sans-serif",
+                  color: "#00c896", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
                   textShadow: "0 0 8px #00c896, 0 0 18px #00c89680",
                   boxShadow: hovAdd
                     ? "0 0 16px #00c896, 0 0 40px #00c89660, inset 0 0 16px #00c89620"
                     : "0 0 10px #00c89640, 0 0 28px #00c89620, inset 0 0 8px #00c89610",
                   transition: "all .2s", WebkitTapHighlightColor: "transparent",
                 }}>
-                + Dodaj aktywo
+                + Inne aktywo
               </button>
             </div>
 
+            {/* Filtry */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
               {["Wszystkie", ...usedCats.map(c => c.name)].map(name => {
                 const ia = name === "Wszystkie" ? !activeFilter : activeFilter === name;
@@ -993,10 +987,11 @@ export default function App() {
               })}
             </div>
 
+            {/* Lista aktywów */}
             {visible.length === 0 ? (
               <div style={{ background: "#161d28", border: "1px dashed #1e2a38", borderRadius: 12, padding: 32, textAlign: "center", color: "#4a5a6e", fontSize: 13, lineHeight: 1.7 }}>
                 {assets.length === 0
-                  ? <><span>Nie masz jeszcze żadnych aktywów.</span><br /><span>Kliknij <span style={{ color: "#00c896" }}>+ Dodaj aktywo</span> żeby zacząć.</span></>
+                  ? <><span>Nie masz jeszcze żadnych aktywów.</span><br /><span>Kliknij jeden z przycisków powyżej żeby zacząć.</span></>
                   : "Brak aktywów w tej kategorii."}
               </div>
             ) : (
@@ -1004,6 +999,8 @@ export default function App() {
                 <div key={a.id} className="asset-row-wrap">
                   {a.isBond ? (
                     <BondRow bond={a} onClick={() => setBondDetail(a)} />
+                  ) : a.isStock ? (
+                    <StockRow stock={a} stockPrices={stockPrices} onClick={() => setStockModal(a)} />
                   ) : (
                     <AssetRow asset={a} total={total} categories={categories} prices={prices}
                       onClick={() => setModal(a)} />
@@ -1012,11 +1009,12 @@ export default function App() {
               ))
             )}
 
+            {/* Stopka */}
             <div style={{ textAlign: "center", fontSize: 11, color: "#4a5a6e", marginTop: 28, paddingBottom: 16 }}>
               Kliknij aktywo aby edytować · dane zapisane lokalnie w przeglądarce
-              {lastUpdated && (
+              {anyLastUpdated && (
                 <div style={{ marginTop: 4 }}>
-                  Kursy krypto: {lastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+                  Kursy live: {anyLastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
                 </div>
               )}
               {(() => {
@@ -1035,6 +1033,7 @@ export default function App() {
         )}
       </div>
 
+      {/* Modale */}
       {modal && (
         <AssetModal
           asset={modal === "add" ? null : modal}
@@ -1066,6 +1065,15 @@ export default function App() {
           }}
           onDelete={handleDelete}
           onClose={() => setBondModal(null)}
+        />
+      )}
+
+      {stockModal && (
+        <StockModal
+          stock={stockModal === "add" ? null : stockModal}
+          onSave={handleSave}
+          onDelete={handleDelete}
+          onClose={() => setStockModal(null)}
         />
       )}
     </>
