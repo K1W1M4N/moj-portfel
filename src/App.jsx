@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./BondModal";
 import { StockModal, StockRow, useStockPrices } from "./StockModal";
+import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue } from "./SavingsModal";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
 
@@ -214,7 +215,8 @@ function MenuDropdown({ onNavigate }) {
   }, []);
 
   const items = [
-    { id: "bonds", label: "Obligacje", icon: "📋", desc: "Aktualne stawki" },
+    { id: "bonds",   label: "Obligacje",            icon: "📋", desc: "Aktualne stawki" },
+    { id: "savings", label: "Konta oszczędnościowe", icon: "🏦", desc: "Zarządzaj kontami" },
   ];
 
   return (
@@ -247,7 +249,7 @@ function MenuDropdown({ onNavigate }) {
         <div style={{
           position: "absolute", top: 44, right: 0,
           background: "#161d28", border: "1px solid #2a3a50",
-          borderRadius: 12, padding: "6px", minWidth: 180,
+          borderRadius: 12, padding: "6px", minWidth: 200,
           boxShadow: "0 8px 32px rgba(0,0,0,0.4)", zIndex: 100,
         }}>
           {items.map(item => (
@@ -775,6 +777,57 @@ function WelcomeScreen({ onStart }) {
   );
 }
 
+// ─── Widok Kont Oszczędnościowych ─────────────────────────────────────────────
+function SavingsView({ assets, onAdd, onSelect }) {
+  const savingsAccounts = assets.filter(a => a.isSavings);
+  const totalSavings = savingsAccounts.reduce((s, a) => s + getSavingsValue(a), 0);
+
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 16px 32px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 13, color: "#5a6a7e" }}>Konta oszczędnościowe</div>
+          {savingsAccounts.length > 0 && (
+            <div style={{ fontSize: 11, color: "#3a4a5e", marginTop: 2 }}>
+              Łącznie:{" "}
+              <span style={{ color: "#00c896", fontFamily: "'DM Mono', monospace" }}>
+                {new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 2 }).format(totalSavings)}
+              </span>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={onAdd}
+          style={{
+            padding: "9px 18px", borderRadius: 10, border: "2px solid #00c896",
+            background: "transparent", color: "#00c896", fontWeight: 700, fontSize: 13,
+            cursor: "pointer", fontFamily: "'Sora', sans-serif",
+            boxShadow: "0 0 8px #00c89630", transition: "all .2s",
+          }}>
+          + Dodaj konto
+        </button>
+      </div>
+
+      {savingsAccounts.length === 0 ? (
+        <div style={{
+          background: "#161d28", border: "1px dashed #1e2a38", borderRadius: 14,
+          padding: "48px 24px", textAlign: "center",
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🏦</div>
+          <div style={{ fontSize: 15, color: "#5a6a7e", marginBottom: 6 }}>Brak kont oszczędnościowych</div>
+          <div style={{ fontSize: 13, color: "#3a4a5e" }}>Kliknij „+ Dodaj konto" aby śledzić swoje oszczędności</div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {savingsAccounts.map(a => (
+            <SavingsRow key={a.id} account={a} onClick={() => onSelect(a)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Główna aplikacja ─────────────────────────────────────────────────────────
 export default function App() {
   const [welcomed, setWelcomed] = useState(() => {
@@ -791,15 +844,23 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [bondModal, setBondModal] = useState(null);
   const [bondDetail, setBondDetail] = useState(null);
-  const [stockModal, setStockModal] = useState(null); // null | "add" | asset
+  const [stockModal, setStockModal] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
   const [currentView, setCurrentView] = useState("portfolio");
+
+  // ── Stany kont oszczędnościowych ──
+  const [selectedSavings, setSelectedSavings] = useState(null);
+  const [showSavingsForm, setShowSavingsForm] = useState(false);
+  const [editingSavings, setEditingSavings] = useState(null);
 
   const { prices, lastUpdated } = useCryptoPrices(assets);
   const { stockPrices, stockLastUpdated } = useStockPrices(assets);
 
-  // Aktualizuj wartości live
+  // Aktualizuj wartości live (krypto, akcje, konta oszczędnościowe)
   const assetsWithLivePrices = assets.map(a => {
+    if (a.isSavings) {
+      return { ...a, value: getSavingsValue(a) };
+    }
     if (a.isStock && a.stockSymbol && stockPrices[a.stockSymbol]) {
       return { ...a, value: a.stockQuantity * stockPrices[a.stockSymbol].pricePLN };
     }
@@ -837,14 +898,42 @@ export default function App() {
     setAssets(all => all.filter(a => a.id !== id));
   }
 
+  // ── Zapis konta oszczędnościowego ──
+  function handleSaveSavings(account) {
+    // Upewnij się że kategoria istnieje
+    if (!categories.find(c => c.name === "Konto oszczędnościowe")) {
+      setCategories(cs => [...cs, { name: "Konto oszczędnościowe", color: "#00c896" }]);
+    }
+    const withValue = { ...account, value: getSavingsValue(account) };
+    setAssets(all => {
+      const exists = all.find(a => a.id === withValue.id);
+      return exists ? all.map(a => a.id === withValue.id ? withValue : a) : [...all, withValue];
+    });
+    // Odśwież selectedSavings jeśli edytujemy otwarty panel
+    if (selectedSavings && selectedSavings.id === withValue.id) {
+      setSelectedSavings(withValue);
+    }
+  }
+
+  function handleDeleteSavings(id) {
+    setAssets(all => all.filter(a => a.id !== id));
+    setSelectedSavings(null);
+  }
+
   const total = assetsWithLivePrices.reduce((s, a) => s + a.value, 0);
   const visible = activeFilter ? assetsWithLivePrices.filter(a => a.category === activeFilter) : assetsWithLivePrices;
   const usedCats = categories.filter(c => assetsWithLivePrices.some(a => a.category === c.name));
 
-  // Ostatnia aktualizacja (krypto lub akcje — nowsza)
   const anyLastUpdated = stockLastUpdated && lastUpdated
     ? (stockLastUpdated > lastUpdated ? stockLastUpdated : lastUpdated)
     : stockLastUpdated || lastUpdated;
+
+  // Nagłówek tytułu — zależny od widoku
+  const viewTitles = {
+    portfolio: "PORTFOLIO TRACKER",
+    bonds: "← PORTFOLIO TRACKER",
+    savings: "← PORTFOLIO TRACKER",
+  };
 
   const globalStyles = `
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600&display=swap');
@@ -886,7 +975,7 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
           <div style={{ flex: 1 }} />
           <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace", textAlign: "center", flex: 1 }}>
-            {currentView === "bonds" ? (
+            {currentView !== "portfolio" ? (
               <button onClick={() => setCurrentView("portfolio")}
                 style={{ background: "none", border: "none", color: "#5a6a7e", cursor: "pointer", fontSize: 11, letterSpacing: ".1em", fontFamily: "'DM Mono', monospace", display: "flex", alignItems: "center", gap: 6, margin: "0 auto" }}>
                 ← PORTFOLIO TRACKER
@@ -894,13 +983,24 @@ export default function App() {
             ) : "PORTFOLIO TRACKER"}
           </div>
           <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
-            <MenuDropdown onNavigate={id => setCurrentView(id === "bonds" ? "bonds" : "portfolio")} />
+            <MenuDropdown onNavigate={id => setCurrentView(id)} />
           </div>
         </div>
 
-        {currentView === "bonds" ? (
-          <BondRatesView />
-        ) : (
+        {/* ── Widok obligacji ── */}
+        {currentView === "bonds" && <BondRatesView />}
+
+        {/* ── Widok kont oszczędnościowych ── */}
+        {currentView === "savings" && (
+          <SavingsView
+            assets={assetsWithLivePrices}
+            onAdd={() => { setEditingSavings(null); setShowSavingsForm(true); }}
+            onSelect={a => setSelectedSavings(a)}
+          />
+        )}
+
+        {/* ── Widok portfolio ── */}
+        {currentView === "portfolio" && (
           <>
             {/* Wykres */}
             <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
@@ -944,6 +1044,17 @@ export default function App() {
                   WebkitTapHighlightColor: "transparent",
                 }}>
                 + Akcje / ETF
+              </button>
+              <button
+                onClick={() => { setEditingSavings(null); setShowSavingsForm(true); }}
+                style={{
+                  padding: "11px 20px", borderRadius: 12, border: "2px solid #00c896",
+                  background: "transparent", color: "#00c896", fontWeight: 700, fontSize: 13,
+                  cursor: "pointer", letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
+                  boxShadow: "0 0 8px #00c89630", transition: "all .2s",
+                  WebkitTapHighlightColor: "transparent",
+                }}>
+                + Konto oszcz.
               </button>
               <button id="add-btn"
                 onMouseEnter={() => setHovAdd(true)} onMouseLeave={() => setHovAdd(false)}
@@ -1001,6 +1112,8 @@ export default function App() {
                     <BondRow bond={a} onClick={() => setBondDetail(a)} />
                   ) : a.isStock ? (
                     <StockRow stock={a} stockPrices={stockPrices} onClick={() => setStockModal(a)} />
+                  ) : a.isSavings ? (
+                    <SavingsRow account={a} onClick={() => setSelectedSavings(a)} />
                   ) : (
                     <AssetRow asset={a} total={total} categories={categories} prices={prices}
                       onClick={() => setModal(a)} />
@@ -1033,7 +1146,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Modale */}
+      {/* ── Modale ── */}
       {modal && (
         <AssetModal
           asset={modal === "add" ? null : modal}
@@ -1074,6 +1187,24 @@ export default function App() {
           onSave={handleSave}
           onDelete={handleDelete}
           onClose={() => setStockModal(null)}
+        />
+      )}
+
+      {/* ── Modale kont oszczędnościowych ── */}
+      {selectedSavings && (
+        <SavingsModal
+          account={selectedSavings}
+          onClose={() => setSelectedSavings(null)}
+          onSave={updated => handleSaveSavings(updated)}
+          onDelete={handleDeleteSavings}
+        />
+      )}
+
+      {showSavingsForm && (
+        <SavingsFormModal
+          existing={editingSavings}
+          onClose={() => { setShowSavingsForm(false); setEditingSavings(null); }}
+          onSave={handleSaveSavings}
         />
       )}
     </>
