@@ -1191,15 +1191,19 @@ export default function App() {
       )}
 
       {/* ── Modale kont oszczędnościowych ── */}
-      {selectedSavings && (
-        <SavingsModal
-          account={selectedSavings}
-          onClose={() => setSelectedSavings(null)}
-          onSave={updated => handleSaveSavings(updated)}
-          onDelete={handleDeleteSavings}
-        />
-      )}
-
+     {selectedSavings && (
+  <SavingsModal
+    account={selectedSavings}
+    onClose={() => setSelectedSavings(null)}
+    onSave={updated => handleSaveSavings(updated)}
+    onDelete={handleDeleteSavings}
+    onOpenEditForm={(acc) => {
+      setSelectedSavings(null);
+      setEditingSavings(acc);
+      setShowSavingsForm(true);
+    }}
+  />
+)}
       {showSavingsForm && (
         <SavingsFormModal
           existing={editingSavings}
