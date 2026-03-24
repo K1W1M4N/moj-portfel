@@ -5,7 +5,6 @@
 import { useState, useMemo } from "react";
 
 // ─── Baza stawek kont oszczędnościowych (Bankier.pl, marzec 2026) ─────────────
-// Stawki standardowe (bez promocji) oraz promocyjne z limitem kwotowym i czasowym
 export const SAVINGS_RATES_DB = {
   lastUpdated: "2026-03",
   accounts: [
@@ -47,7 +46,7 @@ export const SAVINGS_RATES_DB = {
       rateStandard: 0.75,
       ratePromo: 2.75,
       promoLimit: 25000,
-      promoDays: null, // do 31.07.2026
+      promoDays: null,
       promoConditions: "Wpłata min. 100 zł/mies. zwiększająca saldo",
       requiresROR: true,
     },
@@ -80,7 +79,7 @@ export const SAVINGS_RATES_DB = {
       rateStandard: 1.0,
       ratePromo: 4.0,
       promoLimit: null,
-      promoDays: null, // do 29.04.2026
+      promoDays: null,
       promoConditions: "Nowe środki",
       requiresROR: true,
     },
@@ -141,32 +140,6 @@ export const SAVINGS_RATES_DB = {
     },
   ],
 };
-
-// Funkcja do pobierania sugerowanej stawki na podstawie nazwy banku
-export function getSuggestedRate(bankName) {
-  if (!bankName) return null;
-  const lower = bankName.toLowerCase();
-  
-  const match = SAVINGS_RATES_DB.accounts.find(acc => {
-    const bankLower = acc.bank.toLowerCase();
-    const nameLower = acc.name.toLowerCase();
-    return lower.includes(bankLower.split(" ")[0]) || 
-           bankLower.includes(lower.split(" ")[0]) ||
-           lower.includes(nameLower.split(" ")[0]);
-  });
-  
-  if (match) {
-    return {
-      bank: match.bank,
-      name: match.name,
-      rateStandard: match.rateStandard,
-      ratePromo: match.ratePromo,
-      promoLimit: match.promoLimit,
-      promoDays: match.promoDays,
-    };
-  }
-  return null;
-}
 
 // ─── Stałe kolorów (spójne z App.jsx) ────────────────────────────────────────
 const C = {
@@ -833,7 +806,7 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
   );
 }
 
-// ─── SavingsModal (okno modalne) ──────────────────────────────────────────────
+// ─── SavingsModal (okno modalne szczegółów) ───────────────────────────────────
 export function SavingsModal({ account, onClose, onSave, onDelete, onOpenEditForm }) {
   return (
     <div
@@ -926,6 +899,8 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
   const [initialDeposit, setInitialDeposit] = useState("");
   const [note, setNote] = useState(existing?.note || "");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState(null); // wybrany bank/konto
+  const [showVariants, setShowVariants] = useState(false); // wybór wariantu (promo/standard)
 
   // Sugestie stawek na podstawie nazwy banku
   const suggestions = useMemo(() => {
@@ -937,12 +912,34 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
     );
   }, [bankName]);
 
+  // Gdy użytkownik kliknie na sugestię — sprawdź czy są warianty
   const handleSelectSuggestion = (acc) => {
     setBankName(acc.bank);
     setName(acc.name);
-    // Użyj stawki promocyjnej jeśli dostępna, w przeciwnym razie standardowej
-    setRate(acc.ratePromo || acc.rateStandard);
+    setSelectedAccount(acc);
     setShowSuggestions(false);
+    
+    // Jeśli są oba warianty (promo i standard) — pokaż wybór
+    if (acc.ratePromo && acc.rateStandard) {
+      setShowVariants(true);
+    } else {
+      // Tylko jeden wariant
+      setRate(acc.ratePromo || acc.rateStandard);
+      setShowVariants(false);
+    }
+  };
+
+  // Wybór wariantu (promo lub standard)
+  const handleSelectVariant = (variant) => {
+    if (!selectedAccount) return;
+    if (variant === "promo") {
+      setRate(selectedAccount.ratePromo);
+      setNote(selectedAccount.promoConditions || "");
+    } else {
+      setRate(selectedAccount.rateStandard);
+      setNote("");
+    }
+    setShowVariants(false);
   };
 
   const handleSave = () => {
@@ -974,12 +971,8 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
     onClose();
   };
 
-  // Zamknij sugestie po kliknięciu gdziekolwiek
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
+  // NAPRAWKA: Kliknięcie poza okno NIE zamyka formularza (tylko przycisk X lub Anuluj)
+  // Usunięto onClick na backdrop
 
   return (
     <div
@@ -993,7 +986,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
         alignItems: "flex-end",
         justifyContent: "center",
       }}
-      onClick={handleBackdropClick}
+      // UWAGA: Brak onClick tutaj — kliknięcie poza okno nie zamyka formularza
     >
       <div
         style={{
@@ -1008,7 +1001,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
         }}
         onClick={(e) => {
           e.stopPropagation();
-          // Zamknij sugestie jeśli klikamy poza polem
+          // Zamknij dropdown sugestii jeśli klikamy poza
           if (!e.target.closest('[data-suggestions]')) {
             setShowSuggestions(false);
           }
@@ -1042,6 +1035,8 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
               onChange={(e) => {
                 setBankName(e.target.value);
                 setShowSuggestions(true);
+                setSelectedAccount(null);
+                setShowVariants(false);
               }}
               onFocus={() => setShowSuggestions(true)}
               placeholder="np. PKO BP, VeloBank, ING..."
@@ -1059,7 +1054,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
                   borderRadius: 8,
                   marginTop: 4,
                   zIndex: 10,
-                  maxHeight: 200,
+                  maxHeight: 240,
                   overflowY: "auto",
                 }}
               >
@@ -1082,7 +1077,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
                   >
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{acc.bank}</div>
                     <div style={{ fontSize: 12, color: C.muted }}>{acc.name}</div>
-                    <div style={{ fontSize: 11, color: C.green, marginTop: 2 }}>
+                    <div style={{ fontSize: 11, marginTop: 2 }}>
                       {acc.ratePromo ? (
                         <>
                           <span style={{ color: C.orange }}>{acc.ratePromo}% promo</span>
@@ -1090,7 +1085,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
                           <span style={{ color: C.muted }}> · standard: {acc.rateStandard}%</span>
                         </>
                       ) : (
-                        <>{acc.rateStandard}%</>
+                        <span style={{ color: C.green }}>{acc.rateStandard}%</span>
                       )}
                     </div>
                   </button>
@@ -1098,6 +1093,73 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
               </div>
             )}
           </div>
+
+          {/* Wybór wariantu (promo/standard) — pokazuje się po wybraniu banku z wieloma wariantami */}
+          {showVariants && selectedAccount && (
+            <div
+              style={{
+                background: "#0f1823",
+                border: `1px solid ${C.border}`,
+                borderRadius: 10,
+                padding: 12,
+              }}
+            >
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, fontWeight: 600 }}>
+                Wybierz wariant oprocentowania:
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {/* Wariant promocyjny */}
+                <button
+                  onClick={() => handleSelectVariant("promo")}
+                  style={{
+                    flex: 1,
+                    minWidth: 140,
+                    padding: "10px 12px",
+                    background: C.orange + "15",
+                    border: `1px solid ${C.orange}`,
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.orange }}>
+                    {selectedAccount.ratePromo}% promocyjne
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                    {selectedAccount.promoDays ? `${selectedAccount.promoDays} dni` : "Okres promocji"}
+                    {selectedAccount.promoLimit && ` · do ${(selectedAccount.promoLimit / 1000).toFixed(0)} tys. zł`}
+                  </div>
+                  {selectedAccount.promoConditions && (
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 4, fontStyle: "italic" }}>
+                      {selectedAccount.promoConditions}
+                    </div>
+                  )}
+                </button>
+                
+                {/* Wariant standardowy */}
+                <button
+                  onClick={() => handleSelectVariant("standard")}
+                  style={{
+                    flex: 1,
+                    minWidth: 140,
+                    padding: "10px 12px",
+                    background: C.card,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
+                    {selectedAccount.rateStandard}% standardowe
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                    Stałe oprocentowanie
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
 
           <div>
             <label style={labelStyle}>Nazwa konta *</label>
@@ -1118,7 +1180,11 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
                 onChange={(e) => setRate(e.target.value)}
                 placeholder="np. 5.5"
                 step="0.01"
-                style={inputStyle}
+                style={{
+                  ...inputStyle,
+                  background: rate ? "#0f1823" : "#0f1823",
+                  borderColor: rate ? C.green : C.border,
+                }}
               />
             </div>
             <div style={{ flex: 1 }}>
