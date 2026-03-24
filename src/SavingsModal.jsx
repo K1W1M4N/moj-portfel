@@ -32,14 +32,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 // ─── Silnik obliczeń ──────────────────────────────────────────────────────────
 // Kapitalizacja miesięczna, naliczanie dzienne ACT/365
-// Zwraca:
-//   currentBalance   — saldo po wszystkich kapitalizacjach
-//   accruedToday     — narosłe odsetki od ostatniej kapitalizacji (dzisiaj)
-//   dailyGain        — dzienny przyrost (ostatni dzień)
-//   totalInterest    — suma odsetek od otwarcia
-//   lastCapDate      — data ostatniej kapitalizacji
-//   nextCapDate      — data następnej kapitalizacji
-//   months           — tablica { label, date, balance, interest } wszystkich dotychczasowych kapitalizacji
+// NAPRAWIONE: Prawidłowe uwzględnianie transakcji od początku
 
 function computeSavings(account) {
   const { openDate, rate, transactions = [] } = account;
@@ -48,63 +41,58 @@ function computeSavings(account) {
   const annualRate = rate / 100;
   const todayStr = today();
   const todayDate = new Date(todayStr);
+  const openDateObj = new Date(openDate);
 
-  // Sortuj transakcje rosnąco
+  // Sortuj transakcje rosnąco po dacie
   const sorted = [...transactions].sort((a, b) => (a.date > b.date ? 1 : -1));
 
-  // Buduj listę miesięcy od openDate do dziś
-  const open = new Date(openDate);
+  // NAPRAWKA: Oblicz saldo początkowe (transakcje z dnia otwarcia lub wcześniej)
   let balance = 0;
-  let totalInterest = 0;
-  const months = []; // { label, date (ISO), openBalance, interest, closeBalance }
+  for (const tx of sorted) {
+    if (tx.date <= openDate) {
+      balance += tx.amount;
+    }
+  }
 
-  // Wylicz wszystkie pełne miesiące
-  let periodStart = new Date(open);
+  let totalInterest = 0;
+  const months = [];
+
+  // Pierwszy okres zaczyna się od daty otwarcia
+  let periodStart = new Date(openDateObj);
   let monthIndex = 0;
 
+  // Pętla przez wszystkie pełne miesiące (kapitalizacje)
   while (true) {
-    // Następna kapitalizacja = periodStart + 1 miesiąc
     const periodEnd = new Date(periodStart);
     periodEnd.setMonth(periodEnd.getMonth() + 1);
 
     // Jeśli następna kapitalizacja jest w przyszłości — stop
     if (periodEnd > todayDate) break;
 
-    // Saldo na początku okresu (po wszystkich transakcjach <= periodStart)
-    let bal = balance;
-    for (const tx of sorted) {
-      if (tx.date > periodStart.toISOString().slice(0, 10) && tx.date <= periodEnd.toISOString().slice(0, 10)) {
-        // Wpłaty w środku okresu — dla uproszczenia: wpłaty dodajemy od daty wpłaty
-        // ale odsetki liczymy od salda na początku okresu (standard KO w Polsce)
-      }
-    }
+    const periodStartStr = periodStart.toISOString().slice(0, 10);
+    const periodEndStr = periodEnd.toISOString().slice(0, 10);
 
-    // Saldo na początku okresu (transakcje <= periodStart)
-    let openBal = balance;
-    for (const tx of sorted) {
-      if (tx.date <= periodStart.toISOString().slice(0, 10)) {
-        // już uwzględnione w balance
-      }
-    }
-    openBal = balance;
+    // Saldo na początku okresu (przed dodaniem transakcji z tego okresu)
+    const openBal = balance;
 
-    // Dni w tym okresie
-    const days = Math.round((periodEnd - periodStart) / 86400000);
-    const interest = Math.round(openBal * annualRate * (days / 365) * 100) / 100;
-
-    // Transakcje w tym okresie (między periodStart a periodEnd, exclusive start)
+    // Transakcje W TRAKCIE tego okresu (po periodStart, do periodEnd włącznie)
     const txInPeriod = sorted.filter(
-      (tx) =>
-        tx.date > periodStart.toISOString().slice(0, 10) &&
-        tx.date <= periodEnd.toISOString().slice(0, 10)
+      (tx) => tx.date > periodStartStr && tx.date <= periodEndStr
     );
     const txSum = txInPeriod.reduce((s, tx) => s + tx.amount, 0);
 
+    // Dni w tym okresie
+    const days = Math.round((periodEnd - periodStart) / 86400000);
+    
+    // Odsetki liczone od salda na początku okresu (standard polski)
+    const interest = Math.round(openBal * annualRate * (days / 365) * 100) / 100;
+
+    // Saldo po kapitalizacji = saldo początkowe + odsetki + wpłaty/wypłaty
     const closeBal = Math.round((openBal + interest + txSum) * 100) / 100;
 
     months.push({
       label: periodEnd.toLocaleDateString("pl-PL", { month: "long", year: "numeric" }),
-      date: periodEnd.toISOString().slice(0, 10),
+      date: periodEndStr,
       openBalance: openBal,
       interest,
       txSum,
@@ -115,7 +103,6 @@ function computeSavings(account) {
     totalInterest += interest;
     balance = closeBal;
 
-    // Transakcje dokładnie w dniu periodStart już były, teraz dodaj tx w periodEnd jeśli nie dodane
     periodStart = new Date(periodEnd);
     monthIndex++;
 
@@ -123,26 +110,23 @@ function computeSavings(account) {
     if (monthIndex > 600) break;
   }
 
-  // Transakcje po ostatniej kapitalizacji (lub od openDate jeśli żadnej nie było)
+  // Data ostatniej kapitalizacji
   const lastCapDate = periodStart.toISOString().slice(0, 10);
+
+  // Transakcje PO ostatniej kapitalizacji (do dziś)
   const txAfterCap = sorted.filter((tx) => tx.date > lastCapDate && tx.date <= todayStr);
   const txAfterCapSum = txAfterCap.reduce((s, tx) => s + tx.amount, 0);
 
-  // Transakcje przed openDate — ignoruj
-  // Transakcje od początku do lastCapDate już uwzględnione w balance przez pętlę
-  // Ale musimy też uwzględnić transakcje z dokładnie openDate
-  const txOnOpen = sorted.filter((tx) => tx.date === openDate);
-  // Transakcje <= lastCapDate ale > openDate — uwzględnione w pętli
-
-  // Aktualne saldo (po ostatniej kapitalizacji + tx po niej)
+  // Aktualne saldo = saldo po ostatniej kapitalizacji + transakcje po niej
   const currentBalance = Math.round((balance + txAfterCapSum) * 100) / 100;
 
-  // Narosłe odsetki od ostatniej kapitalizacji do dziś
-  const daysAccrued = Math.round((todayDate - periodStart) / 86400000);
-  const accruedToday =
-    Math.round(currentBalance * annualRate * (daysAccrued / 365) * 100) / 100;
+  // Dni od ostatniej kapitalizacji
+  const daysAccrued = Math.max(0, Math.round((todayDate - periodStart) / 86400000));
 
-  // Dzienny przyrost (na podstawie aktualnego salda)
+  // Narosłe odsetki od ostatniej kapitalizacji
+  const accruedToday = Math.round(currentBalance * annualRate * (daysAccrued / 365) * 100) / 100;
+
+  // Dzienny przyrost
   const dailyGain = Math.round(currentBalance * annualRate * (1 / 365) * 100) / 100;
 
   // Następna kapitalizacja
@@ -166,7 +150,6 @@ function projectBalance(currentBalance, rate, months) {
   const annualRate = rate / 100;
   let bal = currentBalance;
   for (let i = 0; i < months; i++) {
-    // ~30.44 dni na miesiąc dla prognozy
     const interest = Math.round(bal * annualRate * (30.44 / 365) * 100) / 100;
     bal = Math.round((bal + interest) * 100) / 100;
   }
@@ -174,7 +157,7 @@ function projectBalance(currentBalance, rate, months) {
 }
 
 // ─── SavingsDetailPanel ───────────────────────────────────────────────────────
-function SavingsDetailPanel({ account, onEdit, onDelete }) {
+function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
   const calc = useMemo(() => computeSavings(account), [account]);
   const [projMonths, setProjMonths] = useState(12);
   const [showHistory, setShowHistory] = useState(false);
@@ -203,8 +186,8 @@ function SavingsDetailPanel({ account, onEdit, onDelete }) {
     daysAccrued,
   } = calc;
 
-  const projectedBalance = projectBalance(currentBalance, account.rate, projMonths);
-  const projectedGain = projectedBalance - currentBalance;
+  const projectedBalance = projectBalance(currentBalance + accruedToday, account.rate, projMonths);
+  const projectedGain = projectedBalance - (currentBalance + accruedToday);
 
   const projOptions = [
     { label: "1 mies.", value: 1 },
@@ -235,7 +218,10 @@ function SavingsDetailPanel({ account, onEdit, onDelete }) {
   };
 
   const handleDeleteTx = (idx) => {
-    const newTxs = (account.transactions || []).filter((_, i) => i !== idx);
+    // Musimy usunąć po posortowanej kolejności (od najnowszych)
+    const sortedTxs = [...(account.transactions || [])].sort((a, b) => (a.date > b.date ? -1 : 1));
+    const txToRemove = sortedTxs[idx];
+    const newTxs = (account.transactions || []).filter((tx) => tx !== txToRemove);
     onEdit({ ...account, transactions: newTxs });
   };
 
@@ -290,13 +276,19 @@ function SavingsDetailPanel({ account, onEdit, onDelete }) {
               }}
             >
               <button
-                onClick={() => { setMenuOpen(false); onEdit(account, true); }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onOpenEditForm(account);
+                }}
                 style={menuBtnStyle}
               >
                 ✏️ Edytuj
               </button>
               <button
-                onClick={() => { setMenuOpen(false); onDelete(account.id); }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDelete(account.id);
+                }}
                 style={{ ...menuBtnStyle, color: C.red }}
               >
                 🗑 Usuń
@@ -656,7 +648,9 @@ function SavingsDetailPanel({ account, onEdit, onDelete }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{ fontSize: 16 }}>{isDeposit ? "📥" : "📤"}</span>
                       <div>
-                        <div style={{ fontSize: 13, color: C.text }}>{tx.note || (isDeposit ? "Wpłata" : "Wypłata")}</div>
+                        <div style={{ fontSize: 13, color: C.text }}>
+                          {tx.note || (isDeposit ? "Wpłata" : "Wypłata")}
+                        </div>
                         <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono', monospace" }}>
                           {fmtDate(tx.date)}
                         </div>
@@ -671,7 +665,8 @@ function SavingsDetailPanel({ account, onEdit, onDelete }) {
                           color: isDeposit ? C.green : C.red,
                         }}
                       >
-                        {isDeposit ? "+" : ""}{fmt2(tx.amount)}
+                        {isDeposit ? "+" : ""}
+                        {fmt2(tx.amount)}
                       </span>
                       <button
                         onClick={() => handleDeleteTx(i)}
@@ -701,7 +696,7 @@ function SavingsDetailPanel({ account, onEdit, onDelete }) {
 }
 
 // ─── SavingsModal (okno modalne) ──────────────────────────────────────────────
-export function SavingsModal({ account, onClose, onSave, onDelete }) {
+export function SavingsModal({ account, onClose, onSave, onDelete, onOpenEditForm }) {
   return (
     <div
       style={{
@@ -768,11 +763,15 @@ export function SavingsModal({ account, onClose, onSave, onDelete }) {
         </div>
         <SavingsDetailPanel
           account={account}
-          onEdit={(updated, openForm) => {
-            onSave(updated);
-            if (openForm) onClose(); // edycja przez główny formularz
+          onEdit={(updated) => onSave(updated)}
+          onDelete={(id) => {
+            onDelete(id);
+            onClose();
           }}
-          onDelete={(id) => { onDelete(id); onClose(); }}
+          onOpenEditForm={(acc) => {
+            onClose();
+            onOpenEditForm(acc);
+          }}
         />
       </div>
     </div>
@@ -785,11 +784,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
   const [bankName, setBankName] = useState(existing?.bankName || "");
   const [rate, setRate] = useState(existing?.rate ?? "");
   const [openDate, setOpenDate] = useState(existing?.openDate || today());
-  const [initialDeposit, setInitialDeposit] = useState(
-    existing
-      ? ""
-      : ""
-  );
+  const [initialDeposit, setInitialDeposit] = useState("");
   const [note, setNote] = useState(existing?.note || "");
 
   const handleSave = () => {
@@ -816,7 +811,6 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
       note,
       transactions,
       category: "Konto oszczędnościowe",
-      // wartość do portfela (aktualne saldo) obliczana dynamicznie
     };
 
     onSave(account);
@@ -1028,7 +1022,7 @@ export function SavingsRow({ account, onClick }) {
             color: C.text,
           }}
         >
-          {fmt2(balance)}
+          {fmt2(balance + accrued)}
         </div>
         <div style={{ fontSize: 11, color: C.green, marginTop: 2 }}>
           +{fmt2(daily)}/dzień
@@ -1097,7 +1091,16 @@ function StatCard({ label, value, accent, big }) {
         border: `1px solid #1e2d3d`,
       }}
     >
-      <div style={{ fontSize: 11, color: "#6b7f96", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+      <div
+        style={{
+          fontSize: 11,
+          color: "#6b7f96",
+          marginBottom: 6,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+        }}
+      >
         {label}
       </div>
       <div
@@ -1115,7 +1118,6 @@ function StatCard({ label, value, accent, big }) {
 }
 
 // ─── Hook do obliczania wartości konta (do użycia w App.jsx) ─────────────────
-// Wywołaj: getSavingsValue(account) → number (aktualne saldo)
 export function getSavingsValue(account) {
   const calc = computeSavings(account);
   if (!calc) return 0;
