@@ -2,13 +2,12 @@
 // Moduł konta oszczędnościowego dla moj-portfel
 // Kapitalizacja miesięczna, naliczanie dzienne ACT/365, historia wpłat/wypłat
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 // ─── Baza stawek kont oszczędnościowych (Bankier.pl, marzec 2026) ─────────────
 export const SAVINGS_RATES_DB = {
   lastUpdated: "2026-03",
   accounts: [
-    // VeloBank
     {
       bank: "VeloBank",
       name: "Elastyczne Konto Oszczędnościowe",
@@ -16,8 +15,7 @@ export const SAVINGS_RATES_DB = {
       ratePromo: 6.0,
       promoLimit: 50000,
       promoDays: 92,
-      promoConditions: "Nowi klienci, min. 5 transakcji/mies., zgody marketingowe",
-      requiresROR: true,
+      promoConditions: "Nowi klienci, min. 5 transakcji/mies.",
     },
     {
       bank: "VeloBank",
@@ -27,9 +25,7 @@ export const SAVINGS_RATES_DB = {
       promoLimit: null,
       promoDays: null,
       promoConditions: null,
-      requiresROR: false,
     },
-    // Bank Millennium
     {
       bank: "Bank Millennium",
       name: "Konto Oszczędnościowe Profit",
@@ -38,7 +34,6 @@ export const SAVINGS_RATES_DB = {
       promoLimit: null,
       promoDays: 91,
       promoConditions: "Nowe środki, min. 5 transakcji/mies.",
-      requiresROR: true,
     },
     {
       bank: "Bank Millennium",
@@ -47,10 +42,8 @@ export const SAVINGS_RATES_DB = {
       ratePromo: 2.75,
       promoLimit: 25000,
       promoDays: null,
-      promoConditions: "Wpłata min. 100 zł/mies. zwiększająca saldo",
-      requiresROR: true,
+      promoConditions: "Wpłata min. 100 zł/mies.",
     },
-    // Pekao
     {
       bank: "Bank Pekao SA",
       name: "Konto Oszczędnościowe",
@@ -59,9 +52,7 @@ export const SAVINGS_RATES_DB = {
       promoLimit: 100000,
       promoDays: 92,
       promoConditions: "Nowi klienci, konto z kartą",
-      requiresROR: true,
     },
-    // Alior Bank
     {
       bank: "Alior Bank",
       name: "Konto Mega Oszczędnościowe",
@@ -69,10 +60,8 @@ export const SAVINGS_RATES_DB = {
       ratePromo: 4.8,
       promoLimit: 200000,
       promoDays: 90,
-      promoConditions: "Nowe Konto Jakże Osobiste, transakcje min. 500 zł/mies.",
-      requiresROR: true,
+      promoConditions: "Nowe konto + transakcje 500 zł/mies.",
     },
-    // Santander
     {
       bank: "Santander Bank Polska",
       name: "Konto Multi Oszczędnościowe",
@@ -81,9 +70,7 @@ export const SAVINGS_RATES_DB = {
       promoLimit: null,
       promoDays: null,
       promoConditions: "Nowe środki",
-      requiresROR: true,
     },
-    // ING
     {
       bank: "ING Bank Śląski",
       name: "Otwarte Konto Oszczędnościowe",
@@ -91,10 +78,8 @@ export const SAVINGS_RATES_DB = {
       ratePromo: 5.5,
       promoLimit: 400000,
       promoDays: 90,
-      promoConditions: "Bonus na start, Mobilni zyskują",
-      requiresROR: true,
+      promoConditions: "Bonus na start",
     },
-    // UniCredit
     {
       bank: "UniCredit",
       name: "Konto Oszczędnościowe",
@@ -103,9 +88,7 @@ export const SAVINGS_RATES_DB = {
       promoLimit: null,
       promoDays: null,
       promoConditions: null,
-      requiresROR: false,
     },
-    // Citi Handlowy
     {
       bank: "Citi Handlowy",
       name: "Konto Oszczędnościowe",
@@ -113,10 +96,8 @@ export const SAVINGS_RATES_DB = {
       ratePromo: 4.8,
       promoLimit: null,
       promoDays: 180,
-      promoConditions: "Citigold, min. 400 tys. zł, 3 transakcje min. 500 zł/mies.",
-      requiresROR: true,
+      promoConditions: "Citigold, min. 400 tys. zł",
     },
-    // PKO BP
     {
       bank: "PKO BP",
       name: "Konto Oszczędnościowe",
@@ -125,9 +106,7 @@ export const SAVINGS_RATES_DB = {
       promoLimit: null,
       promoDays: null,
       promoConditions: null,
-      requiresROR: true,
     },
-    // mBank
     {
       bank: "mBank",
       name: "eKonto Oszczędnościowe",
@@ -136,12 +115,11 @@ export const SAVINGS_RATES_DB = {
       promoLimit: null,
       promoDays: null,
       promoConditions: null,
-      requiresROR: true,
     },
   ],
 };
 
-// ─── Stałe kolorów (spójne z App.jsx) ────────────────────────────────────────
+// ─── Stałe kolorów ───────────────────────────────────────────────────────────
 const C = {
   bg: "#0a0e14",
   card: "#161d28",
@@ -166,6 +144,14 @@ const fmtDate = (iso) => {
   return `${d}.${m}.${y}`;
 };
 const today = () => new Date().toISOString().slice(0, 10);
+
+// Oblicz ile dni minęło od daty
+const daysSince = (dateStr) => {
+  if (!dateStr) return 0;
+  const then = new Date(dateStr);
+  const now = new Date();
+  return Math.floor((now - then) / (1000 * 60 * 60 * 24));
+};
 
 // ─── Silnik obliczeń ──────────────────────────────────────────────────────────
 function computeSavings(account) {
@@ -233,15 +219,11 @@ function computeSavings(account) {
   }
 
   const lastCapDate = periodStart.toISOString().slice(0, 10);
-
   const txAfterCap = sorted.filter((tx) => tx.date > lastCapDate && tx.date <= todayStr);
   const txAfterCapSum = txAfterCap.reduce((s, tx) => s + tx.amount, 0);
-
   const currentBalance = Math.round((balance + txAfterCapSum) * 100) / 100;
-
   const daysAccrued = Math.max(0, Math.round((todayDate - periodStart) / 86400000));
   const accruedToday = Math.round(currentBalance * annualRate * (daysAccrued / 365) * 100) / 100;
-
   const dailyGain = Math.round(currentBalance * annualRate * (1 / 365) * 100) / 100;
 
   const nextCapDate = new Date(periodStart);
@@ -280,6 +262,14 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
   const [txNote, setTxNote] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Sprawdź czy konto może mieć wygasającą promocję
+  const promoInfo = useMemo(() => {
+    if (!account.openDate || !account.promoEndDate) return null;
+    const daysLeft = Math.ceil((new Date(account.promoEndDate) - new Date()) / (1000 * 60 * 60 * 24));
+    if (daysLeft <= 0) return { expired: true, daysLeft: 0 };
+    return { expired: false, daysLeft };
+  }, [account]);
+
   if (!calc) {
     return (
       <div style={{ color: C.muted, padding: "24px", textAlign: "center" }}>
@@ -308,9 +298,7 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
     { label: "6 mies.", value: 6 },
     { label: "1 rok", value: 12 },
     { label: "2 lata", value: 24 },
-    { label: "3 lata", value: 36 },
     { label: "5 lat", value: 60 },
-    { label: "10 lat", value: 120 },
   ];
 
   const handleAddTx = () => {
@@ -339,14 +327,8 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
 
   return (
     <div style={{ fontFamily: "'Sora', sans-serif", color: C.text }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: 24,
-        }}
-      >
+      {/* Nagłówek */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700 }}>{account.name}</div>
           <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>
@@ -386,24 +368,10 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
                 boxShadow: "0 8px 32px #0008",
               }}
             >
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  if (onOpenEditForm) {
-                    onOpenEditForm(account);
-                  }
-                }}
-                style={menuBtnStyle}
-              >
+              <button onClick={() => { setMenuOpen(false); onOpenEditForm?.(account); }} style={menuBtnStyle}>
                 ✏️ Edytuj
               </button>
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  onDelete(account.id);
-                }}
-                style={{ ...menuBtnStyle, color: C.red }}
-              >
+              <button onClick={() => { setMenuOpen(false); onDelete(account.id); }} style={{ ...menuBtnStyle, color: C.red }}>
                 🗑 Usuń
               </button>
             </div>
@@ -411,63 +379,51 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
         </div>
       </div>
 
+      {/* Alert o promocji */}
+      {promoInfo && !promoInfo.expired && promoInfo.daysLeft <= 30 && (
+        <div style={{
+          background: C.orange + "20",
+          border: `1px solid ${C.orange}`,
+          borderRadius: 10,
+          padding: "10px 14px",
+          marginBottom: 16,
+          fontSize: 13,
+        }}>
+          ⚠️ <strong>Promocja kończy się za {promoInfo.daysLeft} dni</strong>
+          {account.rateAfterPromo && (
+            <span style={{ color: C.muted }}> · stawka spadnie do {account.rateAfterPromo}%</span>
+          )}
+        </div>
+      )}
+
+      {/* Kluczowe liczby */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
         <StatCard label="Aktualne saldo" value={fmt2(currentBalance)} big accent={C.green} />
-        <StatCard
-          label={`Narosłe odsetki (${daysAccrued} dni)`}
-          value={"+" + fmt2(accruedToday)}
-          accent={C.green}
-        />
+        <StatCard label={`Narosłe odsetki (${daysAccrued} dni)`} value={"+" + fmt2(accruedToday)} accent={C.green} />
         <StatCard label="Dzienny przyrost" value={"+" + fmt2(dailyGain)} accent={C.orange} />
-        <StatCard label="Odsetki łącznie (skap.)" value={"+" + fmt2(totalInterest)} accent={C.accent2} />
+        <StatCard label="Odsetki łącznie" value={"+" + fmt2(totalInterest)} accent={C.accent2} />
       </div>
 
-      <div
-        style={{
-          background: "#0f1823",
-          borderRadius: 10,
-          padding: "12px 16px",
-          marginBottom: 20,
-          fontSize: 13,
-          color: C.muted,
-          display: "flex",
-          gap: 24,
-          flexWrap: "wrap",
-        }}
-      >
-        <span>
-          📅 Ostatnia kapitalizacja:{" "}
-          <span style={{ color: C.text }}>{fmtDate(lastCapDate)}</span>
-        </span>
-        <span>
-          ⏭ Następna kapitalizacja:{" "}
-          <span style={{ color: C.green }}>{fmtDate(nextCapDate)}</span>
-        </span>
-        <span>
-          📂 Otwarto:{" "}
-          <span style={{ color: C.text }}>{fmtDate(account.openDate)}</span>
-        </span>
+      {/* Info o kapitalizacji */}
+      <div style={{
+        background: "#0f1823",
+        borderRadius: 10,
+        padding: "12px 16px",
+        marginBottom: 20,
+        fontSize: 13,
+        color: C.muted,
+        display: "flex",
+        gap: 24,
+        flexWrap: "wrap",
+      }}>
+        <span>📅 Ostatnia kap.: <span style={{ color: C.text }}>{fmtDate(lastCapDate)}</span></span>
+        <span>⏭ Następna: <span style={{ color: C.green }}>{fmtDate(nextCapDate)}</span></span>
+        <span>📂 Otwarto: <span style={{ color: C.text }}>{fmtDate(account.openDate)}</span></span>
       </div>
 
-      <div
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 12,
-          padding: "16px 18px",
-          marginBottom: 20,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 13,
-            color: C.muted,
-            marginBottom: 12,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: 1,
-          }}
-        >
+      {/* Prognoza */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "16px 18px", marginBottom: 20 }}>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
           📈 Prognoza zysku
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
@@ -485,7 +441,6 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
                 fontSize: 12,
                 fontFamily: "'Sora', sans-serif",
                 fontWeight: projMonths === o.value ? 700 : 400,
-                transition: "all 0.15s",
               }}
             >
               {o.label}
@@ -497,38 +452,23 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
             <div style={{ color: C.muted, fontSize: 12, marginBottom: 4 }}>
               Saldo za {projOptions.find((o) => o.value === projMonths)?.label}
             </div>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                fontFamily: "'DM Mono', monospace",
-                color: C.text,
-              }}
-            >
+            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: C.text }}>
               {fmt0(projectedBalance)}
             </div>
           </div>
           <div>
-            <div style={{ color: C.muted, fontSize: 12, marginBottom: 4 }}>
-              Szacowany zysk
-            </div>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                fontFamily: "'DM Mono', monospace",
-                color: C.green,
-              }}
-            >
+            <div style={{ color: C.muted, fontSize: 12, marginBottom: 4 }}>Szacowany zysk</div>
+            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: C.green }}>
               +{fmt0(projectedGain)}
             </div>
           </div>
         </div>
         <div style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>
-          * Zakłada stałe oprocentowanie {account.rate}% i brak nowych wpłat/wypłat
+          * Zakłada stałe oprocentowanie {account.rate}%
         </div>
       </div>
 
+      {/* Historia kapitalizacji */}
       {months.length > 0 && (
         <div style={{ marginBottom: 20 }}>
           <button
@@ -546,78 +486,38 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
               fontFamily: "'Sora', sans-serif",
             }}
           >
-            {showHistory ? "▲" : "▼"} Historia kapitalizacji ({months.length} mies.)
+            {showHistory ? "▲" : "▼"} Historia kapitalizacji ({months.length})
           </button>
           {showHistory && (
-            <div
-              style={{
-                marginTop: 8,
-                border: `1px solid ${C.border}`,
-                borderRadius: 10,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.2fr 1fr 1fr 1fr",
-                  padding: "8px 14px",
-                  background: "#0f1823",
-                  fontSize: 11,
-                  color: C.muted,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                  fontWeight: 600,
-                }}
-              >
+            <div style={{ marginTop: 8, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "1.2fr 1fr 1fr 1fr",
+                padding: "8px 14px",
+                background: "#0f1823",
+                fontSize: 11,
+                color: C.muted,
+                textTransform: "uppercase",
+                fontWeight: 600,
+              }}>
                 <span>Miesiąc</span>
-                <span style={{ textAlign: "right" }}>Saldo przed</span>
+                <span style={{ textAlign: "right" }}>Przed</span>
                 <span style={{ textAlign: "right" }}>Odsetki</span>
-                <span style={{ textAlign: "right" }}>Saldo po</span>
+                <span style={{ textAlign: "right" }}>Po</span>
               </div>
               {[...months].reverse().map((m, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.2fr 1fr 1fr 1fr",
-                    padding: "10px 14px",
-                    borderTop: `1px solid ${C.border}`,
-                    fontSize: 13,
-                    background: i % 2 === 0 ? "transparent" : "#0f181f",
-                    alignItems: "center",
-                  }}
-                >
+                <div key={i} style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.2fr 1fr 1fr 1fr",
+                  padding: "10px 14px",
+                  borderTop: `1px solid ${C.border}`,
+                  fontSize: 13,
+                  background: i % 2 === 0 ? "transparent" : "#0f181f",
+                }}>
                   <span style={{ color: C.muted }}>{m.label}</span>
-                  <span
-                    style={{
-                      textAlign: "right",
-                      fontFamily: "'DM Mono', monospace",
-                      fontSize: 12,
-                    }}
-                  >
-                    {fmt0(m.openBalance)}
-                  </span>
-                  <span
-                    style={{
-                      textAlign: "right",
-                      color: C.green,
-                      fontFamily: "'DM Mono', monospace",
-                      fontSize: 12,
-                    }}
-                  >
-                    +{fmt2(m.interest)}
-                  </span>
-                  <span
-                    style={{
-                      textAlign: "right",
-                      fontFamily: "'DM Mono', monospace",
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {fmt0(m.closeBalance)}
-                  </span>
+                  <span style={{ textAlign: "right", fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{fmt0(m.openBalance)}</span>
+                  <span style={{ textAlign: "right", color: C.green, fontFamily: "'DM Mono', monospace", fontSize: 12 }}>+{fmt2(m.interest)}</span>
+                  <span style={{ textAlign: "right", fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600 }}>{fmt0(m.closeBalance)}</span>
                 </div>
               ))}
             </div>
@@ -625,25 +525,11 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
         </div>
       )}
 
+      {/* Historia wpłat/wypłat */}
       <div>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 10,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 13,
-              color: C.muted,
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: 1,
-            }}
-          >
-            💳 Historia wpłat / wypłat
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 13, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+            💳 Wpłaty / wypłaty
           </div>
           <button
             onClick={() => setShowTxForm((v) => !v)}
@@ -664,54 +550,32 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
         </div>
 
         {showTxForm && (
-          <div
-            style={{
-              background: "#0f1823",
-              border: `1px solid ${C.border}`,
-              borderRadius: 10,
-              padding: 14,
-              marginBottom: 12,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
+          <div style={{
+            background: "#0f1823",
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: 14,
+            marginBottom: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: 120 }}>
                 <label style={labelStyle}>Data</label>
-                <input
-                  type="date"
-                  value={txDate}
-                  onChange={(e) => setTxDate(e.target.value)}
-                  style={inputStyle}
-                />
+                <input type="date" value={txDate} onChange={(e) => setTxDate(e.target.value)} style={inputStyle} />
               </div>
               <div style={{ flex: 1, minWidth: 120 }}>
-                <label style={labelStyle}>Kwota (+ wpłata / − wypłata)</label>
-                <input
-                  type="number"
-                  value={txAmount}
-                  onChange={(e) => setTxAmount(e.target.value)}
-                  placeholder="np. 5000 lub -2000"
-                  style={inputStyle}
-                />
+                <label style={labelStyle}>Kwota (+/-)</label>
+                <input type="number" value={txAmount} onChange={(e) => setTxAmount(e.target.value)} placeholder="5000 lub -2000" style={inputStyle} />
               </div>
             </div>
             <div>
-              <label style={labelStyle}>Notatka (opcjonalnie)</label>
-              <input
-                type="text"
-                value={txNote}
-                onChange={(e) => setTxNote(e.target.value)}
-                placeholder="np. Miesięczna wpłata"
-                style={inputStyle}
-              />
+              <label style={labelStyle}>Notatka</label>
+              <input type="text" value={txNote} onChange={(e) => setTxNote(e.target.value)} placeholder="np. Premia" style={inputStyle} />
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setShowTxForm(false)}
-                style={{ ...btnBase, background: "transparent", color: C.muted, border: `1px solid ${C.border}` }}
-              >
+              <button onClick={() => setShowTxForm(false)} style={{ ...btnBase, background: "transparent", color: C.muted, border: `1px solid ${C.border}` }}>
                 Anuluj
               </button>
               <button onClick={handleAddTx} style={{ ...btnBase, background: C.green, color: "#000" }}>
@@ -723,75 +587,37 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
 
         {(account.transactions || []).length === 0 ? (
           <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>
-            Brak transakcji. Dodaj pierwszą wpłatę.
+            Brak transakcji
           </div>
         ) : (
-          <div
-            style={{
-              border: `1px solid ${C.border}`,
-              borderRadius: 10,
-              overflow: "hidden",
-            }}
-          >
-            {[...(account.transactions || [])]
-              .sort((a, b) => (a.date > b.date ? -1 : 1))
-              .map((tx, i) => {
-                const isDeposit = tx.amount > 0;
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "10px 14px",
-                      borderTop: i === 0 ? "none" : `1px solid ${C.border}`,
-                      background: i % 2 === 0 ? "transparent" : "#0f181f",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 16 }}>{isDeposit ? "📥" : "📤"}</span>
-                      <div>
-                        <div style={{ fontSize: 13, color: C.text }}>
-                          {tx.note || (isDeposit ? "Wpłata" : "Wypłata")}
-                        </div>
-                        <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono', monospace" }}>
-                          {fmtDate(tx.date)}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span
-                        style={{
-                          fontFamily: "'DM Mono', monospace",
-                          fontWeight: 700,
-                          fontSize: 14,
-                          color: isDeposit ? C.green : C.red,
-                        }}
-                      >
-                        {isDeposit ? "+" : ""}
-                        {fmt2(tx.amount)}
-                      </span>
-                      <button
-                        onClick={() => handleDeleteTx(i)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: C.muted,
-                          cursor: "pointer",
-                          fontSize: 14,
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          opacity: 0.6,
-                        }}
-                        title="Usuń transakcję"
-                      >
-                        ✕
-                      </button>
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+            {[...(account.transactions || [])].sort((a, b) => (a.date > b.date ? -1 : 1)).map((tx, i) => {
+              const isDeposit = tx.amount > 0;
+              return (
+                <div key={i} style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 14px",
+                  borderTop: i === 0 ? "none" : `1px solid ${C.border}`,
+                  background: i % 2 === 0 ? "transparent" : "#0f181f",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 16 }}>{isDeposit ? "📥" : "📤"}</span>
+                    <div>
+                      <div style={{ fontSize: 13, color: C.text }}>{tx.note || (isDeposit ? "Wpłata" : "Wypłata")}</div>
+                      <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono', monospace" }}>{fmtDate(tx.date)}</div>
                     </div>
                   </div>
-                );
-              })}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 14, color: isDeposit ? C.green : C.red }}>
+                      {isDeposit ? "+" : ""}{fmt2(tx.amount)}
+                    </span>
+                    <button onClick={() => handleDeleteTx(i)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14, opacity: 0.6 }}>✕</button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -799,7 +625,7 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
   );
 }
 
-// ─── SavingsModal (okno modalne szczegółów) ───────────────────────────────────
+// ─── SavingsModal ─────────────────────────────────────────────────────────────
 export function SavingsModal({ account, onClose, onSave, onDelete, onOpenEditForm }) {
   return (
     <div
@@ -812,78 +638,40 @@ export function SavingsModal({ account, onClose, onSave, onDelete, onOpenEditFor
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",
-        padding: 0,
       }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div
-        style={{
-          background: C.bg,
-          border: `1px solid ${C.border}`,
-          borderRadius: "18px 18px 0 0",
-          width: "100%",
-          maxWidth: 640,
-          maxHeight: "92vh",
-          overflowY: "auto",
-          padding: "24px 20px 32px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 20,
-          }}
-        >
-          <div
-            style={{
-              width: 40,
-              height: 4,
-              background: C.border,
-              borderRadius: 2,
-              margin: "0 auto",
-              position: "absolute",
-              left: "50%",
-              transform: "translateX(-50%)",
-              top: 10,
-            }}
-          />
+      <div style={{
+        background: C.bg,
+        border: `1px solid ${C.border}`,
+        borderRadius: "18px 18px 0 0",
+        width: "100%",
+        maxWidth: 640,
+        maxHeight: "92vh",
+        overflowY: "auto",
+        padding: "24px 20px 32px",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div style={{ fontSize: 13, color: C.muted }}>Konto oszczędnościowe</div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              color: C.muted,
-              fontSize: 20,
-              cursor: "pointer",
-              lineHeight: 1,
-            }}
-          >
-            ✕
-          </button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, fontSize: 20, cursor: "pointer" }}>✕</button>
         </div>
         <SavingsDetailPanel
           account={account}
           onEdit={(updated) => onSave(updated)}
-          onDelete={(id) => {
-            onDelete(id);
-            onClose();
-          }}
-          onOpenEditForm={(acc) => {
-            onClose();
-            if (onOpenEditForm) {
-              onOpenEditForm(acc);
-            }
-          }}
+          onDelete={(id) => { onDelete(id); onClose(); }}
+          onOpenEditForm={(acc) => { onClose(); onOpenEditForm?.(acc); }}
         />
       </div>
     </div>
   );
 }
 
-// ─── SavingsFormModal (formularz dodawania/edycji konta) ──────────────────────
+// ─── SavingsFormModal ─────────────────────────────────────────────────────────
+// ZASADA: Data otwarcia automatycznie determinuje stawkę. Zero dodatkowych kliknięć.
+// - Konto nowe (< promoDays) → stawka promo + info kiedy się kończy
+// - Konto stare (> promoDays) → stawka standard
+// - Użytkownik zawsze może nadpisać stawkę ręcznie
+
 export function SavingsFormModal({ existing, onClose, onSave }) {
   const [name, setName] = useState(existing?.name || "");
   const [bankName, setBankName] = useState(existing?.bankName || "");
@@ -893,10 +681,11 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
   const [note, setNote] = useState(existing?.note || "");
   const [showSuggestions, setShowSuggestions] = useState(false);
   
-  // NOWA LOGIKA: pendingAccount to konto czekające na wybór wariantu
-  const [pendingAccount, setPendingAccount] = useState(null);
+  // Wybrany bank z bazy (do automatycznego obliczania stawki)
+  const [selectedBank, setSelectedBank] = useState(null);
+  // Czy stawka została ręcznie nadpisana przez użytkownika
+  const [rateManuallySet, setRateManuallySet] = useState(false);
 
-  // Sugestie stawek na podstawie nazwy banku
   const suggestions = useMemo(() => {
     if (!bankName || bankName.length < 2) return [];
     const lower = bankName.toLowerCase();
@@ -906,41 +695,67 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
     );
   }, [bankName]);
 
-  // Gdy użytkownik kliknie na sugestię
+  // Oblicz właściwą stawkę na podstawie daty i wybranego banku
+  const computedRate = useMemo(() => {
+    if (!selectedBank) return null;
+    
+    const daysOld = daysSince(openDate);
+    const hasPromo = selectedBank.ratePromo && selectedBank.ratePromo > 0;
+    const promoDays = selectedBank.promoDays || 90; // domyślnie 90 dni
+    
+    if (hasPromo && daysOld < promoDays) {
+      // Konto w okresie promocji
+      return {
+        rate: selectedBank.ratePromo,
+        isPromo: true,
+        daysLeft: promoDays - daysOld,
+        promoEndDate: (() => {
+          const end = new Date(openDate);
+          end.setDate(end.getDate() + promoDays);
+          return end.toISOString().slice(0, 10);
+        })(),
+        rateAfterPromo: selectedBank.rateStandard,
+      };
+    } else {
+      // Konto po promocji lub bez promocji
+      return {
+        rate: selectedBank.rateStandard,
+        isPromo: false,
+        daysLeft: 0,
+        promoEndDate: null,
+        rateAfterPromo: null,
+      };
+    }
+  }, [selectedBank, openDate]);
+
+  // Gdy wybieramy sugestię — automatycznie wypełnij wszystko
   const handleSelectSuggestion = (acc) => {
     setShowSuggestions(false);
     setBankName(acc.bank);
     setName(acc.name);
-    
-    // Sprawdź czy są oba warianty (promo i standard różne od siebie i oba > 0)
-    const hasPromo = acc.ratePromo && acc.ratePromo > 0;
-    const hasStandard = acc.rateStandard && acc.rateStandard > 0;
-    const hasBothVariants = hasPromo && hasStandard && acc.ratePromo !== acc.rateStandard;
-    
-    if (hasBothVariants) {
-      // Pokaż wybór wariantu
-      setPendingAccount(acc);
-      setRate(""); // Wyczyść rate, żeby user musiał wybrać
-    } else {
-      // Tylko jeden wariant - użyj tego co jest
-      setPendingAccount(null);
-      setRate(acc.ratePromo || acc.rateStandard);
-    }
+    setSelectedBank(acc);
+    setRateManuallySet(false); // reset — pozwól automatyce działać
   };
 
-  // Wybór wariantu (promo lub standard)
-  const handleSelectVariant = (variant) => {
-    if (!pendingAccount) return;
-    
-    if (variant === "promo") {
-      setRate(pendingAccount.ratePromo);
-      if (pendingAccount.promoConditions) {
-        setNote(pendingAccount.promoConditions);
+  // Automatycznie aktualizuj stawkę gdy zmieni się computedRate (i nie jest ręcznie ustawiona)
+  useEffect(() => {
+    if (computedRate && !rateManuallySet) {
+      setRate(computedRate.rate);
+      
+      // Automatycznie ustaw notatkę z info o promocji
+      if (computedRate.isPromo && computedRate.daysLeft > 0) {
+        const promoEndFormatted = fmtDate(computedRate.promoEndDate);
+        setNote(`Promocja do ${promoEndFormatted}, potem ${computedRate.rateAfterPromo}%`);
+      } else if (selectedBank && !computedRate.isPromo && selectedBank.ratePromo) {
+        setNote("Promocja wygasła");
       }
-    } else {
-      setRate(pendingAccount.rateStandard);
     }
-    setPendingAccount(null); // Zamknij wybór wariantu
+  }, [computedRate, rateManuallySet, selectedBank]);
+
+  // Gdy użytkownik ręcznie zmienia stawkę
+  const handleRateChange = (e) => {
+    setRate(e.target.value);
+    setRateManuallySet(true); // użytkownik nadpisał automatykę
   };
 
   const handleSave = () => {
@@ -966,6 +781,9 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
       note,
       transactions,
       category: "Konto oszczędnościowe",
+      // Zachowaj info o promocji tylko jeśli jest aktywna
+      promoEndDate: computedRate?.isPromo ? computedRate.promoEndDate : null,
+      rateAfterPromo: computedRate?.isPromo ? computedRate.rateAfterPromo : null,
     };
 
     onSave(account);
@@ -1001,23 +819,11 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
           setShowSuggestions(false);
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 24,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
           <div style={{ fontSize: 17, fontWeight: 700, fontFamily: "'Sora', sans-serif", color: C.text }}>
             {existing ? "Edytuj konto" : "Dodaj konto oszczędnościowe"}
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: "none", border: "none", color: C.muted, fontSize: 20, cursor: "pointer" }}
-          >
-            ✕
-          </button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, fontSize: 20, cursor: "pointer" }}>✕</button>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1029,11 +835,12 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
               onChange={(e) => {
                 setBankName(e.target.value);
                 setShowSuggestions(true);
-                setPendingAccount(null);
+                setSelectedBank(null);
+                setRateManuallySet(false);
               }}
-              onFocus={() => setShowSuggestions(true)}
+              onFocus={() => bankName.length >= 2 && setShowSuggestions(true)}
               onClick={(e) => e.stopPropagation()}
-              placeholder="np. PKO BP, VeloBank, ING..."
+              placeholder="Wpisz nazwę banku..."
               style={inputStyle}
             />
             {showSuggestions && suggestions.length > 0 && (
@@ -1048,7 +855,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
                   borderRadius: 8,
                   marginTop: 4,
                   zIndex: 10,
-                  maxHeight: 240,
+                  maxHeight: 220,
                   overflowY: "auto",
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -1056,10 +863,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
                 {suggestions.map((acc, i) => (
                   <button
                     key={i}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSelectSuggestion(acc);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); handleSelectSuggestion(acc); }}
                     style={{
                       display: "block",
                       width: "100%",
@@ -1078,9 +882,9 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
                     <div style={{ fontSize: 11, marginTop: 2 }}>
                       {acc.ratePromo ? (
                         <>
-                          <span style={{ color: C.orange }}>{acc.ratePromo}% promo</span>
-                          {acc.promoDays && <span style={{ color: C.muted }}> ({acc.promoDays} dni)</span>}
-                          <span style={{ color: C.muted }}> · standard: {acc.rateStandard}%</span>
+                          <span style={{ color: C.orange }}>{acc.ratePromo}%</span>
+                          <span style={{ color: C.muted }}> ({acc.promoDays || 90}d) → </span>
+                          <span style={{ color: C.muted }}>{acc.rateStandard}%</span>
                         </>
                       ) : (
                         <span style={{ color: C.green }}>{acc.rateStandard}%</span>
@@ -1092,138 +896,110 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
             )}
           </div>
 
-          {/* WYBÓR WARIANTU - pokazuje się gdy pendingAccount !== null */}
-          {pendingAccount && (
-            <div
-              style={{
-                background: "#0f1823",
-                border: `2px solid ${C.orange}`,
-                borderRadius: 10,
-                padding: 14,
+          {/* Nazwa konta */}
+          <div>
+            <label style={labelStyle}>Nazwa konta *</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="np. Moje oszczędności" style={inputStyle} />
+          </div>
+          
+          {/* Data otwarcia — KLUCZOWA dla obliczenia stawki */}
+          <div>
+            <label style={labelStyle}>Data otwarcia *</label>
+            <input 
+              type="date" 
+              value={openDate} 
+              onChange={(e) => {
+                setOpenDate(e.target.value);
+                setRateManuallySet(false); // pozwól przeliczyć stawkę
+              }} 
+              style={inputStyle} 
+            />
+            {/* Info o obliczonej stawce */}
+            {selectedBank && computedRate && !rateManuallySet && (
+              <div style={{ 
+                marginTop: 6, 
+                padding: "8px 10px", 
+                background: computedRate.isPromo ? C.orange + "15" : "#0f1823",
+                borderRadius: 6,
+                fontSize: 12,
+                color: computedRate.isPromo ? C.orange : C.muted,
+                border: `1px solid ${computedRate.isPromo ? C.orange + "40" : C.border}`,
+              }}>
+                {computedRate.isPromo ? (
+                  <>🔥 Promocja aktywna — jeszcze {computedRate.daysLeft} dni ({computedRate.rate}%)</>
+                ) : (
+                  <>📊 Stawka standardowa ({computedRate.rate}%){selectedBank.ratePromo && " — promocja wygasła"}</>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Oprocentowanie — automatyczne lub ręczne */}
+          <div>
+            <label style={labelStyle}>
+              Oprocentowanie (% rocznie) *
+              {rateManuallySet && <span style={{ color: C.orange, marginLeft: 8, fontWeight: 400 }}>✏️ ręczne</span>}
+            </label>
+            <input
+              type="number"
+              value={rate}
+              onChange={handleRateChange}
+              placeholder="np. 5.5"
+              step="0.01"
+              style={{ 
+                ...inputStyle,
+                borderColor: rate ? C.green : C.border,
               }}
-            >
-              <div style={{ fontSize: 13, color: C.text, marginBottom: 12, fontWeight: 600 }}>
-                🏦 {pendingAccount.bank} — wybierz oprocentowanie:
-              </div>
-              <div style={{ display: "flex", gap: 10, flexDirection: "column" }}>
-                {/* Wariant promocyjny */}
+            />
+            {/* Szybkie przyciski do zmiany stawki jeśli bank wybrany */}
+            {selectedBank && selectedBank.ratePromo && (
+              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                 <button
-                  onClick={() => handleSelectVariant("promo")}
+                  onClick={() => { setRate(selectedBank.ratePromo); setRateManuallySet(true); }}
                   style={{
-                    padding: "12px 14px",
-                    background: C.orange + "20",
-                    border: `2px solid ${C.orange}`,
-                    borderRadius: 10,
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: `1px solid ${C.border}`,
+                    background: "transparent",
+                    color: C.orange,
                     cursor: "pointer",
-                    textAlign: "left",
-                    transition: "all 0.15s",
+                    fontSize: 11,
+                    fontFamily: "'Sora', sans-serif",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: C.orange }}>
-                        {pendingAccount.ratePromo}% promocyjne
-                      </div>
-                      <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-                        {pendingAccount.promoDays ? `Przez ${pendingAccount.promoDays} dni` : "Okres promocji"}
-                        {pendingAccount.promoLimit && ` · do ${(pendingAccount.promoLimit / 1000).toFixed(0)} tys. zł`}
-                      </div>
-                      {pendingAccount.promoConditions && (
-                        <div style={{ fontSize: 11, color: C.muted, marginTop: 6, fontStyle: "italic" }}>
-                          ℹ️ {pendingAccount.promoConditions}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 24, color: C.orange }}>→</div>
-                  </div>
+                  {selectedBank.ratePromo}% promo
                 </button>
-                
-                {/* Wariant standardowy */}
                 <button
-                  onClick={() => handleSelectVariant("standard")}
+                  onClick={() => { setRate(selectedBank.rateStandard); setRateManuallySet(true); }}
                   style={{
-                    padding: "12px 14px",
-                    background: C.card,
-                    border: `2px solid ${C.border}`,
-                    borderRadius: 10,
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: `1px solid ${C.border}`,
+                    background: "transparent",
+                    color: C.muted,
                     cursor: "pointer",
-                    textAlign: "left",
-                    transition: "all 0.15s",
+                    fontSize: 11,
+                    fontFamily: "'Sora', sans-serif",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
-                        {pendingAccount.rateStandard}% standardowe
-                      </div>
-                      <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-                        Stałe oprocentowanie bez warunków
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 24, color: C.muted }}>→</div>
-                  </div>
+                  {selectedBank.rateStandard}% standard
                 </button>
               </div>
+            )}
+          </div>
+
+          {/* Wpłata początkowa */}
+          {!existing && (
+            <div>
+              <label style={labelStyle}>Wpłata początkowa</label>
+              <input type="number" value={initialDeposit} onChange={(e) => setInitialDeposit(e.target.value)} placeholder="np. 10000" style={inputStyle} />
             </div>
           )}
 
-          <div>
-            <label style={labelStyle}>Nazwa konta *</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="np. Konto oszcz. PKO"
-              style={inputStyle}
-            />
-          </div>
-          
-          <div style={{ display: "flex", gap: 10 }}>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Oprocentowanie (% rocznie) *</label>
-              <input
-                type="number"
-                value={rate}
-                onChange={(e) => setRate(e.target.value)}
-                placeholder={pendingAccount ? "← wybierz wariant" : "np. 5.5"}
-                step="0.01"
-                style={{
-                  ...inputStyle,
-                  borderColor: rate ? C.green : (pendingAccount ? C.orange : C.border),
-                  background: pendingAccount ? C.orange + "10" : "#0f1823",
-                }}
-                disabled={!!pendingAccount}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Data otwarcia *</label>
-              <input
-                type="date"
-                value={openDate}
-                onChange={(e) => setOpenDate(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-          {!existing && (
-            <div>
-              <label style={labelStyle}>Wpłata początkowa (opcjonalnie)</label>
-              <input
-                type="number"
-                value={initialDeposit}
-                onChange={(e) => setInitialDeposit(e.target.value)}
-                placeholder="np. 10000"
-                style={inputStyle}
-              />
-            </div>
-          )}
+          {/* Notatka */}
           <div>
             <label style={labelStyle}>Notatka</label>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="np. Konto z promocją do czerwca"
-              style={inputStyle}
-            />
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="np. warunki promocji" style={inputStyle} />
           </div>
         </div>
 
@@ -1232,31 +1008,10 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-          <button
-            onClick={onClose}
-            style={{
-              ...btnBase,
-              flex: 1,
-              background: "transparent",
-              color: C.muted,
-              border: `1px solid ${C.border}`,
-            }}
-          >
+          <button onClick={onClose} style={{ ...btnBase, flex: 1, background: "transparent", color: C.muted, border: `1px solid ${C.border}` }}>
             Anuluj
           </button>
-          <button
-            onClick={handleSave}
-            disabled={!!pendingAccount}
-            style={{ 
-              ...btnBase, 
-              flex: 2, 
-              background: pendingAccount ? C.muted : C.green, 
-              color: "#000", 
-              fontWeight: 700,
-              opacity: pendingAccount ? 0.5 : 1,
-              cursor: pendingAccount ? "not-allowed" : "pointer",
-            }}
-          >
+          <button onClick={handleSave} style={{ ...btnBase, flex: 2, background: C.green, color: "#000", fontWeight: 700 }}>
             {existing ? "Zapisz zmiany" : "Dodaj konto"}
           </button>
         </div>
@@ -1268,10 +1023,18 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
 // ─── SavingsRow ───────────────────────────────────────────────────────────────
 export function SavingsRow({ account, onClick }) {
   const calc = useMemo(() => computeSavings(account), [account]);
-
   const balance = calc?.currentBalance ?? 0;
   const accrued = calc?.accruedToday ?? 0;
   const daily = calc?.dailyGain ?? 0;
+
+  // Sprawdź czy promocja wkrótce wygasa
+  const promoWarning = useMemo(() => {
+    if (!account.promoEndDate) return null;
+    const daysLeft = Math.ceil((new Date(account.promoEndDate) - new Date()) / (1000 * 60 * 60 * 24));
+    if (daysLeft <= 0) return "⚠️";
+    if (daysLeft <= 14) return `⏰ ${daysLeft}d`;
+    return null;
+  }, [account.promoEndDate]);
 
   return (
     <div
@@ -1293,49 +1056,41 @@ export function SavingsRow({ account, onClick }) {
       onMouseLeave={(e) => (e.currentTarget.style.background = C.card)}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-        <div
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 10,
-            background: "#00c89622",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 18,
-            flexShrink: 0,
-          }}
-        >
+        <div style={{
+          width: 38,
+          height: 38,
+          borderRadius: 10,
+          background: "#00c89622",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 18,
+          flexShrink: 0,
+        }}>
           🏦
         </div>
         <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-              color: C.text,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
+          <div style={{
+            fontSize: 14,
+            fontWeight: 600,
+            color: C.text,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}>
             {account.name}
+            {promoWarning && <span style={{ fontSize: 11, color: C.orange }}>{promoWarning}</span>}
           </div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-            {account.bankName || "Konto oszczędnościowe"} ·{" "}
-            <span style={{ color: C.orange }}>{account.rate}%</span>
+            {account.bankName || "Konto"} · <span style={{ color: C.orange }}>{account.rate}%</span>
           </div>
         </div>
       </div>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <div
-          style={{
-            fontFamily: "'DM Mono', monospace",
-            fontWeight: 700,
-            fontSize: 15,
-            color: C.text,
-          }}
-        >
+        <div style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: C.text }}>
           {fmt2(balance + accrued)}
         </div>
         <div style={{ fontSize: 11, color: C.green, marginTop: 2 }}>
@@ -1396,34 +1151,11 @@ const menuBtnStyle = {
 
 function StatCard({ label, value, accent, big }) {
   return (
-    <div
-      style={{
-        background: "#0f1823",
-        borderRadius: 10,
-        padding: "12px 14px",
-        border: `1px solid #1e2d3d`,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          color: "#6b7f96",
-          marginBottom: 6,
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-        }}
-      >
+    <div style={{ background: "#0f1823", borderRadius: 10, padding: "12px 14px", border: `1px solid #1e2d3d` }}>
+      <div style={{ fontSize: 11, color: "#6b7f96", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
         {label}
       </div>
-      <div
-        style={{
-          fontFamily: "'DM Mono', monospace",
-          fontWeight: 700,
-          fontSize: big ? 20 : 16,
-          color: accent || "#e8edf3",
-        }}
-      >
+      <div style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: big ? 20 : 16, color: accent || "#e8edf3" }}>
         {value}
       </div>
     </div>
