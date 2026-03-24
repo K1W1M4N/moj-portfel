@@ -4,6 +4,170 @@
 
 import { useState, useMemo } from "react";
 
+// ─── Baza stawek kont oszczędnościowych (Bankier.pl, marzec 2026) ─────────────
+// Stawki standardowe (bez promocji) oraz promocyjne z limitem kwotowym i czasowym
+export const SAVINGS_RATES_DB = {
+  lastUpdated: "2026-03",
+  accounts: [
+    // VeloBank
+    {
+      bank: "VeloBank",
+      name: "Elastyczne Konto Oszczędnościowe",
+      rateStandard: 1.0,
+      ratePromo: 6.0,
+      promoLimit: 50000,
+      promoDays: 92,
+      promoConditions: "Nowi klienci, min. 5 transakcji/mies., zgody marketingowe",
+      requiresROR: true,
+    },
+    {
+      bank: "VeloBank",
+      name: "VeloSkarbonka",
+      rateStandard: 1.83,
+      ratePromo: null,
+      promoLimit: null,
+      promoDays: null,
+      promoConditions: null,
+      requiresROR: false,
+    },
+    // Bank Millennium
+    {
+      bank: "Bank Millennium",
+      name: "Konto Oszczędnościowe Profit",
+      rateStandard: 0.75,
+      ratePromo: 5.0,
+      promoLimit: null,
+      promoDays: 91,
+      promoConditions: "Nowe środki, min. 5 transakcji/mies.",
+      requiresROR: true,
+    },
+    {
+      bank: "Bank Millennium",
+      name: "Konto Twój Cel",
+      rateStandard: 0.75,
+      ratePromo: 2.75,
+      promoLimit: 25000,
+      promoDays: null, // do 31.07.2026
+      promoConditions: "Wpłata min. 100 zł/mies. zwiększająca saldo",
+      requiresROR: true,
+    },
+    // Pekao
+    {
+      bank: "Bank Pekao SA",
+      name: "Konto Oszczędnościowe",
+      rateStandard: 1.25,
+      ratePromo: 5.0,
+      promoLimit: 100000,
+      promoDays: 92,
+      promoConditions: "Nowi klienci, konto z kartą",
+      requiresROR: true,
+    },
+    // Alior Bank
+    {
+      bank: "Alior Bank",
+      name: "Konto Mega Oszczędnościowe",
+      rateStandard: 1.0,
+      ratePromo: 4.8,
+      promoLimit: 200000,
+      promoDays: 90,
+      promoConditions: "Nowe Konto Jakże Osobiste, transakcje min. 500 zł/mies.",
+      requiresROR: true,
+    },
+    // Santander
+    {
+      bank: "Santander Bank Polska",
+      name: "Konto Multi Oszczędnościowe",
+      rateStandard: 1.0,
+      ratePromo: 4.0,
+      promoLimit: null,
+      promoDays: null, // do 29.04.2026
+      promoConditions: "Nowe środki",
+      requiresROR: true,
+    },
+    // ING
+    {
+      bank: "ING Bank Śląski",
+      name: "Otwarte Konto Oszczędnościowe",
+      rateStandard: 0.8,
+      ratePromo: 5.5,
+      promoLimit: 400000,
+      promoDays: 90,
+      promoConditions: "Bonus na start, Mobilni zyskują",
+      requiresROR: true,
+    },
+    // UniCredit
+    {
+      bank: "UniCredit",
+      name: "Konto Oszczędnościowe",
+      rateStandard: 4.5,
+      ratePromo: null,
+      promoLimit: null,
+      promoDays: null,
+      promoConditions: null,
+      requiresROR: false,
+    },
+    // Citi Handlowy
+    {
+      bank: "Citi Handlowy",
+      name: "Konto Oszczędnościowe",
+      rateStandard: 0.8,
+      ratePromo: 4.8,
+      promoLimit: null,
+      promoDays: 180,
+      promoConditions: "Citigold, min. 400 tys. zł, 3 transakcje min. 500 zł/mies.",
+      requiresROR: true,
+    },
+    // PKO BP
+    {
+      bank: "PKO BP",
+      name: "Konto Oszczędnościowe",
+      rateStandard: 0.5,
+      ratePromo: null,
+      promoLimit: null,
+      promoDays: null,
+      promoConditions: null,
+      requiresROR: true,
+    },
+    // mBank
+    {
+      bank: "mBank",
+      name: "eKonto Oszczędnościowe",
+      rateStandard: 0.5,
+      ratePromo: null,
+      promoLimit: null,
+      promoDays: null,
+      promoConditions: null,
+      requiresROR: true,
+    },
+  ],
+};
+
+// Funkcja do pobierania sugerowanej stawki na podstawie nazwy banku
+export function getSuggestedRate(bankName) {
+  if (!bankName) return null;
+  const lower = bankName.toLowerCase();
+  
+  const match = SAVINGS_RATES_DB.accounts.find(acc => {
+    const bankLower = acc.bank.toLowerCase();
+    const nameLower = acc.name.toLowerCase();
+    return lower.includes(bankLower.split(" ")[0]) || 
+           bankLower.includes(lower.split(" ")[0]) ||
+           lower.includes(nameLower.split(" ")[0]);
+  });
+  
+  if (match) {
+    return {
+      bank: match.bank,
+      name: match.name,
+      rateStandard: match.rateStandard,
+      ratePromo: match.ratePromo,
+      promoLimit: match.promoLimit,
+      promoDays: match.promoDays,
+    };
+  }
+  return null;
+}
+
 // ─── Stałe kolorów (spójne z App.jsx) ────────────────────────────────────────
 const C = {
   bg: "#0a0e14",
@@ -31,9 +195,6 @@ const fmtDate = (iso) => {
 const today = () => new Date().toISOString().slice(0, 10);
 
 // ─── Silnik obliczeń ──────────────────────────────────────────────────────────
-// Kapitalizacja miesięczna, naliczanie dzienne ACT/365
-// NAPRAWIONE: Prawidłowe uwzględnianie transakcji od początku
-
 function computeSavings(account) {
   const { openDate, rate, transactions = [] } = account;
   if (!openDate || rate == null) return null;
@@ -43,10 +204,9 @@ function computeSavings(account) {
   const todayDate = new Date(todayStr);
   const openDateObj = new Date(openDate);
 
-  // Sortuj transakcje rosnąco po dacie
   const sorted = [...transactions].sort((a, b) => (a.date > b.date ? 1 : -1));
 
-  // NAPRAWKA: Oblicz saldo początkowe (transakcje z dnia otwarcia lub wcześniej)
+  // Saldo początkowe (transakcje z dnia otwarcia lub wcześniej)
   let balance = 0;
   for (const tx of sorted) {
     if (tx.date <= openDate) {
@@ -57,37 +217,28 @@ function computeSavings(account) {
   let totalInterest = 0;
   const months = [];
 
-  // Pierwszy okres zaczyna się od daty otwarcia
   let periodStart = new Date(openDateObj);
   let monthIndex = 0;
 
-  // Pętla przez wszystkie pełne miesiące (kapitalizacje)
   while (true) {
     const periodEnd = new Date(periodStart);
     periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-    // Jeśli następna kapitalizacja jest w przyszłości — stop
     if (periodEnd > todayDate) break;
 
     const periodStartStr = periodStart.toISOString().slice(0, 10);
     const periodEndStr = periodEnd.toISOString().slice(0, 10);
 
-    // Saldo na początku okresu (przed dodaniem transakcji z tego okresu)
     const openBal = balance;
 
-    // Transakcje W TRAKCIE tego okresu (po periodStart, do periodEnd włącznie)
     const txInPeriod = sorted.filter(
       (tx) => tx.date > periodStartStr && tx.date <= periodEndStr
     );
     const txSum = txInPeriod.reduce((s, tx) => s + tx.amount, 0);
 
-    // Dni w tym okresie
     const days = Math.round((periodEnd - periodStart) / 86400000);
-    
-    // Odsetki liczone od salda na początku okresu (standard polski)
     const interest = Math.round(openBal * annualRate * (days / 365) * 100) / 100;
 
-    // Saldo po kapitalizacji = saldo początkowe + odsetki + wpłaty/wypłaty
     const closeBal = Math.round((openBal + interest + txSum) * 100) / 100;
 
     months.push({
@@ -106,30 +257,21 @@ function computeSavings(account) {
     periodStart = new Date(periodEnd);
     monthIndex++;
 
-    // Zabezpieczenie przed nieskończoną pętlą
     if (monthIndex > 600) break;
   }
 
-  // Data ostatniej kapitalizacji
   const lastCapDate = periodStart.toISOString().slice(0, 10);
 
-  // Transakcje PO ostatniej kapitalizacji (do dziś)
   const txAfterCap = sorted.filter((tx) => tx.date > lastCapDate && tx.date <= todayStr);
   const txAfterCapSum = txAfterCap.reduce((s, tx) => s + tx.amount, 0);
 
-  // Aktualne saldo = saldo po ostatniej kapitalizacji + transakcje po niej
   const currentBalance = Math.round((balance + txAfterCapSum) * 100) / 100;
 
-  // Dni od ostatniej kapitalizacji
   const daysAccrued = Math.max(0, Math.round((todayDate - periodStart) / 86400000));
-
-  // Narosłe odsetki od ostatniej kapitalizacji
   const accruedToday = Math.round(currentBalance * annualRate * (daysAccrued / 365) * 100) / 100;
 
-  // Dzienny przyrost
   const dailyGain = Math.round(currentBalance * annualRate * (1 / 365) * 100) / 100;
 
-  // Następna kapitalizacja
   const nextCapDate = new Date(periodStart);
   nextCapDate.setMonth(nextCapDate.getMonth() + 1);
 
@@ -145,7 +287,6 @@ function computeSavings(account) {
   };
 }
 
-// Prognoza ─ saldo za N miesięcy przy stałym oprocentowaniu
 function projectBalance(currentBalance, rate, months) {
   const annualRate = rate / 100;
   let bal = currentBalance;
@@ -218,7 +359,6 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
   };
 
   const handleDeleteTx = (idx) => {
-    // Musimy usunąć po posortowanej kolejności (od najnowszych)
     const sortedTxs = [...(account.transactions || [])].sort((a, b) => (a.date > b.date ? -1 : 1));
     const txToRemove = sortedTxs[idx];
     const newTxs = (account.transactions || []).filter((tx) => tx !== txToRemove);
@@ -278,7 +418,9 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
               <button
                 onClick={() => {
                   setMenuOpen(false);
-                  onOpenEditForm(account);
+                  if (onOpenEditForm) {
+                    onOpenEditForm(account);
+                  }
                 }}
                 style={menuBtnStyle}
               >
@@ -360,7 +502,6 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
         >
           📈 Prognoza zysku
         </div>
-        {/* Selektor okresu */}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
           {projOptions.map((o) => (
             <button
@@ -449,7 +590,6 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
                 overflow: "hidden",
               }}
             >
-              {/* Nagłówek tabeli */}
               <div
                 style={{
                   display: "grid",
@@ -557,7 +697,6 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
           </button>
         </div>
 
-        {/* Formularz dodawania transakcji */}
         {showTxForm && (
           <div
             style={{
@@ -616,7 +755,6 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
           </div>
         )}
 
-        {/* Lista transakcji */}
         {(account.transactions || []).length === 0 ? (
           <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>
             Brak transakcji. Dodaj pierwszą wpłatę.
@@ -724,7 +862,6 @@ export function SavingsModal({ account, onClose, onSave, onDelete, onOpenEditFor
           padding: "24px 20px 32px",
         }}
       >
-        {/* Handle + zamknij */}
         <div
           style={{
             display: "flex",
@@ -770,7 +907,9 @@ export function SavingsModal({ account, onClose, onSave, onDelete, onOpenEditFor
           }}
           onOpenEditForm={(acc) => {
             onClose();
-            onOpenEditForm(acc);
+            if (onOpenEditForm) {
+              onOpenEditForm(acc);
+            }
           }}
         />
       </div>
@@ -786,6 +925,25 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
   const [openDate, setOpenDate] = useState(existing?.openDate || today());
   const [initialDeposit, setInitialDeposit] = useState("");
   const [note, setNote] = useState(existing?.note || "");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Sugestie stawek na podstawie nazwy banku
+  const suggestions = useMemo(() => {
+    if (!bankName || bankName.length < 2) return [];
+    const lower = bankName.toLowerCase();
+    return SAVINGS_RATES_DB.accounts.filter(acc => 
+      acc.bank.toLowerCase().includes(lower) ||
+      acc.name.toLowerCase().includes(lower)
+    );
+  }, [bankName]);
+
+  const handleSelectSuggestion = (acc) => {
+    setBankName(acc.bank);
+    setName(acc.name);
+    // Użyj stawki promocyjnej jeśli dostępna, w przeciwnym razie standardowej
+    setRate(acc.ratePromo || acc.rateStandard);
+    setShowSuggestions(false);
+  };
 
   const handleSave = () => {
     const r = parseFloat(String(rate).replace(",", "."));
@@ -793,7 +951,6 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
 
     let transactions = existing?.transactions || [];
 
-    // Jeśli nowe konto i podano wpłatę początkową
     if (!existing && initialDeposit) {
       const dep = parseFloat(String(initialDeposit).replace(",", "."));
       if (!isNaN(dep) && dep > 0) {
@@ -817,6 +974,13 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
     onClose();
   };
 
+  // Zamknij sugestie po kliknięciu gdziekolwiek
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
     <div
       style={{
@@ -829,7 +993,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
         alignItems: "flex-end",
         justifyContent: "center",
       }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onClick={handleBackdropClick}
     >
       <div
         style={{
@@ -841,6 +1005,13 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
           maxHeight: "92vh",
           overflowY: "auto",
           padding: "28px 20px 36px",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          // Zamknij sugestie jeśli klikamy poza polem
+          if (!e.target.closest('[data-suggestions]')) {
+            setShowSuggestions(false);
+          }
         }}
       >
         <div
@@ -863,6 +1034,71 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Nazwa banku z sugestiami */}
+          <div style={{ position: "relative" }} data-suggestions>
+            <label style={labelStyle}>Nazwa banku</label>
+            <input
+              value={bankName}
+              onChange={(e) => {
+                setBankName(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              placeholder="np. PKO BP, VeloBank, ING..."
+              style={inputStyle}
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  marginTop: 4,
+                  zIndex: 10,
+                  maxHeight: 200,
+                  overflowY: "auto",
+                }}
+              >
+                {suggestions.map((acc, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSelectSuggestion(acc)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      padding: "10px 12px",
+                      background: "none",
+                      border: "none",
+                      borderBottom: i < suggestions.length - 1 ? `1px solid ${C.border}` : "none",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      color: C.text,
+                      fontFamily: "'Sora', sans-serif",
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{acc.bank}</div>
+                    <div style={{ fontSize: 12, color: C.muted }}>{acc.name}</div>
+                    <div style={{ fontSize: 11, color: C.green, marginTop: 2 }}>
+                      {acc.ratePromo ? (
+                        <>
+                          <span style={{ color: C.orange }}>{acc.ratePromo}% promo</span>
+                          {acc.promoDays && <span style={{ color: C.muted }}> ({acc.promoDays} dni)</span>}
+                          <span style={{ color: C.muted }}> · standard: {acc.rateStandard}%</span>
+                        </>
+                      ) : (
+                        <>{acc.rateStandard}%</>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div>
             <label style={labelStyle}>Nazwa konta *</label>
             <input
@@ -872,15 +1108,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
               style={inputStyle}
             />
           </div>
-          <div>
-            <label style={labelStyle}>Nazwa banku</label>
-            <input
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-              placeholder="np. PKO BP, Santander..."
-              style={inputStyle}
-            />
-          </div>
+          
           <div style={{ display: "flex", gap: 10 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Oprocentowanie (% rocznie) *</label>
@@ -926,7 +1154,12 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+        {/* Info o źródle danych */}
+        <div style={{ fontSize: 10, color: C.muted, marginTop: 12, textAlign: "center" }}>
+          Stawki z Bankier.pl · {SAVINGS_RATES_DB.lastUpdated}
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
           <button
             onClick={onClose}
             style={{
@@ -1080,7 +1313,6 @@ const menuBtnStyle = {
   fontFamily: "'Sora', sans-serif",
 };
 
-// ─── StatCard helper ──────────────────────────────────────────────────────────
 function StatCard({ label, value, accent, big }) {
   return (
     <div
@@ -1117,7 +1349,6 @@ function StatCard({ label, value, accent, big }) {
   );
 }
 
-// ─── Hook do obliczania wartości konta (do użycia w App.jsx) ─────────────────
 export function getSavingsValue(account) {
   const calc = computeSavings(account);
   if (!calc) return 0;
