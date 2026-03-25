@@ -237,8 +237,10 @@ function SymbolSearch({ initialValue, onSelect }) {
     setLoading(true);
     timerRef.current = setTimeout(async () => {
       try {
+        // Auto-strip końcówki giełdy: PZU.PL → PZU, IUSQ.DE → IUSQ
+        const searchQ = q.replace(/\.(PL|DE|US|UK|L|WA|AS|PA)$/i, "").trim();
         const res = await fetch(
-          `https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(q)}&outputsize=30&apikey=${TWELVE_DATA_KEY}`
+          `https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(searchQ)}&outputsize=30&apikey=${TWELVE_DATA_KEY}`
         );
         const data = await res.json();
         const filtered = (data.data || [])
