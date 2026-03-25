@@ -845,6 +845,7 @@ export default function App() {
   const [bondModal, setBondModal] = useState(null);
   const [bondDetail, setBondDetail] = useState(null);
   const [stockModal, setStockModal] = useState(null);
+  const [stockDetail, setStockDetail] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
   const [currentView, setCurrentView] = useState("portfolio");
 
@@ -900,7 +901,6 @@ export default function App() {
 
   // ── Zapis konta oszczędnościowego ──
   function handleSaveSavings(account) {
-    // Upewnij się że kategoria istnieje
     if (!categories.find(c => c.name === "Konto oszczędnościowe")) {
       setCategories(cs => [...cs, { name: "Konto oszczędnościowe", color: "#00c896" }]);
     }
@@ -909,7 +909,6 @@ export default function App() {
       const exists = all.find(a => a.id === withValue.id);
       return exists ? all.map(a => a.id === withValue.id ? withValue : a) : [...all, withValue];
     });
-    // Odśwież selectedSavings jeśli edytujemy otwarty panel
     if (selectedSavings && selectedSavings.id === withValue.id) {
       setSelectedSavings(withValue);
     }
@@ -928,7 +927,6 @@ export default function App() {
     ? (stockLastUpdated > lastUpdated ? stockLastUpdated : lastUpdated)
     : stockLastUpdated || lastUpdated;
 
-  // Nagłówek tytułu — zależny od widoku
   const viewTitles = {
     portfolio: "PORTFOLIO TRACKER",
     bonds: "← PORTFOLIO TRACKER",
@@ -1180,15 +1178,17 @@ export default function App() {
           onClose={() => setBondModal(null)}
         />
       )}
+
       {stockDetail && (
-  <StockDetailPanel
-    stock={stockDetail}
-    stockPrices={stockPrices}
-    onEdit={stock => { setStockDetail(null); setStockModal(stock); }}
-    onDelete={id => { handleDelete(id); setStockDetail(null); }}
-    onClose={() => setStockDetail(null)}
-  />
-)}
+        <StockDetailPanel
+          stock={stockDetail}
+          stockPrices={stockPrices}
+          onEdit={stock => { setStockDetail(null); setStockModal(stock); }}
+          onDelete={id => { handleDelete(id); setStockDetail(null); }}
+          onClose={() => setStockDetail(null)}
+        />
+      )}
+
       {stockModal && (
         <StockModal
           stock={stockModal === "add" ? null : stockModal}
@@ -1199,19 +1199,19 @@ export default function App() {
       )}
 
       {/* ── Modale kont oszczędnościowych ── */}
-     {selectedSavings && (
-  <SavingsModal
-    account={selectedSavings}
-    onClose={() => setSelectedSavings(null)}
-    onSave={updated => handleSaveSavings(updated)}
-    onDelete={handleDeleteSavings}
-    onOpenEditForm={(acc) => {
-      setSelectedSavings(null);
-      setEditingSavings(acc);
-      setShowSavingsForm(true);
-    }}
-  />
-)}
+      {selectedSavings && (
+        <SavingsModal
+          account={selectedSavings}
+          onClose={() => setSelectedSavings(null)}
+          onSave={updated => handleSaveSavings(updated)}
+          onDelete={handleDeleteSavings}
+          onOpenEditForm={(acc) => {
+            setSelectedSavings(null);
+            setEditingSavings(acc);
+            setShowSavingsForm(true);
+          }}
+        />
+      )}
       {showSavingsForm && (
         <SavingsFormModal
           existing={editingSavings}
