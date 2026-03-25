@@ -1111,7 +1111,7 @@ export default function App() {
                   {a.isBond ? (
                     <BondRow bond={a} onClick={() => setBondDetail(a)} />
                   ) : a.isStock ? (
-                    <StockRow stock={a} stockPrices={stockPrices} onClick={() => setStockModal(a)} />
+                    <StockRow stock={a} stockPrices={stockPrices} onClick={() => setStockDetail(a)} />
                   ) : a.isSavings ? (
                     <SavingsRow account={a} onClick={() => setSelectedSavings(a)} />
                   ) : (
