@@ -1,8 +1,10 @@
 // src/StockModal.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
 
+// ─── Klucz Twelve Data — używany TYLKO do wyszukiwarki symboli ────────────────
 const TWELVE_DATA_KEY = "a681abc9ebc045a39c938d8b058567d9";
 
+// ─── Style (bez zmian) ────────────────────────────────────────────────────────
 const labelSt = {
   fontSize: 11, color: "#5a6a7e", display: "block",
   marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em"
@@ -20,31 +22,22 @@ const fmtPLN  = n => new Intl.NumberFormat("pl-PL", { style: "currency", currenc
 const fmtPLN2 = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 2 }).format(n);
 const fmtCur  = (n, cur) => n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + " " + (cur || "");
 
-// ─── Cache kursów NBP (żeby nie odpytywać za każdym razem) ────────────────────
+// ─── Cache kursów NBP ─────────────────────────────────────────────────────────
 const fxCache = {};
 
-// ─── Kurs walutowy z NBP — darmowe, bez limitu ────────────────────────────────
 async function fetchFxRate(currency) {
   if (!currency || currency === "PLN") return 1;
   if (fxCache[currency]) return fxCache[currency];
-
-  // Fallback na wypadek gdyby NBP nie odpowiedziało
   const fallback = { USD: 3.95, EUR: 4.27, GBP: 5.0, CHF: 4.4, GBX: 0.049 };
-
   try {
-    // NBP API — darmowe, bez klucza, oficjalne kursy NBP
     const res = await fetch(
       `https://api.nbp.pl/api/exchangerates/rates/a/${currency}/last/1/?format=json`
     );
     if (!res.ok) throw new Error("NBP error");
     const data = await res.json();
     const rate = data.rates?.[0]?.mid;
-    if (rate) {
-      fxCache[currency] = rate;
-      return rate;
-    }
+    if (rate) { fxCache[currency] = rate; return rate; }
   } catch (e) {
-    // Tablica B NBP (dla mniej popularnych walut)
     try {
       const res2 = await fetch(
         `https://api.nbp.pl/api/exchangerates/rates/b/${currency}/last/1/?format=json`
@@ -52,75 +45,143 @@ async function fetchFxRate(currency) {
       if (res2.ok) {
         const data2 = await res2.json();
         const rate2 = data2.rates?.[0]?.mid;
-        if (rate2) {
-          fxCache[currency] = rate2;
-          return rate2;
-        }
+        if (rate2) { fxCache[currency] = rate2; return rate2; }
       }
     } catch (e2) {}
   }
-
   return fallback[currency] || 4.0;
 }
 
-// ─── Hook: live ceny dla aktywów giełdowych ───────────────────────────────────
+// ─── Cache cen w localStorage ─────────────────────────────────────────────────
+const STOCK_CACHE_KEY = "pt-stock-cache";
+
+function loadCachedPrices() {
+  try {
+    const raw = localStorage.getItem(STOCK_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveCachedPrices(prices) {
+  try {
+    localStorage.setItem(STOCK_CACHE_KEY, JSON.stringify(prices));
+  } catch {}
+}
+
+// ─── Hook: live ceny — teraz przez /api/stock-price proxy ─────────────────────
 export function useStockPrices(assets) {
-  const [stockPrices, setStockPrices] = useState({});
+  const [stockPrices, setStockPrices] = useState(() => {
+    // Załaduj cached ceny na start (żeby nie było "odświeżanie..." od razu)
+    const cached = loadCachedPrices();
+    const initial = {};
+    for (const [sym, data] of Object.entries(cached)) {
+      if (data.priceOrig && data.pricePLN) {
+        initial[sym] = { ...data, fromCache: true };
+      }
+    }
+    return initial;
+  });
   const [stockLastUpdated, setStockLastUpdated] = useState(null);
 
   const stockAssets = assets.filter(a => a.isStock && a.stockSymbol);
-  const symbolKey = stockAssets.map(a => a.stockSymbol).join(",");
+  const symbolKey = stockAssets.map(a => `${a.stockSymbol}:${a.stockExchange}`).join(",");
 
   const fetchAll = useCallback(async () => {
     if (stockAssets.length === 0) return;
+
     const symbols = [...new Set(stockAssets.map(a => a.stockSymbol))];
+    const exchanges = symbols.map(sym => {
+      const asset = stockAssets.find(a => a.stockSymbol === sym);
+      return asset?.stockExchange || "XNAS";
+    });
+
+    // Kursy walut z NBP
+    const currencies = [...new Set(stockAssets.map(a => a.stockCurrency).filter(c => c && c !== "PLN"))];
+    const fxRates = { PLN: 1 };
+    await Promise.all(currencies.map(async cur => {
+      fxRates[cur] = await fetchFxRate(cur);
+    }));
 
     try {
-      const symbolStr = symbols.join(",");
-      const res = await fetch(
-        `https://api.twelvedata.com/price?symbol=${symbolStr}&apikey=${TWELVE_DATA_KEY}`
-      );
-      const data = await res.json();
+      const url = `/api/stock-price?symbols=${symbols.join(",")}&exchanges=${exchanges.join(",")}`;
+      const res = await fetch(url);
 
-      // Kursy walut z NBP — jedno zapytanie na walutę, nie na symbol
-      const currencies = [...new Set(stockAssets.map(a => a.stockCurrency).filter(c => c && c !== "PLN"))];
-      const fxRates = { PLN: 1 };
-      await Promise.all(currencies.map(async cur => {
-        fxRates[cur] = await fetchFxRate(cur);
-      }));
+      if (!res.ok) throw new Error(`Proxy error: ${res.status}`);
+      const data = await res.json();
 
       const newPrices = {};
 
-      if (symbols.length === 1) {
-        // Single symbol — odpowiedź jest płaska { price: "..." }
-        const priceVal = data?.price;
-        if (priceVal && !isNaN(parseFloat(priceVal))) {
-          const asset = stockAssets.find(a => a.stockSymbol === symbols[0]);
-          const currency = asset?.stockCurrency || "PLN";
-          const priceOrig = parseFloat(priceVal);
+      for (const sym of symbols) {
+        const priceData = data.prices?.[sym];
+        if (priceData?.price) {
+          const asset = stockAssets.find(a => a.stockSymbol === sym);
+          const currency = priceData.currency || asset?.stockCurrency || "PLN";
+          const priceOrig = priceData.price;
           const fx = fxRates[currency] || 1;
-          newPrices[symbols[0]] = { priceOrig, pricePLN: priceOrig * fx, currency, fx };
-        }
-      } else {
-        // Multi symbol — odpowiedź to obiekt { SYMBOL: { price: "..." } }
-        for (const sym of symbols) {
-          const priceVal = data?.[sym]?.price;
-          if (priceVal && !isNaN(parseFloat(priceVal))) {
-            const asset = stockAssets.find(a => a.stockSymbol === sym);
-            const currency = asset?.stockCurrency || "PLN";
-            const priceOrig = parseFloat(priceVal);
-            const fx = fxRates[currency] || 1;
-            newPrices[sym] = { priceOrig, pricePLN: priceOrig * fx, currency, fx };
-          }
+          newPrices[sym] = {
+            priceOrig,
+            pricePLN: priceOrig * fx,
+            currency,
+            fx,
+            provider: priceData.provider,
+            fromCache: false,
+          };
         }
       }
 
       if (Object.keys(newPrices).length > 0) {
-        setStockPrices(prev => ({ ...prev, ...newPrices }));
+        setStockPrices(prev => {
+          const merged = { ...prev, ...newPrices };
+          // Zapisz do localStorage
+          saveCachedPrices(merged);
+          return merged;
+        });
         setStockLastUpdated(new Date());
       }
     } catch (e) {
-      console.warn("Twelve Data error:", e);
+      console.warn("Stock proxy error:", e);
+      // Fallback: spróbuj bezpośrednio Twelve Data (dla kompatybilności wstecznej)
+      try {
+        const symbolStr = symbols.join(",");
+        const res = await fetch(
+          `https://api.twelvedata.com/price?symbol=${symbolStr}&apikey=${TWELVE_DATA_KEY}`
+        );
+        const data = await res.json();
+        const newPrices = {};
+
+        if (symbols.length === 1) {
+          const priceVal = data?.price;
+          if (priceVal && !isNaN(parseFloat(priceVal))) {
+            const asset = stockAssets.find(a => a.stockSymbol === symbols[0]);
+            const currency = asset?.stockCurrency || "PLN";
+            const priceOrig = parseFloat(priceVal);
+            const fx = fxRates[currency] || 1;
+            newPrices[symbols[0]] = { priceOrig, pricePLN: priceOrig * fx, currency, fx, provider: "twelvedata", fromCache: false };
+          }
+        } else {
+          for (const sym of symbols) {
+            const priceVal = data?.[sym]?.price;
+            if (priceVal && !isNaN(parseFloat(priceVal))) {
+              const asset = stockAssets.find(a => a.stockSymbol === sym);
+              const currency = asset?.stockCurrency || "PLN";
+              const priceOrig = parseFloat(priceVal);
+              const fx = fxRates[currency] || 1;
+              newPrices[sym] = { priceOrig, pricePLN: priceOrig * fx, currency, fx, provider: "twelvedata", fromCache: false };
+            }
+          }
+        }
+
+        if (Object.keys(newPrices).length > 0) {
+          setStockPrices(prev => {
+            const merged = { ...prev, ...newPrices };
+            saveCachedPrices(merged);
+            return merged;
+          });
+          setStockLastUpdated(new Date());
+        }
+      } catch (e2) {
+        console.warn("Twelve Data fallback also failed:", e2);
+      }
     }
   }, [symbolKey]);
 
@@ -133,8 +194,7 @@ export function useStockPrices(assets) {
   return { stockPrices, stockLastUpdated };
 }
 
-// ─── Wyszukiwarka symboli ─────────────────────────────────────────────────────
-// Priorytet giełd europejskich i polskich żeby IUSQ podpowiadał XETR jako pierwsze
+// ─── Wyszukiwarka symboli (bez zmian — Twelve Data symbol_search działa OK) ──
 const EXCHANGE_PRIORITY = ["WSE", "XETR", "XWAR", "XAMS", "XPAR", "XLON", "XNAS", "XNYS"];
 
 function sortByExchange(results) {
@@ -183,7 +243,6 @@ function SymbolSearch({ initialValue, onSelect }) {
         const data = await res.json();
         const filtered = (data.data || [])
           .filter(r => ["Common Stock", "ETF"].includes(r.instrument_type));
-        // Sortuj według priorytetu giełd i ogranicz do 6
         const sorted = sortByExchange(filtered).slice(0, 6);
         setResults(sorted);
       } catch (e) {
@@ -206,17 +265,10 @@ function SymbolSearch({ initialValue, onSelect }) {
     });
   }
 
-  // Etykieta giełdy — przyjazna nazwa dla użytkownika
   function exchangeLabel(exchange) {
     const map = {
-      XETR: "Frankfurt (XETRA)",
-      WSE:  "GPW Warszawa",
-      XWAR: "GPW Warszawa",
-      XAMS: "Amsterdam",
-      XPAR: "Paryż",
-      XLON: "Londyn",
-      XNAS: "NASDAQ",
-      XNYS: "NYSE",
+      XETR: "Frankfurt (XETRA)", WSE: "GPW Warszawa", XWAR: "GPW Warszawa",
+      XAMS: "Amsterdam", XPAR: "Paryż", XLON: "Londyn", XNAS: "NASDAQ", XNYS: "NYSE",
     };
     return map[exchange] || exchange;
   }
@@ -280,7 +332,7 @@ function SymbolSearch({ initialValue, onSelect }) {
   );
 }
 
-// ─── Modal dodawania/edycji akcji/ETF ─────────────────────────────────────────
+// ─── Modal dodawania/edycji akcji/ETF (bez zmian, poza pobieraniem ceny) ──────
 export function StockModal({ stock, onSave, onDelete, onClose }) {
   const isEdit = !!stock;
   const [selected, setSelected] = useState(stock ? {
@@ -301,7 +353,7 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
   const [hovDel, setHovDel]     = useState(false);
   const [hovClose, setHovClose] = useState(false);
 
-  // Pobierz aktualną cenę gdy wybrano symbol
+  // Pobierz aktualną cenę — teraz przez proxy
   useEffect(() => {
     if (!selected?.symbol) return;
     setLoadingPrice(true);
@@ -310,15 +362,30 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
 
     async function load() {
       try {
-        // Pobierz cenę i kurs FX równolegle
-        const [priceRes, fx] = await Promise.all([
-          fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(selected.symbol)}&apikey=${TWELVE_DATA_KEY}`),
+        const exchange = selected.exchange || "XNAS";
+        const [proxyRes, fx] = await Promise.all([
+          fetch(`/api/stock-price?symbols=${encodeURIComponent(selected.symbol)}&exchanges=${encodeURIComponent(exchange)}`),
           fetchFxRate(selected.currency),
         ]);
-        const priceData = await priceRes.json();
 
-        if (priceData?.price && !isNaN(parseFloat(priceData.price))) {
-          setCurrentPrice(parseFloat(priceData.price));
+        if (proxyRes.ok) {
+          const data = await proxyRes.json();
+          const priceData = data.prices?.[selected.symbol];
+          if (priceData?.price) {
+            setCurrentPrice(priceData.price);
+            setFxRate(fx);
+            setLoadingPrice(false);
+            return;
+          }
+        }
+
+        // Fallback: bezpośrednio Twelve Data
+        const tdRes = await fetch(
+          `https://api.twelvedata.com/price?symbol=${encodeURIComponent(selected.symbol)}&apikey=${TWELVE_DATA_KEY}`
+        );
+        const tdData = await tdRes.json();
+        if (tdData?.price && !isNaN(parseFloat(tdData.price))) {
+          setCurrentPrice(parseFloat(tdData.price));
         } else {
           setPriceError(true);
         }
@@ -329,7 +396,7 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
       setLoadingPrice(false);
     }
     load();
-  }, [selected?.symbol, selected?.currency]);
+  }, [selected?.symbol, selected?.currency, selected?.exchange]);
 
   const qty = parseFloat(String(quantity).replace(",", ".")) || 0;
   const avg = parseFloat(String(avgPrice).replace(",", ".")) || 0;
@@ -370,7 +437,6 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}>
       <div style={{ background: "#161d28", border: "1px solid #2a3a50", borderRadius: 16, padding: 28, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto" }}>
 
-        {/* Nagłówek */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
           <div style={{ fontSize: 16, fontWeight: 600, color: "#e8f0f8" }}>
             {isEdit ? "Edytuj akcje / ETF" : "Dodaj akcje / ETF"}
@@ -380,7 +446,6 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
             style={{ background: hovClose ? "#f0506018" : "#161d28", border: `1px solid ${hovClose ? "#f05060" : "#f0506030"}`, borderRadius: 6, color: "#f05060", cursor: "pointer", fontSize: 18, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
         </div>
 
-        {/* Wyszukiwarka */}
         <div style={{ marginBottom: 14 }}>
           <label style={labelSt}>Wyszukaj akcję lub ETF</label>
           <SymbolSearch
@@ -392,7 +457,6 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
           </div>
         </div>
 
-        {/* Wybrany instrument */}
         {selected && (
           <div style={{ background: "#0f1a27", border: "1px solid #1e3040", borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
@@ -429,7 +493,6 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
           </div>
         )}
 
-        {/* Ilość i średni kurs */}
         {selected && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
             <div>
@@ -455,7 +518,6 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
           </div>
         )}
 
-        {/* Podgląd */}
         {selected && qty > 0 && avg > 0 && (
           <div style={{ background: "#0f1a27", border: "1px solid #1a3a20", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: "#5a7a9e", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Podsumowanie</div>
@@ -480,7 +542,6 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
           </div>
         )}
 
-        {/* Notatka */}
         {selected && (
           <div style={{ marginBottom: 14 }}>
             <label style={labelSt}>Notatka (opcjonalnie)</label>
@@ -491,7 +552,6 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
           </div>
         )}
 
-        {/* Przyciski */}
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
           <button onClick={submit}
             onMouseEnter={() => setHovSave(true)} onMouseLeave={() => setHovSave(false)}
@@ -524,7 +584,7 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
   );
 }
 
-// ─── Wiersz akcji/ETF na liście ───────────────────────────────────────────────
+// ─── Wiersz akcji/ETF — z badge providera i stanu offline ─────────────────────
 export function StockRow({ stock, stockPrices, onClick }) {
   const [hov, setHov] = useState(false);
   const color = "#e8e040";
@@ -537,6 +597,12 @@ export function StockRow({ stock, stockPrices, onClick }) {
   const pnlPLN = currentValuePLN - paidPLN;
   const pnlPct = paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : 0;
   const hasLivePrice = !!priceData;
+  const isFromCache = priceData?.fromCache;
+
+  // Badge providera
+  const providerBadge = priceData?.provider
+    ? { yahoo: "Y", stooq: "S", twelvedata: "T" }[priceData.provider] || ""
+    : "";
 
   const fmtPLN0 = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 }).format(n);
 
@@ -550,7 +616,6 @@ export function StockRow({ stock, stockPrices, onClick }) {
       }}>
       <div style={{ width: 4, borderRadius: 2, background: color, flexShrink: 0, alignSelf: "stretch" }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Wiersz 1: ticker + wartość */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
           <div style={{ minWidth: 0, overflow: "hidden" }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: "#e8e040", fontFamily: "'DM Mono', monospace" }}>
@@ -564,7 +629,6 @@ export function StockRow({ stock, stockPrices, onClick }) {
             {fmtPLN0(currentValuePLN)}
           </div>
         </div>
-        {/* Wiersz 2: szczegóły + zysk */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div style={{ fontSize: 11, color: "#4a5a6e", whiteSpace: "nowrap" }}>
             {stock.stockQuantity} szt.
@@ -576,12 +640,23 @@ export function StockRow({ stock, stockPrices, onClick }) {
             {!hasLivePrice && (
               <span style={{ color: "#3a4a5e", marginLeft: 4 }}>• odświeżanie...</span>
             )}
+            {isFromCache && (
+              <span style={{ color: "#5a4a3e", marginLeft: 4 }}>• cache</span>
+            )}
           </div>
-          {hasLivePrice && (
-            <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0, whiteSpace: "nowrap", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
-              {pnlPLN >= 0 ? "+" : ""}{fmtPLN0(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
-            </div>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {hasLivePrice && (
+              <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0, whiteSpace: "nowrap", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
+                {pnlPLN >= 0 ? "+" : ""}{fmtPLN0(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+              </div>
+            )}
+            {providerBadge && !isFromCache && (
+              <span style={{
+                fontSize: 9, color: "#3a4a5e", background: "#0f1520",
+                padding: "1px 4px", borderRadius: 3, fontFamily: "'DM Mono', monospace",
+              }}>{providerBadge}</span>
+            )}
+          </div>
         </div>
       </div>
     </div>
