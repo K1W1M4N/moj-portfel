@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./BondModal";
-import { StockModal, StockRow, useStockPrices } from "./StockModal";
+import { StockModal, StockRow, StockDetailPanel, useStockPrices } from "./StockModal";
 import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue } from "./SavingsModal";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
