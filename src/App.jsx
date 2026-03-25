@@ -1180,7 +1180,15 @@ export default function App() {
           onClose={() => setBondModal(null)}
         />
       )}
-
+      {stockDetail && (
+  <StockDetailPanel
+    stock={stockDetail}
+    stockPrices={stockPrices}
+    onEdit={stock => { setStockDetail(null); setStockModal(stock); }}
+    onDelete={id => { handleDelete(id); setStockDetail(null); }}
+    onClose={() => setStockDetail(null)}
+  />
+)}
       {stockModal && (
         <StockModal
           stock={stockModal === "add" ? null : stockModal}
