@@ -1,0 +1,91 @@
+# Portfolio Tracker — Project Instructions
+
+## Opis projektu
+Prywatna aplikacja webowa do śledzenia portfela inwestycyjnego w PLN. Użytkownik dodaje aktywa różnych typów (konta, lokaty, obligacje skarbowe, ETF-y, akcje, krypto, surowce, nieruchomości) i widzi ich aktualną wartość, alokację na wykresie kołowym oraz zysk/stratę od zakupu — z live cenami dla krypto, akcji/ETF i surowców.
+
+---
+
+## Autorzy projektu
+- **Tomasz** — właściciel repo i Vercela, GitHub: `K1W1M4N`
+- **Karol** — collaborator, GitHub: `KRG1222`
+- Cały kod pisany przez Claude i wklejany bezpośrednio na GitHub.
+
+---
+
+## Stack technologiczny
+- **Frontend:** React 18 + Vite, czysty inline CSS.
+- **Hosting:** Vercel (auto-deploy z GitHub po każdym push).
+- **Automatyzacje:** GitHub Actions (Python 3.11) — cron do aktualizacji stawek i inflacji.
+- **Baza danych:** Brak — wszystko w `localStorage`.
+- **API zewnętrzne:**
+  - CoinGecko — kursy krypto.
+  - Twelve Data (klucz: `a681abc9ebc045a39c938d8b058567d9`) — poszukiwanie symboli akcji/ETF.
+  - NBP API — kursy walut EUR/PLN, USD/PLN itp.
+  - Yahoo Finance (proxy) — ceny akcji/ETF i surowców (GC=F, SI=F, PL=F, PA=F).
+  - GoldAPI.io (klucz: `goldapi-1ay1g1smnax7gq4-io`, 100 req/mies.) — fallback dla surowców.
+
+---
+
+## Struktura projektu
+```
+moj-portfel/
+├── src/
+│   ├── App.jsx            # Główna aplikacja — layout, stany, PieChart, WelcomeScreen, menu
+│   ├── StockModal.jsx     # Modal + wiersz dla akcji/ETF, hook useStockPrices
+│   ├── BondModal.jsx      # Silnik obliczeń obligacji, BondDetailPanel, BondRow
+│   ├── SavingsModal.jsx   # Zarządzanie kontami oszczędnościowymi
+│   ├── CommodityModal.jsx # Surowce: CommodityModal, CommodityRow, CommodityDetailPanel, useCommodityPrices
+│   ├── bondRates.js       # Tabela stawek rok1 per emisja (2016–2026)
+│   ├── inflationData.js   # Historia inflacji GUS YoY (2015–2026)
+│   └── useWibor.js        # Legacy — nieużywany, do usunięcia w przyszłości
+├── api/
+│   ├── stock-price.js     # Proxy akcji/ETF: Yahoo → Stooq → Twelve Data
+│   ├── commodity-price.js # Proxy surowców: Yahoo Futures → GoldAPI.io → fallback
+│   └── bond-rates.js      # Auto-aktualizacja stawek obligacji
+├── scripts/               # Skrypty Python do auto-aktualizacji danych
+├── .github/workflows/     # Akcje GitHub (cron)
+```
+
+---
+
+## Co jest już gotowe
+
+**UI i nawigacja:**
+- Wykres kołowy Canvas (filtrowanie po kategorii, legendą, responsywny).
+- Hamburger menu (Obligacje, Oszczędności).
+- PWA — działa jako aplikacja mobilna.
+- Design: Sora + DM Mono, ciemny UI.
+
+**Aktywa i Integracje:**
+- **Obligacje skarbowe:** Pełny automat, wzór MF, auto-aktualizacja stawek.
+- **Krypto:** Live ceny z CoinGecko (10 popularnych + dowolne po ID).
+- **Akcje / ETF (NAPRAWIONE):** Live ceny przez proxy/Twelve Data. Obsługa transz zakupu, wykresy sparkline, automatyczne przeliczanie walut przez NBP. Wszystko działa poprawnie.
+- **Konta oszczędnościowe:** Specjalny moduł z kalkulatorem odsetek i historią transakcji.
+- **Surowce (NOWE):** Live ceny złota, srebra, platyny i palladu przez Yahoo Finance futures (GC=F, SI=F, PL=F, PA=F) via Vercel proxy. Fallback: GoldAPI.io. Cache 30 min. Obsługa jednostek oz/g/kg, walut zakupu PLN/USD/EUR, historia zakupów. Plik: `CommodityModal.jsx` + `api/commodity-price.js`.
+
+---
+
+## Co jest w trakcie / do zrobienia
+
+**Najbliższe zadania:**
+- **Snapshoty historyczne:** Zapisywanie stanu portfela raz dziennie (wykres wartości w czasie).
+
+**Do zrobienia w przyszłości:**
+- Alerty Web Push (ntfy.sh).
+- Podsumowania newsów rynkowych przez Claude API.
+- Lokaty — tracker z naliczaniem odsetek.
+- Dashboard: benchmark vs WIG20/S&P500.
+
+---
+
+## Ważne konwencje
+
+- Tylko inline CSS (zero Tailwind/UI libs).
+- Używamy NBP API do FX, aby oszczędzać limity Twelve Data.
+- Wzór obligacji: zaokrąglenia po każdym roku odsetkowym.
+- Stan zarządzany w `App.jsx` dla responsywności mobile.
+
+---
+
+## Kontekst dla Antigravity
+To są nadrzędne zasady projektu Portfolio Tracker. Zawsze sprawdzaj ten plik przed sugerowaniem zmian. Po każdym większym zadaniu, poproś o aktualizację tego pliku. Projekt jest prywatny, bez backendu, dane trzymane są wyłącznie w localStorage. Przed edycją kluczowych plików (App.jsx, BondModal.jsx) upewnij się, że masz ich najnowszą wersję.

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./BondModal";
 import { StockModal, StockRow, StockDetailPanel, useStockPrices } from "./StockModal";
 import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue } from "./SavingsModal";
+import { CommodityModal, CommodityRow, CommodityDetailPanel, useCommodityPrices, calcCommodityValue } from "./CommodityModal";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
 
@@ -846,6 +847,8 @@ export default function App() {
   const [bondDetail, setBondDetail] = useState(null);
   const [stockModal, setStockModal] = useState(null);
   const [stockDetail, setStockDetail] = useState(null);
+  const [commodityModal, setCommodityModal] = useState(null);
+  const [commodityDetail, setCommodityDetail] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
   const [currentView, setCurrentView] = useState("portfolio");
 
@@ -856,14 +859,18 @@ export default function App() {
 
   const { prices, lastUpdated } = useCryptoPrices(assets);
   const { stockPrices, stockLastUpdated } = useStockPrices(assets);
+  const { commodityPrices, commodityLastUpdated } = useCommodityPrices(assets);
 
-  // Aktualizuj wartości live (krypto, akcje, konta oszczędnościowe)
+  // Aktualizuj wartości live (krypto, akcje, surowce, konta oszczędnościowe)
   const assetsWithLivePrices = assets.map(a => {
     if (a.isSavings) {
       return { ...a, value: getSavingsValue(a) };
     }
     if (a.isStock && a.stockSymbol && stockPrices[a.stockSymbol]) {
       return { ...a, value: a.stockQuantity * stockPrices[a.stockSymbol].pricePLN };
+    }
+    if (a.isCommodity && a.commoditySymbol) {
+      return { ...a, value: calcCommodityValue(a, commodityPrices) };
     }
     if (a.cryptoId && a.cryptoId !== "other" && prices[a.cryptoId]) {
       return { ...a, value: a.cryptoAmount * prices[a.cryptoId].pln };
@@ -923,9 +930,8 @@ export default function App() {
   const visible = activeFilter ? assetsWithLivePrices.filter(a => a.category === activeFilter) : assetsWithLivePrices;
   const usedCats = categories.filter(c => assetsWithLivePrices.some(a => a.category === c.name));
 
-  const anyLastUpdated = stockLastUpdated && lastUpdated
-    ? (stockLastUpdated > lastUpdated ? stockLastUpdated : lastUpdated)
-    : stockLastUpdated || lastUpdated;
+  const allUpdates = [stockLastUpdated, lastUpdated, commodityLastUpdated].filter(Boolean);
+  const anyLastUpdated = allUpdates.length > 0 ? allUpdates.reduce((a, b) => a > b ? a : b) : null;
 
   const viewTitles = {
     portfolio: "PORTFOLIO TRACKER",
@@ -1044,6 +1050,17 @@ export default function App() {
                 + Akcje / ETF
               </button>
               <button
+                onClick={() => setCommodityModal("add")}
+                style={{
+                  padding: "11px 20px", borderRadius: 12, border: "2px solid #f5c842",
+                  background: "transparent", color: "#f5c842", fontWeight: 700, fontSize: 13,
+                  cursor: "pointer", letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
+                  boxShadow: "0 0 8px #f5c84230", transition: "all .2s",
+                  WebkitTapHighlightColor: "transparent",
+                }}>
+                + Surowce
+              </button>
+              <button
                 onClick={() => { setEditingSavings(null); setShowSavingsForm(true); }}
                 style={{
                   padding: "11px 20px", borderRadius: 12, border: "2px solid #00c896",
@@ -1110,6 +1127,8 @@ export default function App() {
                     <BondRow bond={a} onClick={() => setBondDetail(a)} />
                   ) : a.isStock ? (
                     <StockRow stock={a} stockPrices={stockPrices} onClick={() => setStockDetail(a)} />
+                  ) : a.isCommodity ? (
+                    <CommodityRow asset={a} commodityPrices={commodityPrices} onClick={() => setCommodityDetail(a)} />
                   ) : a.isSavings ? (
                     <SavingsRow account={a} onClick={() => setSelectedSavings(a)} />
                   ) : (
@@ -1195,6 +1214,25 @@ export default function App() {
           onSave={handleSave}
           onDelete={handleDelete}
           onClose={() => setStockModal(null)}
+        />
+      )}
+
+      {commodityDetail && (
+        <CommodityDetailPanel
+          asset={commodityDetail}
+          commodityPrices={commodityPrices}
+          onEdit={a => { setCommodityDetail(null); setCommodityModal(a); }}
+          onDelete={id => { handleDelete(id); setCommodityDetail(null); }}
+          onClose={() => setCommodityDetail(null)}
+        />
+      )}
+
+      {commodityModal && (
+        <CommodityModal
+          asset={commodityModal === "add" ? null : commodityModal}
+          onSave={handleSave}
+          onDelete={handleDelete}
+          onClose={() => setCommodityModal(null)}
         />
       )}
 
