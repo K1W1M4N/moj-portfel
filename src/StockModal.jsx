@@ -688,9 +688,8 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
 }
 
 // ─── Wiersz akcji/ETF ─────────────────────────────────────────────────────────
-export function StockRow({ stock, stockPrices, onClick }) {
+export function StockRow({ stock, stockPrices, color, onClick }) {
   const [hov, setHov] = useState(false);
-  const color = "#e8e040";
   const priceData = stockPrices[stock.stockSymbol];
   const currentValuePLN = priceData ? stock.stockQuantity * priceData.pricePLN : stock.value;
   const paidPLN = stock.stockPaidPLN || stock.value;

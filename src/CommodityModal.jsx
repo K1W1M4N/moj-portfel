@@ -595,7 +595,7 @@ export function CommodityModal({ asset, onSave, onDelete, onClose }) {
 }
 
 // ─── Wiersz surowca na liście aktywów ─────────────────────────────────────────
-export function CommodityRow({ asset, commodityPrices, onClick }) {
+export function CommodityRow({ asset, commodityPrices, color, onClick }) {
   const [hov, setHov] = useState(false);
   const commodity = getCommodity(asset.commoditySymbol);
 
@@ -615,9 +615,9 @@ export function CommodityRow({ asset, commodityPrices, onClick }) {
       style={{
         display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
         background: hov ? "#111720" : "#161d28", borderRadius: 12, marginBottom: 8,
-        border: `1px solid ${hov ? CATEGORY_COLOR + "50" : "#1e2a38"}`, cursor: "pointer", transition: "all .15s",
+        border: `1px solid ${hov ? color + "50" : "#1e2a38"}`, cursor: "pointer", transition: "all .15s",
       }}>
-      <div style={{ width: 4, borderRadius: 2, background: CATEGORY_COLOR, flexShrink: 0, alignSelf: "stretch" }} />
+      <div style={{ width: 4, borderRadius: 2, background: color, flexShrink: 0, alignSelf: "stretch" }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
           <div style={{ minWidth: 0, overflow: "hidden", display: "flex", alignItems: "center", gap: 6 }}>

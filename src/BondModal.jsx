@@ -451,11 +451,12 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
 }
 
 // ─── Wiersz na liście ─────────────────────────────────────────────────────────
-export function BondRow({ bond, onClick }) {
+export function BondRow({ bond, color, onClick }) {
   const calc = calcBondCurrentValue(bond);
   const [hov, setHov] = useState(false);
   const earned = calc.earned;
   const gainPct = bond.purchaseAmount > 0 ? (earned / bond.purchaseAmount * 100) : 0;
+  const c = color || "#f0a030";
 
   // Skrócona nazwa: "EDO – 100 szt. (6.80%)" → "EDO · 100 szt."
   const shortName = `${bond.type || bond.name?.split("–")[0]?.trim()} · ${bond.quantity} szt.`;
@@ -463,10 +464,10 @@ export function BondRow({ bond, onClick }) {
 
   return (
     <div onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
-      style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:hov?"#111720":"#161d28",borderRadius:12,marginBottom:8,border:`1px solid ${hov?"#f0a03050":"#1e2a38"}`,cursor:"pointer",transition:"all .15s"}}>
+      style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:hov?"#111720":"#161d28",borderRadius:12,marginBottom:8,border:`1px solid ${hov?c+"50":"#1e2a38"}`,cursor:"pointer",transition:"all .15s"}}>
 
       {/* Pasek lewostronny */}
-      <div style={{width:4,borderRadius:2,background:"#f0a030",flexShrink:0,alignSelf:"stretch"}}/>
+      <div style={{width:4,borderRadius:2,background:c,flexShrink:0,alignSelf:"stretch"}}/>
 
       {/* Treść */}
       <div style={{flex:1,minWidth:0}}>
@@ -492,7 +493,7 @@ export function BondRow({ bond, onClick }) {
 
         {/* Wiersz 3: pasek postępu */}
         <div style={{height:3,background:"#1e2a38",borderRadius:99,overflow:"hidden",marginTop:6}}>
-          <div style={{width:(calc.progress*100)+"%",height:"100%",background:"#f0a030",borderRadius:99}}/>
+          <div style={{width:(calc.progress*100)+"%",height:"100%",background:c,borderRadius:99}}/>
         </div>
       </div>
     </div>

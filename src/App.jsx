@@ -523,9 +523,9 @@ function closeBtnStyle(hov) {
 }
 
 function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
-  const isEdit = !!asset;
+  const isEdit = !!asset && !asset.isNew;
   const [form, setForm] = useState(
-    asset ? { ...asset } : { name: "", category: categories[0]?.name || "", value: "", note: "", cryptoId: "", cryptoAmount: "", cryptoPaid: "" }
+    asset && !asset.isNew ? { ...asset } : { name: "", category: asset?.category || categories[0]?.name || "", value: "", note: "", cryptoId: "", cryptoAmount: "", cryptoPaid: "" }
   );
   const [addingCat, setAddingCat] = useState(false);
   const [newCat, setNewCat] = useState("");
@@ -858,6 +858,58 @@ function SavingsView({ assets, onAdd, onSelect }) {
   );
 }
 
+// ─── Modal wyboru typu aktywa ─────────────────────────────────────────────────
+function AssetTypeSelectorModal({ onClose, onSelect }) {
+  const [hovClose, setHovClose] = useState(false);
+  const TYPES = [
+    { id: "Waluty / Gotówka", icon: "💵", desc: "PLN, USD, EUR i gotówka w portfelu" },
+    { id: "Konto oszcz.", icon: "🏦", desc: "Konta bankowe, lokaty" },
+    { id: "Obligacje", icon: "📑", desc: "Skarbowe obligacje indeksowane i stałe" },
+    { id: "Akcje / ETF", icon: "📈", desc: "Polskie i zagraniczne giełdy" },
+    { id: "Surowce", icon: "🥇", desc: "Złoto, srebro, monety bulionowe" },
+    { id: "Krypto", icon: "₿", desc: "Kryptowaluty z cenami na żywo" },
+    { id: "Nieruchomości", icon: "🏠", desc: "Mieszkania, działki, domy" },
+    { id: "Inne", icon: "📦", desc: "Zegarki, samochody, przedmioty kolekcjonerskie" },
+  ];
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
+      <div style={{ background: "#161d28", border: "1px solid #2a3a50", borderRadius: 16, padding: "24px 20px", width: "100%", maxWidth: 440, maxHeight: "90vh", overflowY: "auto" }}>
+        
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#e8f0f8" }}>Jaką kategorię aktywa chcesz dodać?</div>
+          <button onClick={onClose} onMouseEnter={() => setHovClose(true)} onMouseLeave={() => setHovClose(false)}
+            style={{ background: hovClose ? "#f0506018" : "#161d28", border: `1px solid ${hovClose ? "#f05060" : "#f0506030"}`, borderRadius: 6, color: "#f05060", cursor: "pointer", fontSize: 18, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {TYPES.map(t => {
+            const [hov, setHov] = useState(false);
+            return (
+              <div key={t.id} onClick={() => onSelect(t.id)}
+                onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 14, padding: "14px 16px",
+                  background: hov ? "#111720" : "#1a2535", borderRadius: 12, cursor: "pointer",
+                  border: `1px solid ${hov ? "#00c89650" : "#243040"}`, transition: "all .15s"
+                }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: hov ? "#00c89620" : "#0f1520", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                  {t.icon}
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: hov ? "#00c896" : "#e8f0f8", marginBottom: 4 }}>{t.id}</div>
+                  <div style={{ fontSize: 11, color: "#5a6a7e" }}>{t.desc}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Główna aplikacja ─────────────────────────────────────────────────────────
 export default function App() {
   const [welcomed, setWelcomed] = useState(() => {
@@ -898,6 +950,7 @@ export default function App() {
   const [commodityModal, setCommodityModal] = useState(null);
   const [commodityDetail, setCommodityDetail] = useState(null);
   const [currencyModal, setCurrencyModal] = useState(null);
+  const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [hovAdd, setHovAdd] = useState(false);
   const [currentView, setCurrentView] = useState("portfolio");
 
@@ -1081,68 +1134,13 @@ export default function App() {
               )}
             </div>
 
-            {/* Przyciski dodawania */}
-            <div id="add-btns" style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-              <button
-                onClick={() => setBondModal("add")}
-                style={{
-                  padding: "11px 20px", borderRadius: 12, border: "2px solid #f0a030",
-                  background: "transparent", color: "#f0a030", fontWeight: 700, fontSize: 13,
-                  cursor: "pointer", letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
-                  boxShadow: "0 0 8px #f0a03030", transition: "all .2s",
-                  WebkitTapHighlightColor: "transparent",
-                }}>
-                + Obligacje
-              </button>
-              <button
-                onClick={() => setStockModal("add")}
-                style={{
-                  padding: "11px 20px", borderRadius: 12, border: "2px solid #e8e040",
-                  background: "transparent", color: "#e8e040", fontWeight: 700, fontSize: 13,
-                  cursor: "pointer", letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
-                  boxShadow: "0 0 8px #e8e04030", transition: "all .2s",
-                  WebkitTapHighlightColor: "transparent",
-                }}>
-                + Akcje / ETF
-              </button>
-              <button
-                onClick={() => setCommodityModal("add")}
-                style={{
-                  padding: "11px 20px", borderRadius: 12, border: "2px solid #f5c842",
-                  background: "transparent", color: "#f5c842", fontWeight: 700, fontSize: 13,
-                  cursor: "pointer", letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
-                  boxShadow: "0 0 8px #f5c84230", transition: "all .2s",
-                  WebkitTapHighlightColor: "transparent",
-                }}>
-                + Surowce
-              </button>
-              <button
-                onClick={() => { setEditingSavings(null); setShowSavingsForm(true); }}
-                style={{
-                  padding: "11px 20px", borderRadius: 12, border: "2px solid #00c896",
-                  background: "transparent", color: "#00c896", fontWeight: 700, fontSize: 13,
-                  cursor: "pointer", letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
-                  boxShadow: "0 0 8px #00c89630", transition: "all .2s",
-                  WebkitTapHighlightColor: "transparent",
-                }}>
-                + Konto oszcz.
-              </button>
-              <button
-                onClick={() => setCurrencyModal("add")}
-                style={{
-                  padding: "11px 20px", borderRadius: 12, border: "2px solid #3b9eff",
-                  background: "transparent", color: "#3b9eff", fontWeight: 700, fontSize: 13,
-                  cursor: "pointer", letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
-                  boxShadow: "0 0 8px #3b9eff30", transition: "all .2s",
-                  WebkitTapHighlightColor: "transparent",
-                }}>
-                + Waluty / Gotówka
-              </button>
+            {/* Przycisk dodawania */}
+            <div id="add-btns" style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
               <button id="add-btn"
                 onMouseEnter={() => setHovAdd(true)} onMouseLeave={() => setHovAdd(false)}
-                onClick={() => setModal("add")}
+                onClick={() => setShowTypeSelector(true)}
                 style={{
-                  padding: "11px 28px", borderRadius: 12, border: "2px solid #00c896",
+                  padding: "11px 32px", borderRadius: 12, border: "2px solid #00c896",
                   background: hovAdd ? "#00c89612" : "transparent",
                   color: "#00c896", fontWeight: 700, fontSize: 13, cursor: "pointer",
                   letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
@@ -1152,7 +1150,7 @@ export default function App() {
                     : "0 0 10px #00c89640, 0 0 28px #00c89620, inset 0 0 8px #00c89610",
                   transition: "all .2s", WebkitTapHighlightColor: "transparent",
                 }}>
-                + Inne aktywo
+                + Dodaj aktywo
               </button>
             </div>
 
@@ -1191,15 +1189,15 @@ export default function App() {
               visible.map(a => (
                 <div key={a.id} className="asset-row-wrap">
                   {a.isBond ? (
-                    <BondRow bond={a} onClick={() => setBondDetail(a)} />
+                    <BondRow bond={a} color={catColor(categories, a.category || "Obligacje")} onClick={() => setBondDetail(a)} />
                   ) : a.isStock ? (
-                    <StockRow stock={a} stockPrices={stockPrices} onClick={() => setStockDetail(a)} />
+                    <StockRow stock={a} stockPrices={stockPrices} color={catColor(categories, a.category || "Akcje / ETF")} onClick={() => setStockDetail(a)} />
                   ) : a.isCommodity ? (
-                    <CommodityRow asset={a} commodityPrices={commodityPrices} onClick={() => setCommodityDetail(a)} />
+                    <CommodityRow asset={a} commodityPrices={commodityPrices} color={catColor(categories, a.category || "Surowce")} onClick={() => setCommodityDetail(a)} />
                   ) : a.isSavings ? (
-                    <SavingsRow account={a} onClick={() => setSelectedSavings(a)} />
+                    <SavingsRow account={a} color={catColor(categories, a.category || "Konto oszczędnościowe")} onClick={() => setSelectedSavings(a)} />
                   ) : a.isCurrency ? (
-                    <CurrencyRow asset={a} categories={categories} onClick={() => setCurrencyModal(a)} />
+                    <CurrencyRow asset={a} color={catColor(categories, a.category || "Waluty")} onClick={() => setCurrencyModal(a)} />
                   ) : (
                     <AssetRow asset={a} total={total} categories={categories} prices={prices}
                       onClick={() => setModal(a)} />
@@ -1233,9 +1231,24 @@ export default function App() {
       </div>
 
       {/* ── Modale ── */}
+      {showTypeSelector && (
+        <AssetTypeSelectorModal
+          onClose={() => setShowTypeSelector(false)}
+          onSelect={type => {
+            setShowTypeSelector(false);
+            if (type === "Waluty / Gotówka") setCurrencyModal("add");
+            else if (type === "Konto oszcz.") { setEditingSavings(null); setShowSavingsForm(true); }
+            else if (type === "Obligacje") setBondModal("add");
+            else if (type === "Akcje / ETF") setStockModal("add");
+            else if (type === "Surowce") setCommodityModal("add");
+            else setModal({ isNew: true, category: type });
+          }}
+        />
+      )}
+
       {modal && (
         <AssetModal
-          asset={modal === "add" ? null : modal}
+          asset={modal === "add" ? { isNew: true } : modal}
           categories={categories}
           onSave={handleSave}
           onDelete={handleDelete}

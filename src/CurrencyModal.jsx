@@ -208,9 +208,8 @@ export function CurrencyModal({ asset, onSave, onDelete, onClose }) {
 }
 
 // ─── Wiersz waluty na liście ─────────────────────────────────────────────────
-export function CurrencyRow({ asset, categories, onClick }) {
+export function CurrencyRow({ asset, color, onClick }) {
   const [hov, setHov] = useState(false);
-  const color = categories?.find(c => c.name === asset.category)?.color || CATEGORY_COLOR;
   
   const [currentRate, setCurrentRate] = useState(asset.value / asset.currencyAmount);
   const currency = SUPPORTED_CURRENCIES.find(c => c.code === asset.currencyCode) || SUPPORTED_CURRENCIES[0];

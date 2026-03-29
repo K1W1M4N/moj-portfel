@@ -907,7 +907,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
 }
 
 // ─── SavingsRow ───────────────────────────────────────────────────────────────
-export function SavingsRow({ account, onClick }) {
+export function SavingsRow({ account, color, onClick }) {
   const calc = useMemo(() => computeSavings(account), [account]);
   const balance = calc?.currentBalance ?? 0;
   const accrued = calc?.accruedToday ?? 0;
@@ -946,7 +946,7 @@ export function SavingsRow({ account, onClick }) {
           width: 38,
           height: 38,
           borderRadius: 10,
-          background: "#00c89622",
+          background: color ? color + "22" : "#00c89622",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
