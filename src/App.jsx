@@ -246,7 +246,6 @@ function MenuDropdown({ onNavigate }) {
   const items = [
     { id: "bonds",   label: "Obligacje",            icon: "📋", desc: "Aktualne stawki" },
     { id: "savings", label: "Konta oszczędnościowe", icon: "🏦", desc: "Zarządzaj kontami" },
-    { id: "currency", label: "Waluty i Gotówka",     icon: "💵", desc: "Dodaj USD, EUR, PLN..." },
   ];
 
   return (
@@ -1094,8 +1093,7 @@ export default function App() {
           </div>
           <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
             <MenuDropdown onNavigate={id => {
-              if (id === "currency") setCurrencyModal("add");
-              else setCurrentView(id);
+              setCurrentView(id);
             }} />
           </div>
         </div>
