@@ -169,21 +169,21 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
                     style={{display:"block",width:"100%",padding:"9px 14px",background:"transparent",border:"none",color:"#e8f0f8",fontSize:13,cursor:"pointer",textAlign:"left",borderRadius:6,fontFamily:"'Sora',sans-serif"}}
                     onMouseEnter={e=>e.currentTarget.style.background="#1e2a38"}
                     onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    ✏️ Edytuj
+                    Edytuj
                   </button>
                   {onMove && (
                     <button onClick={()=>{setMenuOpen(false);onMove(bond);}}
                       style={{display:"block",width:"100%",padding:"9px 14px",background:"transparent",border:"none",color:"#e8f0f8",fontSize:13,cursor:"pointer",textAlign:"left",borderRadius:6,fontFamily:"'Sora',sans-serif"}}
                       onMouseEnter={e=>e.currentTarget.style.background="#1e2a38"}
                       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      💼 Przenieś
+                      Przenieś
                     </button>
                   )}
                   <button onClick={()=>{setMenuOpen(false);onDelete(bond.id);onClose();}}
                     style={{display:"block",width:"100%",padding:"9px 14px",background:"transparent",border:"none",color:"#f05060",fontSize:13,cursor:"pointer",textAlign:"left",borderRadius:6,fontFamily:"'Sora',sans-serif"}}
                     onMouseEnter={e=>e.currentTarget.style.background="#f0506018"}
                     onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    🗑️ Usuń
+                    Usuń
                   </button>
                 </div>
               )}

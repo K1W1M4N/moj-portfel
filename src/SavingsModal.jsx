@@ -255,11 +255,11 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm, onMove 
               }}
             >
               <button onClick={() => { setMenuOpen(false); onOpenEditForm?.(account); }} style={menuBtnStyle}>
-                ✏️ Edytuj
+                Edytuj
               </button>
               {onMove && (
                 <button onClick={() => { setMenuOpen(false); onMove(account); }} style={menuBtnStyle}>
-                  💼 Przenieś
+                  Przenieś
                 </button>
               )}
               <button onClick={() => { setMenuOpen(false); onDelete(account.id); }} style={{ ...menuBtnStyle, color: C.red }}>
@@ -830,7 +830,7 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
           <div>
             <label style={labelStyle}>
               Oprocentowanie (% rocznie) *
-              {rateManuallySet && <span style={{ color: C.orange, marginLeft: 8, fontWeight: 400 }}>✏️ ręczne</span>}
+              {rateManuallySet && <span style={{ color: C.orange, marginLeft: 8, fontWeight: 400 }}>ręczne</span>}
             </label>
             <input
               type="number"

@@ -455,28 +455,32 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
     <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 32, flexWrap: "wrap", width: 580, maxWidth: "100%", justifyContent: "center" }}>
       <canvas ref={canvasRef}
-        style={{ flexShrink: 0, width: "220px", height: "220px", cursor: "pointer" }}
+        style={{ flexShrink: 0, width: "220px", height: "220px", cursor: "pointer", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHovered(null)}
         onClick={handleClick}
         onTouchEnd={handleTouch}
       />
-      <div className="pie-legend" style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1, minWidth: 260 }}>
+      <div className="pie-legend" style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1, minWidth: 260, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
         {grouped.map(g => (
           <div key={g.name}
-            onClick={() => { setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
-            onTouchEnd={e => { e.preventDefault(); setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
-            onMouseEnter={() => setHovered(g.name)}
-            onMouseLeave={() => setHovered(null)}
             style={{
-              display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 10,
               opacity: activeFilter && activeFilter !== g.name ? 0.35 : 1,
               transition: "opacity .15s"
             }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: g.color, flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: "#8a9bb0", minWidth: 160 }}>{g.name}</span>
-            <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: "#e8f0f8" }}>{fmt(g.value)}</span>
-            <span style={{ fontSize: 11, color: g.color, minWidth: 42, textAlign: "right", fontFamily: "'DM Mono', monospace" }}>
+            <div 
+              style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", minWidth: 170 }}
+              onClick={() => { setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
+              onTouchEnd={e => { e.preventDefault(); setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
+              onMouseEnter={() => setHovered(g.name)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: g.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: "#8a9bb0" }}>{g.name}</span>
+            </div>
+            <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: "#e8f0f8", flex: 1, textAlign: "right", cursor: "default" }}>{fmt(g.value)}</span>
+            <span style={{ fontSize: 11, color: g.color, minWidth: 42, textAlign: "right", fontFamily: "'DM Mono', monospace", cursor: "default" }}>
               {(g.pct * 100).toFixed(1)}%
             </span>
           </div>
@@ -584,7 +588,7 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose, onMove }) {
                     <button onClick={() => { setMenuOpen(false); onMove(asset); }}
                       style={{ display: "block", width: "100%", padding: "9px 14px", background: "transparent", border: "none", color: "#e8f0f8", fontSize: 13, cursor: "pointer", textAlign: "left", borderRadius: 6, fontFamily: "'Sora',sans-serif" }}
                       onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                      💼 Przenieś
+                      Przenieś
                     </button>
                   </div>
                 )}
@@ -843,13 +847,17 @@ function WelcomeScreen({ onStart }) {
 function AssetTypeSelectorModal({ onClose, onSelect }) {
   const [hovClose, setHovClose] = useState(false);
   const TYPES = [
-    { id: "Waluty / Gotówka", icon: "💵", desc: "PLN, USD, EUR i gotówka w portfelu" },
-    { id: "Obligacje", icon: "📑", desc: "Skarbowe obligacje indeksowane i stałe" },
-    { id: "Akcje / ETF", icon: "📈", desc: "Polskie i zagraniczne giełdy" },
-    { id: "Surowce", icon: "🥇", desc: "Złoto, srebro, monety bulionowe" },
-    { id: "Krypto", icon: "₿", desc: "Kryptowaluty z cenami na żywo" },
-    { id: "Nieruchomości", icon: "🏠", desc: "Mieszkania, działki, domy" },
-    { id: "Inne", icon: "📦", desc: "Zegarki, samochody, przedmioty kolekcjonerskie" },
+    { id: "Waluty / Gotówka" },
+    { id: "Konto osobiste" },
+    { id: "Konto oszczędnościowe" },
+    { id: "Lokata" },
+    { id: "Obligacje" },
+    { id: "PPK" },
+    { id: "Akcje / ETF" },
+    { id: "Surowce" },
+    { id: "Krypto" },
+    { id: "Nieruchomości" },
+    { id: "Inne" },
   ];
 
   return (
@@ -874,13 +882,7 @@ function AssetTypeSelectorModal({ onClose, onSelect }) {
                   background: hov ? "#111720" : "#1a2535", borderRadius: 12, cursor: "pointer",
                   border: `1px solid ${hov ? "#00c89650" : "#243040"}`, transition: "all .15s"
                 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: hov ? "#00c89620" : "#0f1520", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                  {t.icon}
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: hov ? "#00c896" : "#e8f0f8", marginBottom: 4 }}>{t.id}</div>
-                  <div style={{ fontSize: 11, color: "#5a6a7e" }}>{t.desc}</div>
-                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: hov ? "#00c896" : "#e8f0f8" }}>{t.id}</div>
               </div>
             );
           })}
@@ -1127,7 +1129,6 @@ export default function App() {
     ::-webkit-scrollbar-track { background: #0a0e14; }
     ::-webkit-scrollbar-thumb { background: #1e2a38; border-radius: 3px; }
     @media (max-width: 500px) {
-      .pie-legend { display: none !important; }
       #main-container { padding: 16px 12px !important; }
       .chip-btn { padding: 5px 10px !important; font-size: 11px !important; }
       #add-btns { flex-direction: column !important; }
@@ -1382,7 +1383,7 @@ export default function App() {
           onSelect={type => {
             setShowTypeSelector(false);
             if (type === "Waluty / Gotówka") setCurrencyModal("add");
-            else if (type === "Konto oszcz.") { setEditingSavings(null); setShowSavingsForm(true); }
+            else if (type === "Konto oszczędnościowe") { setEditingSavings(null); setShowSavingsForm(true); }
             else if (type === "Obligacje") setBondModal("add");
             else if (type === "Akcje / ETF") setStockModal("add");
             else if (type === "Surowce") setCommodityModal("add");
