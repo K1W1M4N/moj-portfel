@@ -203,6 +203,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
             <div>
               <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Obecna wartość</div>
               <div style={{fontSize:14,fontWeight:600,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{fmt2(calc.currentValue)}</div>
+              <div style={{fontSize:11,color:"#009966",fontFamily:"'DM Mono',monospace",marginTop:2}}>(+{gainPct.toFixed(2)}%)</div>
             </div>
             <div>
               <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Narosłe odsetki</div>

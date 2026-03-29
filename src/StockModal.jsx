@@ -726,10 +726,10 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
               {currentValuePLN !== null && (
                 <div>
                   <div style={{ fontSize: 11, color: "#5a7a9e" }}>Aktualna wartość</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "#e8e040", fontFamily: "'DM Mono', monospace" }}>{fmtPLN(currentValuePLN)}</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#e8e040", fontFamily: "'DM Mono', monospace" }}>{fmtPLN2(currentValuePLN)}</div>
                   {pnlPLN !== null && (
                     <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
-                      {pnlPLN >= 0 ? "+" : ""}{fmtPLN(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct?.toFixed(1)}%)
+                      {pnlPLN >= 0 ? "+" : ""}{fmtPLN2(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct?.toFixed(2)}%)
                     </div>
                   )}
                 </div>

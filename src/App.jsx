@@ -244,8 +244,8 @@ function MenuDropdown({ onNavigate }) {
   }, []);
 
   const items = [
-    { id: "savings", label: "Konta Oszcz.", icon: "🏦", desc: "Zarządzaj kontami" },
-    { id: "bonds",   label: "Obligacje",            icon: "📋", desc: "Aktualne stawki" },
+    { id: "savings", label: "Konta Oszcz.", desc: "Zarządzaj kontami" },
+    { id: "bonds",   label: "Obligacje", desc: "Aktualne stawki" },
   ];
 
   return (
@@ -293,7 +293,6 @@ function MenuDropdown({ onNavigate }) {
               }}
               onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <span style={{ fontSize: 16 }}>{item.icon}</span>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 500, color: "#e8f0f8", fontFamily: "'Sora', sans-serif" }}>{item.label}</div>
                 <div style={{ fontSize: 11, color: "#4a5a6e", fontFamily: "'Sora', sans-serif" }}>{item.desc}</div>
