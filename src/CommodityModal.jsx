@@ -640,7 +640,7 @@ export function CommodityRow({ asset, commodityPrices, onClick }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
           <div style={{ minWidth: 0, overflow: "hidden", display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: CATEGORY_COLOR }}>{commodity.name}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#e8f0f8" }}>{commodity.name}</span>
             {asset.commodityCustomName && (
               <span style={{ fontSize: 12, color: "#8a9bb0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 · {asset.commodityCustomName}
