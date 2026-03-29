@@ -41,26 +41,7 @@ const fmtPLN  = n => new Intl.NumberFormat("pl-PL", { style: "currency", currenc
 const fmtPLN2 = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 2 }).format(n);
 const fmtUSD  = n => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " USD";
 
-// ─── Cache kursów walut (FX) ──────────────────────────────────────────────────
-const fxCache = {};
-async function fetchFxRate(currency) {
-  if (!currency || currency === "PLN") return 1;
-  if (fxCache[currency]) return fxCache[currency];
-  const fallback = { USD: 3.95, EUR: 4.27 };
-  try {
-    const res = await fetch(`https://api.nbp.pl/api/exchangerates/rates/a/${currency}/last/1/?format=json`);
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-    const rate = data.rates?.[0]?.mid;
-    if (rate) { fxCache[currency] = rate; return rate; }
-  } catch {
-    try {
-      const res2 = await fetch(`https://api.nbp.pl/api/exchangerates/rates/b/${currency}/last/1/?format=json`);
-      if (res2.ok) { const d = await res2.json(); const r = d.rates?.[0]?.mid; if (r) { fxCache[currency] = r; return r; } }
-    } catch {}
-  }
-  return fallback[currency] || 4.0;
-}
+import { fetchFxRate } from "./fxUtils";
 
 // ─── Cache cen surowców w localStorage ───────────────────────────────────────
 const COMMODITY_CACHE_KEY = "pt-commodity-cache";

@@ -3,6 +3,8 @@ import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./Bon
 import { StockModal, StockRow, StockDetailPanel, useStockPrices } from "./StockModal";
 import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue } from "./SavingsModal";
 import { CommodityModal, CommodityRow, CommodityDetailPanel, useCommodityPrices, calcCommodityValue } from "./CommodityModal";
+import { CurrencyModal, CurrencyRow, SUPPORTED_CURRENCIES } from "./CurrencyModal";
+import { fetchFxRate } from "./fxUtils";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
 
@@ -28,6 +30,7 @@ const DEFAULT_CATEGORIES = [
   { name: "Akcje / ETF",           color: "#e8e040" },
   { name: "Krypto",                color: "#ff5ecb" },
   { name: "Surowce",               color: "#00d4f0" },
+  { name: "Waluty",                color: "#1e88e5" },
   { name: "Nieruchomości",         color: "#b8f060" },
 ];
 
@@ -76,6 +79,31 @@ function useCryptoPrices(assets) {
   }, [assets.map(a => a.cryptoId).join(",")]);
 
   return { prices, lastUpdated };
+}
+
+function useCurrencyRates(assets) {
+  const [rates, setRates] = useState({ PLN: 1 });
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  useEffect(() => {
+    const currencies = [...new Set(assets.filter(a => a.isCurrency).map(a => a.currencyCode))];
+    if (currencies.length === 0) return;
+
+    async function fetchAll() {
+      const newRates = { PLN: 1 };
+      await Promise.all(currencies.map(async code => {
+        newRates[code] = await fetchFxRate(code);
+      }));
+      setRates(newRates);
+      setLastUpdated(new Date());
+    }
+
+    fetchAll();
+    const interval = setInterval(fetchAll, 30 * 60 * 1000); // 30 min
+    return () => clearInterval(interval);
+  }, [assets.filter(a => a.isCurrency).map(a => a.currencyCode).join(",")]);
+
+  return { rates, lastUpdated };
 }
 
 // ─── Widok Obligacji ──────────────────────────────────────────────────────────
@@ -218,6 +246,7 @@ function MenuDropdown({ onNavigate }) {
   const items = [
     { id: "bonds",   label: "Obligacje",            icon: "📋", desc: "Aktualne stawki" },
     { id: "savings", label: "Konta oszczędnościowe", icon: "🏦", desc: "Zarządzaj kontami" },
+    { id: "currency", label: "Waluty i Gotówka",     icon: "💵", desc: "Dodaj USD, EUR, PLN..." },
   ];
 
   return (
@@ -849,6 +878,7 @@ export default function App() {
   const [stockDetail, setStockDetail] = useState(null);
   const [commodityModal, setCommodityModal] = useState(null);
   const [commodityDetail, setCommodityDetail] = useState(null);
+  const [currencyModal, setCurrencyModal] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
   const [currentView, setCurrentView] = useState("portfolio");
 
@@ -860,8 +890,9 @@ export default function App() {
   const { prices, lastUpdated } = useCryptoPrices(assets);
   const { stockPrices, stockLastUpdated } = useStockPrices(assets);
   const { commodityPrices, commodityLastUpdated } = useCommodityPrices(assets);
+  const { rates, lastUpdated: currencyLastUpdated } = useCurrencyRates(assets);
 
-  // Aktualizuj wartości live (krypto, akcje, surowce, konta oszczędnościowe)
+  // Aktualizuj wartości live (krypto, akcje, surowce, konta oszczędnościowe, waluty)
   const assetsWithLivePrices = assets.map(a => {
     if (a.isSavings) {
       return { ...a, value: getSavingsValue(a) };
@@ -874,6 +905,9 @@ export default function App() {
     }
     if (a.cryptoId && a.cryptoId !== "other" && prices[a.cryptoId]) {
       return { ...a, value: a.cryptoAmount * prices[a.cryptoId].pln };
+    }
+    if (a.isCurrency && a.currencyCode && rates[a.currencyCode]) {
+      return { ...a, value: a.currencyAmount * rates[a.currencyCode] };
     }
     return a;
   });
@@ -930,7 +964,7 @@ export default function App() {
   const visible = activeFilter ? assetsWithLivePrices.filter(a => a.category === activeFilter) : assetsWithLivePrices;
   const usedCats = categories.filter(c => assetsWithLivePrices.some(a => a.category === c.name));
 
-  const allUpdates = [stockLastUpdated, lastUpdated, commodityLastUpdated].filter(Boolean);
+  const allUpdates = [stockLastUpdated, lastUpdated, commodityLastUpdated, currencyLastUpdated].filter(Boolean);
   const anyLastUpdated = allUpdates.length > 0 ? allUpdates.reduce((a, b) => a > b ? a : b) : null;
 
   const viewTitles = {
@@ -987,7 +1021,10 @@ export default function App() {
             ) : "PORTFOLIO TRACKER"}
           </div>
           <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
-            <MenuDropdown onNavigate={id => setCurrentView(id)} />
+            <MenuDropdown onNavigate={id => {
+              if (id === "currency") setCurrencyModal("add");
+              else setCurrentView(id);
+            }} />
           </div>
         </div>
 
@@ -1071,6 +1108,17 @@ export default function App() {
                 }}>
                 + Konto oszcz.
               </button>
+              <button
+                onClick={() => setCurrencyModal("add")}
+                style={{
+                  padding: "11px 20px", borderRadius: 12, border: "2px solid #3b9eff",
+                  background: "transparent", color: "#3b9eff", fontWeight: 700, fontSize: 13,
+                  cursor: "pointer", letterSpacing: ".03em", fontFamily: "'Sora', sans-serif",
+                  boxShadow: "0 0 8px #3b9eff30", transition: "all .2s",
+                  WebkitTapHighlightColor: "transparent",
+                }}>
+                + Waluty / Gotówka
+              </button>
               <button id="add-btn"
                 onMouseEnter={() => setHovAdd(true)} onMouseLeave={() => setHovAdd(false)}
                 onClick={() => setModal("add")}
@@ -1131,6 +1179,8 @@ export default function App() {
                     <CommodityRow asset={a} commodityPrices={commodityPrices} onClick={() => setCommodityDetail(a)} />
                   ) : a.isSavings ? (
                     <SavingsRow account={a} onClick={() => setSelectedSavings(a)} />
+                  ) : a.isCurrency ? (
+                    <CurrencyRow asset={a} categories={categories} onClick={() => setCurrencyModal(a)} />
                   ) : (
                     <AssetRow asset={a} total={total} categories={categories} prices={prices}
                       onClick={() => setModal(a)} />
@@ -1255,6 +1305,15 @@ export default function App() {
           existing={editingSavings}
           onClose={() => { setShowSavingsForm(false); setEditingSavings(null); }}
           onSave={handleSaveSavings}
+        />
+      )}
+      
+      {currencyModal && (
+        <CurrencyModal
+          asset={currencyModal === "add" ? null : currencyModal}
+          onSave={handleSave}
+          onDelete={handleDelete}
+          onClose={() => setCurrencyModal(null)}
         />
       )}
     </>
