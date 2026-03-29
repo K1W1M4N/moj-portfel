@@ -138,7 +138,7 @@ function projectBalance(currentBalance, rate, months) {
 }
 
 // ─── SavingsDetailPanel ───────────────────────────────────────────────────────
-function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
+function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm, onMove }) {
   const calc = useMemo(() => computeSavings(account), [account]);
   const [projMonths, setProjMonths] = useState(12);
   const [showHistory, setShowHistory] = useState(false);
@@ -257,6 +257,11 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
               <button onClick={() => { setMenuOpen(false); onOpenEditForm?.(account); }} style={menuBtnStyle}>
                 ✏️ Edytuj
               </button>
+              {onMove && (
+                <button onClick={() => { setMenuOpen(false); onMove(account); }} style={menuBtnStyle}>
+                  💼 Przenieś
+                </button>
+              )}
               <button onClick={() => { setMenuOpen(false); onDelete(account.id); }} style={{ ...menuBtnStyle, color: C.red }}>
                 🗑 Usuń
               </button>
@@ -512,7 +517,7 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm }) {
 }
 
 // ─── SavingsModal ─────────────────────────────────────────────────────────────
-export function SavingsModal({ account, onClose, onSave, onDelete, onOpenEditForm }) {
+export function SavingsModal({ account, onClose, onSave, onDelete, onOpenEditForm, onMove }) {
   return (
     <div
       style={{
@@ -546,6 +551,7 @@ export function SavingsModal({ account, onClose, onSave, onDelete, onOpenEditFor
           onEdit={(updated) => onSave(updated)}
           onDelete={(id) => { onDelete(id); onClose(); }}
           onOpenEditForm={(acc) => { onClose(); onOpenEditForm?.(acc); }}
+          onMove={onMove}
         />
       </div>
     </div>

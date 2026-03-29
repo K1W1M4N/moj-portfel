@@ -32,8 +32,9 @@ const fmtPLN = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency
 const fmtCurr = (n, code) => n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " " + code;
 
 // ─── Modal dodawania/edycji waluty ───────────────────────────────────────────
-export function CurrencyModal({ asset, onSave, onDelete, onClose }) {
+export function CurrencyModal({ asset, onSave, onDelete, onClose, onMove }) {
   const isEdit = !!asset;
+  const [menuOpen, setMenuOpen] = useState(false);
   
   const [name, setName] = useState(asset?.name || "");
   const [currencyCode, setCurrencyCode] = useState(asset?.currencyCode || "USD");
@@ -96,13 +97,32 @@ export function CurrencyModal({ asset, onSave, onDelete, onClose }) {
           <div style={{ fontSize: 16, fontWeight: 600, color: "#e8f0f8" }}>
             {isEdit ? "Edytuj walutę" : "Dodaj walutę / gotówkę"}
           </div>
-          <button onMouseEnter={() => setHovClose(true)} onMouseLeave={() => setHovClose(false)}
-            onClick={onClose} style={{
-              background: hovClose ? "#f0506018" : "#161d28",
-              border: `1px solid ${hovClose ? "#f05060" : "#f0506030"}`,
-              borderRadius: 6, color: "#f05060", cursor: "pointer", fontSize: 18,
-              width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s"
-            }}>×</button>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {isEdit && onMove && (
+              <div style={{ position: "relative" }}>
+                <button onClick={() => setMenuOpen(o => !o)}
+                  style={{ background: menuOpen ? "#1e2a38" : "transparent", border: `1px solid ${menuOpen ? "#2a3a50" : "#1e2a38"}`, borderRadius: 8, color: "#8a9bb0", cursor: "pointer", width: 32, height: 32, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  ···
+                </button>
+                {menuOpen && (
+                  <div style={{ position: "absolute", top: 38, right: 0, background: "#161d28", border: "1px solid #2a3a50", borderRadius: 10, padding: "4px", minWidth: 150, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", zIndex: 10 }}>
+                    <button onClick={() => { setMenuOpen(false); onMove(asset); }}
+                      style={{ display: "block", width: "100%", padding: "9px 14px", background: "transparent", border: "none", color: "#e8f0f8", fontSize: 13, cursor: "pointer", textAlign: "left", borderRadius: 6, fontFamily: "'Sora',sans-serif" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      💼 Przenieś
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            <button onMouseEnter={() => setHovClose(true)} onMouseLeave={() => setHovClose(false)}
+              onClick={onClose} style={{
+                background: hovClose ? "#f0506018" : "#161d28",
+                border: `1px solid ${hovClose ? "#f05060" : "#f0506030"}`,
+                borderRadius: 6, color: "#f05060", cursor: "pointer", fontSize: 18,
+                width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s"
+              }}>×</button>
+          </div>
         </div>
 
         {/* Nazwa */}

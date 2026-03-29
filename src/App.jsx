@@ -245,7 +245,6 @@ function MenuDropdown({ onNavigate }) {
 
   const items = [
     { id: "bonds",   label: "Obligacje",            icon: "📋", desc: "Aktualne stawki" },
-    { id: "savings", label: "Konta oszczędnościowe", icon: "🏦", desc: "Zarządzaj kontami" },
   ];
 
   return (
@@ -521,11 +520,12 @@ function closeBtnStyle(hov) {
   };
 }
 
-function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
+function AssetModal({ asset, categories, onSave, onDelete, onClose, onMove }) {
   const isEdit = !!asset && !asset.isNew;
   const [form, setForm] = useState(
     asset && !asset.isNew ? { ...asset } : { name: "", category: asset?.category || categories[0]?.name || "", value: "", note: "", cryptoId: "", cryptoAmount: "", cryptoPaid: "" }
   );
+  const [menuOpen, setMenuOpen] = useState(false);
   const [addingCat, setAddingCat] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [hovSave, setHovSave] = useState(false);
@@ -560,8 +560,27 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
           <div style={{ fontSize: 16, fontWeight: 600, color: "#e8f0f8" }}>{isEdit ? "Edytuj aktywo" : "Dodaj aktywo"}</div>
-          <button onMouseEnter={() => setHovClose(true)} onMouseLeave={() => setHovClose(false)}
-            onClick={onClose} style={closeBtnStyle(hovClose)}>×</button>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {isEdit && onMove && (
+              <div style={{ position: "relative" }}>
+                <button onClick={() => setMenuOpen(o => !o)}
+                  style={{ background: menuOpen ? "#1e2a38" : "transparent", border: `1px solid ${menuOpen ? "#2a3a50" : "#1e2a38"}`, borderRadius: 8, color: "#8a9bb0", cursor: "pointer", width: 32, height: 32, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  ···
+                </button>
+                {menuOpen && (
+                  <div style={{ position: "absolute", top: 38, right: 0, background: "#161d28", border: "1px solid #2a3a50", borderRadius: 10, padding: "4px", minWidth: 150, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", zIndex: 10 }}>
+                    <button onClick={() => { setMenuOpen(false); onMove(asset); }}
+                      style={{ display: "block", width: "100%", padding: "9px 14px", background: "transparent", border: "none", color: "#e8f0f8", fontSize: 13, cursor: "pointer", textAlign: "left", borderRadius: 6, fontFamily: "'Sora',sans-serif" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      💼 Przenieś
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            <button onMouseEnter={() => setHovClose(true)} onMouseLeave={() => setHovClose(false)}
+              onClick={onClose} style={closeBtnStyle(hovClose)}>×</button>
+          </div>
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -573,33 +592,35 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose }) {
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={labelSt}>Kategoria</label>
-          {addingCat ? (
-            <div style={{ display: "flex", gap: 6 }}>
-              <input style={{ ...baseInp, flex: 1 }} placeholder="Nazwa nowej kategorii..." value={newCat} autoFocus
-                onChange={e => setNewCat(e.target.value)} onFocus={focusInp} onBlur={blurInp}
-                onKeyDown={e => {
-                  if (e.key === "Enter" && newCat.trim()) { setForm(f => ({ ...f, category: newCat.trim() })); setAddingCat(false); }
-                  if (e.key === "Escape") setAddingCat(false);
-                }} />
-              <button onClick={() => { if (newCat.trim()) setForm(f => ({ ...f, category: newCat.trim() })); setAddingCat(false); }}
-                style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#00c896", color: "#000", fontWeight: 600, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>OK</button>
-              <button onClick={() => setAddingCat(false)}
-                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #f0506060", background: "transparent", color: "#f05060", fontSize: 13, cursor: "pointer", flexShrink: 0 }}>✕</button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", gap: 6 }}>
-              <select style={{ ...baseInp, flex: 1 }} value={form.category}
-                onChange={e => setForm(f => ({ ...f, category: e.target.value, cryptoId: "", cryptoAmount: "", cryptoPaid: "" }))}
-                onFocus={focusInp} onBlur={blurInp}>
-                {categories.map(c => <option key={c.name} value={c.name} style={{ background: "#1a2535", color: "#e8f0f8" }}>{c.name}</option>)}
-                {!categories.find(c => c.name === form.category) && form.category &&
-                  <option value={form.category} style={{ background: "#1a2535", color: "#e8f0f8" }}>{form.category}</option>}
-              </select>
-              <button onClick={() => { setAddingCat(true); setNewCat(""); }}
-                style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #243040", background: "#1a2535", color: "#8a9bb0", fontSize: 16, cursor: "pointer", flexShrink: 0 }}>+</button>
-            </div>
-          )}
+          <div>
+            <label style={labelSt}>Kategoria</label>
+            {addingCat ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <input style={{ ...baseInp, flex: 1 }} placeholder="Nazwa nowej kategorii..." value={newCat} autoFocus
+                  onChange={e => setNewCat(e.target.value)} onFocus={focusInp} onBlur={blurInp}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && newCat.trim()) { setForm(f => ({ ...f, category: newCat.trim() })); setAddingCat(false); }
+                    if (e.key === "Escape") setAddingCat(false);
+                  }} />
+                <button onClick={() => { if (newCat.trim()) setForm(f => ({ ...f, category: newCat.trim() })); setAddingCat(false); }}
+                  style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#00c896", color: "#000", fontWeight: 600, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>OK</button>
+                <button onClick={() => setAddingCat(false)}
+                  style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #f0506060", background: "transparent", color: "#f05060", fontSize: 13, cursor: "pointer", flexShrink: 0 }}>✕</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 6 }}>
+                <select style={{ ...baseInp, flex: 1 }} value={form.category}
+                  onChange={e => setForm(f => ({ ...f, category: e.target.value, cryptoId: "", cryptoAmount: "", cryptoPaid: "" }))}
+                  onFocus={focusInp} onBlur={blurInp}>
+                  {categories.map(c => <option key={c.name} value={c.name} style={{ background: "#1a2535", color: "#e8f0f8" }}>{c.name}</option>)}
+                  {!categories.find(c => c.name === form.category) && form.category &&
+                    <option value={form.category} style={{ background: "#1a2535", color: "#e8f0f8" }}>{form.category}</option>}
+                </select>
+                <button onClick={() => { setAddingCat(true); setNewCat(""); }}
+                  style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #243040", background: "#1a2535", color: "#8a9bb0", fontSize: 16, cursor: "pointer", flexShrink: 0 }}>+</button>
+              </div>
+            )}
+          </div>
         </div>
 
         {isCrypto && (
@@ -806,57 +827,6 @@ function WelcomeScreen({ onStart }) {
   );
 }
 
-// ─── Widok Kont Oszczędnościowych ─────────────────────────────────────────────
-function SavingsView({ assets, onAdd, onSelect }) {
-  const savingsAccounts = assets.filter(a => a.isSavings);
-  const totalSavings = savingsAccounts.reduce((s, a) => s + getSavingsValue(a), 0);
-
-  return (
-    <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 16px 32px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div>
-          <div style={{ fontSize: 13, color: "#5a6a7e" }}>Konta oszczędnościowe</div>
-          {savingsAccounts.length > 0 && (
-            <div style={{ fontSize: 11, color: "#3a4a5e", marginTop: 2 }}>
-              Łącznie:{" "}
-              <span style={{ color: "#00c896", fontFamily: "'DM Mono', monospace" }}>
-                {new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 2 }).format(totalSavings)}
-              </span>
-            </div>
-          )}
-        </div>
-        <button
-          onClick={onAdd}
-          style={{
-            padding: "9px 18px", borderRadius: 10, border: "2px solid #00c896",
-            background: "transparent", color: "#00c896", fontWeight: 700, fontSize: 13,
-            cursor: "pointer", fontFamily: "'Sora', sans-serif",
-            boxShadow: "0 0 8px #00c89630", transition: "all .2s",
-          }}>
-          + Dodaj konto
-        </button>
-      </div>
-
-      {savingsAccounts.length === 0 ? (
-        <div style={{
-          background: "#161d28", border: "1px dashed #1e2a38", borderRadius: 14,
-          padding: "48px 24px", textAlign: "center",
-        }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🏦</div>
-          <div style={{ fontSize: 15, color: "#5a6a7e", marginBottom: 6 }}>Brak kont oszczędnościowych</div>
-          <div style={{ fontSize: 13, color: "#3a4a5e" }}>Kliknij „+ Dodaj konto" aby śledzić swoje oszczędności</div>
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {savingsAccounts.map(a => (
-            <SavingsRow key={a.id} account={a} onClick={() => onSelect(a)} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Modal wyboru typu aktywa ─────────────────────────────────────────────────
 function AssetTypeSelectorModal({ onClose, onSelect }) {
   const [hovClose, setHovClose] = useState(false);
@@ -909,14 +879,53 @@ function AssetTypeSelectorModal({ onClose, onSelect }) {
   );
 }
 
+function MoveAssetModal({ asset, portfolios, onClose, onConfirm }) {
+  const [selected, setSelected] = useState(asset?.portfolioId || (portfolios[0] && portfolios[0].id) || "default");
+  if (!asset) return null;
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()} style={{position:"fixed",inset:0,background:"#000a",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10000,padding:16}}>
+      <div style={{background:"#161d28",padding:24,borderRadius:16,border:"1px solid #2a3a50",width:"100%",maxWidth:360}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontSize:16,fontWeight:700,color:"#e8f0f8"}}>Przenieś do portfela</div>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:"#5a6a7e",cursor:"pointer",fontSize:18}}>×</button>
+        </div>
+        <div style={{fontSize:13,color:"#8a9bb0",marginBottom:16}}>Wybierz nowy portfel docelowy:</div>
+        <select value={selected} onChange={e=>setSelected(e.target.value)}
+          style={{width:"100%",padding:"12px 14px",background:"#1a2535",border:"1px solid #243040",color:"#e8f0f8",borderRadius:10,marginBottom:24,fontSize:14,outline:"none",fontFamily:"'Sora', sans-serif"}}>
+          {portfolios.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <div style={{display:"flex",gap:12}}>
+          <button onClick={onClose} style={{flex:1,padding:"10px 12px",background:"#1a2535",border:"1px solid #2a3a50",color:"#e8f0f8",fontWeight:600,borderRadius:10,cursor:"pointer",fontFamily:"'Sora', sans-serif"}}>Anuluj</button>
+          <button onClick={()=>{ onConfirm(asset.id, selected); onClose(); }} style={{flex:1,padding:"10px 12px",background:"#00c896",border:"none",color:"#000",fontWeight:700,borderRadius:10,cursor:"pointer",fontFamily:"'Sora', sans-serif"}}>Zatwierdź</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Główna aplikacja ─────────────────────────────────────────────────────────
 export default function App() {
   const [welcomed, setWelcomed] = useState(() => {
     try { return localStorage.getItem("pt-welcomed") === "1"; } catch { return false; }
   });
-  const [assets, setAssets] = useState(() => {
-    try { const s = localStorage.getItem("pt-assets"); return s ? JSON.parse(s) : []; } catch { return []; }
+  const [portfolios, setPortfolios] = useState(() => {
+    try { 
+      const s = localStorage.getItem("pt-portfolios"); 
+      return s ? JSON.parse(s) : [{ id: "default", name: "Portfel 1" }]; 
+    } catch { return [{ id: "default", name: "Portfel 1" }]; }
   });
+  const [activePortfolioId, setActivePortfolioId] = useState(() => {
+    try { return localStorage.getItem("pt-active-portfolio") || "default"; } catch { return "default"; }
+  });
+  const [allAssets, setAllAssets] = useState(() => {
+    try { 
+      const s = localStorage.getItem("pt-assets"); 
+      const arr = s ? JSON.parse(s) : []; 
+      return arr.map(a => a.portfolioId ? a : { ...a, portfolioId: "default" });
+    } catch { return []; }
+  });
+  const assets = allAssets.filter(a => a.portfolioId === activePortfolioId);
+
   const [categories, setCategories] = useState(() => {
     try {
       const s = localStorage.getItem("pt-categories");
@@ -950,6 +959,7 @@ export default function App() {
   const [commodityDetail, setCommodityDetail] = useState(null);
   const [currencyModal, setCurrencyModal] = useState(null);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [movingAsset, setMovingAsset] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
   const [currentView, setCurrentView] = useState("portfolio");
 
@@ -962,6 +972,9 @@ export default function App() {
   const { stockPrices, stockLastUpdated } = useStockPrices(assets);
   const { commodityPrices, commodityLastUpdated } = useCommodityPrices(assets);
   const { rates, lastUpdated: currencyLastUpdated } = useCurrencyRates(assets);
+
+  const [editingPortfolio, setEditingPortfolio] = useState(false);
+  const [newPortfolioName, setNewPortfolioName] = useState("");
 
   // Aktualizuj wartości live (krypto, akcje, surowce, konta oszczędnościowe, waluty)
   const assetsWithLivePrices = assets.map(a => {
@@ -983,7 +996,9 @@ export default function App() {
     return a;
   });
 
-  useEffect(() => { try { localStorage.setItem("pt-assets", JSON.stringify(assets)); } catch {} }, [assets]);
+  useEffect(() => { try { localStorage.setItem("pt-portfolios", JSON.stringify(portfolios)); } catch {} }, [portfolios]);
+  useEffect(() => { try { localStorage.setItem("pt-active-portfolio", activePortfolioId); } catch {} }, [activePortfolioId]);
+  useEffect(() => { try { localStorage.setItem("pt-assets", JSON.stringify(allAssets)); } catch {} }, [allAssets]);
   useEffect(() => { try { localStorage.setItem("pt-categories", JSON.stringify(categories)); } catch {} }, [categories]);
 
   function handleStart() {
@@ -1001,14 +1016,24 @@ export default function App() {
       const hue = Math.floor(Math.random() * 360);
       setCategories(cs => [...cs, { name: asset.category, color: `hsl(${hue},65%,58%)` }]);
     }
-    setAssets(all => {
-      const exists = all.find(a => a.id === asset.id);
-      return exists ? all.map(a => a.id === asset.id ? asset : a) : [...all, asset];
+    const assetToSave = { ...asset, portfolioId: asset.portfolioId || activePortfolioId };
+    setAllAssets(all => {
+      const exists = all.find(a => a.id === assetToSave.id);
+      return exists ? all.map(a => a.id === assetToSave.id ? assetToSave : a) : [...all, assetToSave];
     });
   }
 
   function handleDelete(id) {
-    setAssets(all => all.filter(a => a.id !== id));
+    setAllAssets(all => all.filter(a => a.id !== id));
+  }
+
+  function handleMoveAsset(id, newPortfolioId) {
+    setAllAssets(all => all.map(a => a.id === id ? { ...a, portfolioId: newPortfolioId } : a));
+    // Jeśli zamykamy panel po przeniesieniu:
+    setBondDetail(null);
+    setStockDetail(null);
+    setCommodityDetail(null);
+    setEditingSavings(null);
   }
 
   // ── Zapis konta oszczędnościowego ──
@@ -1016,8 +1041,8 @@ export default function App() {
     if (!categories.find(c => c.name === "Konto oszczędnościowe")) {
       setCategories(cs => [...cs, { name: "Konto oszczędnościowe", color: "#00c896" }]);
     }
-    const withValue = { ...account, value: getSavingsValue(account) };
-    setAssets(all => {
+    const withValue = { ...account, value: getSavingsValue(account), portfolioId: account.portfolioId || activePortfolioId };
+    setAllAssets(all => {
       const exists = all.find(a => a.id === withValue.id);
       return exists ? all.map(a => a.id === withValue.id ? withValue : a) : [...all, withValue];
     });
@@ -1027,8 +1052,39 @@ export default function App() {
   }
 
   function handleDeleteSavings(id) {
-    setAssets(all => all.filter(a => a.id !== id));
+    setAllAssets(all => all.filter(a => a.id !== id));
     setSelectedSavings(null);
+  }
+
+  function handleAddPortfolio() {
+    const name = window.prompt("Nazwa nowego portfela:", "Mój nowy portfel");
+    if (!name || !name.trim()) return;
+    const newId = "portfel_" + Date.now();
+    setPortfolios(prev => [...prev, { id: newId, name: name.trim() }]);
+    setActivePortfolioId(newId);
+  }
+
+  function handleDeletePortfolio(id) {
+    if (portfolios.length <= 1) {
+      alert("Nie możesz usunąć jedynego portfela!");
+      return;
+    }
+    const port = portfolios.find(p => p.id === id);
+    if (!window.confirm(`Czy na pewno chcesz usunąć '${port?.name}'? Wszystkie aktywa w tym portfelu zostaną trwale usunięte.`)) return;
+    
+    setAllAssets(all => all.filter(a => a.portfolioId !== id));
+    const nextList = portfolios.filter(p => p.id !== id);
+    setPortfolios(nextList);
+    if (activePortfolioId === id) {
+      setActivePortfolioId(nextList[0].id);
+    }
+    setEditingPortfolio(false);
+  }
+
+  function handleRenamePortfolio() {
+    if (!newPortfolioName.trim()) return;
+    setPortfolios(prev => prev.map(p => p.id === activePortfolioId ? { ...p, name: newPortfolioName.trim() } : p));
+    setEditingPortfolio(false);
   }
 
   const total = assetsWithLivePrices.reduce((s, a) => s + a.value, 0);
@@ -1101,20 +1157,66 @@ export default function App() {
         {/* ── Widok obligacji ── */}
         {currentView === "bonds" && <BondRatesView />}
 
-        {/* ── Widok kont oszczędnościowych ── */}
-        {currentView === "savings" && (
-          <SavingsView
-            assets={assetsWithLivePrices}
-            onAdd={() => { setEditingSavings(null); setShowSavingsForm(true); }}
-            onSelect={a => setSelectedSavings(a)}
-          />
-        )}
-
         {/* ── Widok portfolio ── */}
         {currentView === "portfolio" && (
           <>
+            {/* Zakładki portfeli */}
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 4, paddingLeft: 0, marginBottom: -1 }}>
+              {portfolios.map(p => {
+                const isActive = p.id === activePortfolioId;
+                return (
+                  <button key={p.id}
+                    onClick={() => {
+                      if (isActive) {
+                        setEditingPortfolio(!editingPortfolio);
+                        setNewPortfolioName(p.name);
+                      } else {
+                        setActivePortfolioId(p.id);
+                        setEditingPortfolio(false);
+                      }
+                    }}
+                    style={{
+                      height: 40, padding: "0 16px", 
+                      background: isActive ? "#161d28" : "#0d131c",
+                      border: "1px solid #1e2a38", 
+                      borderBottom: isActive ? "1px solid #161d28" : "1px solid #1e2a38",
+                      borderRadius: "12px 12px 0 0", color: isActive ? "#e8f0f8" : "#5a6a7e",
+                      fontWeight: isActive ? 600 : 500, fontSize: 13, cursor: "pointer",
+                      fontFamily: "'Sora', sans-serif", zIndex: isActive ? 2 : 1,
+                      position: "relative", transition: "background .15s",
+                      minWidth: 100, display: "flex", alignItems: "center", justifyContent: "center"
+                    }}>
+                    {p.name}
+                  </button>
+                );
+              })}
+              <button 
+                onClick={handleAddPortfolio}
+                style={{
+                  height: 40, padding: "0 16px", background: "#0d131c", 
+                  border: "1px solid #1e2a38", borderBottom: "1px solid #1e2a38",
+                  borderRadius: "12px 12px 0 0", color: "#8a9bb0", fontSize: 18,
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "color .15s", position: "relative", zIndex: 1
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = "#00c896"}
+                onMouseLeave={e => e.currentTarget.style.color = "#8a9bb0"}
+              >
+                +
+              </button>
+            </div>
+
             {/* Wykres */}
-            <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "24px 20px", marginBottom: 16 }}>
+            <div id="pie-card" style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: "0 16px 16px 16px", padding: "24px 20px", marginBottom: 16, position: "relative", zIndex: 1 }}>
+              
+              {editingPortfolio && (
+                <div style={{ position: "absolute", top: -1, left: -1, right: -1, background: "#1a2535", border: "1px solid #00c89650", borderRadius: "0 16px 16px 0", padding: 16, zIndex: 10, display: "flex", alignItems: "center", gap: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.5)", flexWrap: "wrap" }}>
+                  <input autoFocus style={{ display: "block", flex: 1, minWidth: 160, padding: "9px 12px", fontSize: 13, borderRadius: 8, background: "#161d28", border: "1px solid #243040", color: "#e8f0f8", fontFamily: "'Sora', sans-serif", outline: "none", boxSizing: "border-box", transition: "border-color .15s, box-shadow .15s" }} value={newPortfolioName} onChange={e => setNewPortfolioName(e.target.value)} onKeyDown={e => { if(e.key==="Enter") handleRenamePortfolio(); if(e.key==="Escape") setEditingPortfolio(false); }} onFocus={e => { e.target.style.borderColor = "#00c896"; e.target.style.boxShadow = "0 0 0 3px #00c89618"; }} onBlur={e => { e.target.style.borderColor = "#243040"; e.target.style.boxShadow = "none"; }} />
+                  <button onClick={handleRenamePortfolio} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#00c896", color: "#000", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Zmień</button>
+                  <button onClick={() => handleDeletePortfolio(activePortfolioId)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #f0506060", background: "transparent", color: "#f05060", fontSize: 13, cursor: "pointer" }}>Usuń portfel</button>
+                  <button onClick={() => setEditingPortfolio(false)} style={{ padding: "8px", background: "transparent", border: "none", color: "#5a6a7e", cursor: "pointer", fontSize: 16 }}>×</button>
+                </div>
+              )}
               {assetsWithLivePrices.length > 0 ? (
                 <PieChart
                   assets={assetsWithLivePrices}
@@ -1251,6 +1353,7 @@ export default function App() {
           onSave={handleSave}
           onDelete={handleDelete}
           onClose={() => setModal(null)}
+          onMove={a => { setMovingAsset(a); setModal(null); }}
         />
       )}
 
@@ -1260,6 +1363,7 @@ export default function App() {
           onEdit={bond => { setBondDetail(null); setBondModal(bond); }}
           onDelete={handleDelete}
           onClose={() => setBondDetail(null)}
+          onMove={a => setMovingAsset(a)}
         />
       )}
 
@@ -1285,6 +1389,7 @@ export default function App() {
           onEdit={stock => { setStockDetail(null); setStockModal(stock); }}
           onDelete={id => { handleDelete(id); setStockDetail(null); }}
           onClose={() => setStockDetail(null)}
+          onMove={a => setMovingAsset(a)}
         />
       )}
 
@@ -1304,6 +1409,7 @@ export default function App() {
           onEdit={a => { setCommodityDetail(null); setCommodityModal(a); }}
           onDelete={id => { handleDelete(id); setCommodityDetail(null); }}
           onClose={() => setCommodityDetail(null)}
+          onMove={a => setMovingAsset(a)}
         />
       )}
 
@@ -1323,6 +1429,7 @@ export default function App() {
           onClose={() => setSelectedSavings(null)}
           onSave={updated => handleSaveSavings(updated)}
           onDelete={handleDeleteSavings}
+          onMove={a => { setMovingAsset(a); setSelectedSavings(null); }}
           onOpenEditForm={(acc) => {
             setSelectedSavings(null);
             setEditingSavings(acc);
@@ -1341,9 +1448,19 @@ export default function App() {
       {currencyModal && (
         <CurrencyModal
           asset={currencyModal === "add" ? null : currencyModal}
-          onSave={handleSave}
-          onDelete={handleDelete}
+          onSave={a => { handleSave(a); setCurrencyModal(null); }}
+          onDelete={id => { handleDelete(id); setCurrencyModal(null); }}
           onClose={() => setCurrencyModal(null)}
+          onMove={a => { setMovingAsset(a); setCurrencyModal(null); }}
+        />
+      )}
+
+      {movingAsset && (
+        <MoveAssetModal 
+          asset={movingAsset} 
+          portfolios={portfolios}
+          onClose={() => setMovingAsset(null)} 
+          onConfirm={handleMoveAsset} 
         />
       )}
     </>

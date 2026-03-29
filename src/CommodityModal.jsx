@@ -144,7 +144,7 @@ export function calcCommodityValue(asset, commodityPrices) {
 }
 
 // ─── Panel szczegółów surowca ─────────────────────────────────────────────────
-export function CommodityDetailPanel({ asset, commodityPrices, onEdit, onDelete, onClose }) {
+export function CommodityDetailPanel({ asset, commodityPrices, onEdit, onDelete, onClose, onMove }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const commodity = getCommodity(asset.commoditySymbol);
@@ -198,6 +198,13 @@ export function CommodityDetailPanel({ asset, commodityPrices, onEdit, onDelete,
                     onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                     ✏️ Edytuj
                   </button>
+                  {onMove && (
+                    <button onClick={() => { setMenuOpen(false); onMove(asset); }}
+                      style={{ display: "block", width: "100%", padding: "9px 14px", background: "transparent", border: "none", color: "#e8f0f8", fontSize: 13, cursor: "pointer", textAlign: "left", borderRadius: 6, fontFamily: "'Sora',sans-serif" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      💼 Przenieś
+                    </button>
+                  )}
                   <button onClick={() => { setMenuOpen(false); onDelete(asset.id); onClose(); }}
                     style={{ display: "block", width: "100%", padding: "9px 14px", background: "transparent", border: "none", color: "#f05060", fontSize: 13, cursor: "pointer", textAlign: "left", borderRadius: 6, fontFamily: "'Sora',sans-serif" }}
                     onMouseEnter={e => e.currentTarget.style.background = "#f0506018"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>

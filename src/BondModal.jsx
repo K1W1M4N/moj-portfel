@@ -89,8 +89,8 @@ const blurInp  = e => { e.target.style.borderColor="#243040"; e.target.style.box
 const fmt2 = n => new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:2}).format(n);
 const fmt0 = n => new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:0}).format(n);
 
-// ─── Panel szczegółów obligacji ───────────────────────────────────────────────
-export function BondDetailPanel({ bond, onEdit, onDelete, onClose }) {
+// ─── Panel Szczegółów (Widok Otwarty) ─────────────────────────────────────────
+export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
   const calc = calcBondCurrentValue(bond);
   const params = BOND_TYPES[bond.type];
   const [menuOpen, setMenuOpen] = useState(false);
@@ -171,6 +171,14 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose }) {
                     onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     ✏️ Edytuj
                   </button>
+                  {onMove && (
+                    <button onClick={()=>{setMenuOpen(false);onMove(bond);}}
+                      style={{display:"block",width:"100%",padding:"9px 14px",background:"transparent",border:"none",color:"#e8f0f8",fontSize:13,cursor:"pointer",textAlign:"left",borderRadius:6,fontFamily:"'Sora',sans-serif"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="#1e2a38"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      💼 Przenieś
+                    </button>
+                  )}
                   <button onClick={()=>{setMenuOpen(false);onDelete(bond.id);onClose();}}
                     style={{display:"block",width:"100%",padding:"9px 14px",background:"transparent",border:"none",color:"#f05060",fontSize:13,cursor:"pointer",textAlign:"left",borderRadius:6,fontFamily:"'Sora',sans-serif"}}
                     onMouseEnter={e=>e.currentTarget.style.background="#f0506018"}
