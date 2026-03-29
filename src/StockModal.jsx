@@ -798,11 +798,8 @@ export function StockRow({ stock, stockPrices, onClick }) {
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {hasLivePrice && (
               <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0, whiteSpace: "nowrap", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
-                {pnlPLN >= 0 ? "+" : ""}{fmtPLN0(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+                {pnlPLN >= 0 ? "+" : ""}{new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN" }).format(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)
               </div>
-            )}
-            {providerBadge && !isFromCache && (
-              <span style={{ fontSize: 9, color: "#3a4a5e", background: "#0f1520", padding: "1px 4px", borderRadius: 3, fontFamily: "'DM Mono', monospace" }}>{providerBadge}</span>
             )}
           </div>
         </div>

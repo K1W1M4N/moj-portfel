@@ -991,6 +991,9 @@ export default function App() {
 
   // Aktualizuj wartości live (krypto, akcje, surowce, konta oszczędnościowe, waluty)
   const assetsWithLivePrices = assets.map(a => {
+    if (a.isBond) {
+      return { ...a, value: calcBondCurrentValue(a).currentValue };
+    }
     if (a.isSavings) {
       return { ...a, value: getSavingsValue(a) };
     }
@@ -1117,7 +1120,8 @@ export default function App() {
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-text-size-adjust: 100%; }
-    body { background: #0a0e14; font-family: 'Sora', sans-serif; min-height: 100vh; color: #e8f0f8; }
+    body { background: #0a0e14; font-family: 'Sora', sans-serif; min-height: 100vh; color: #e8f0f8; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+    input, textarea, select { user-select: auto; -webkit-user-select: auto; }
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {

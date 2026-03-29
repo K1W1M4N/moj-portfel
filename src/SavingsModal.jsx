@@ -934,33 +934,21 @@ export function SavingsRow({ account, color, onClick }) {
       style={{
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
-        padding: "14px 16px",
+        gap: 12,
+        padding: "12px 14px",
         borderRadius: 12,
+        marginBottom: 8,
         background: C.card,
         border: `1px solid ${C.border}`,
         cursor: "pointer",
         transition: "background 0.15s",
-        gap: 12,
         fontFamily: "'Sora', sans-serif",
       }}
       onMouseEnter={(e) => (e.currentTarget.style.background = C.cardHover)}
       onMouseLeave={(e) => (e.currentTarget.style.background = C.card)}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-        <div style={{
-          width: 38,
-          height: 38,
-          borderRadius: 10,
-          background: color ? color + "22" : "#00c89622",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 18,
-          flexShrink: 0,
-        }}>
-          🏦
-        </div>
+      <div style={{ width: 4, borderRadius: 2, background: color || C.green, flexShrink: 0, alignSelf: "stretch" }} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1, minWidth: 0 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{
             fontSize: 14,
@@ -980,13 +968,13 @@ export function SavingsRow({ account, color, onClick }) {
             {account.bankName || "Konto"} · <span style={{ color: C.orange }}>{account.rate}%</span>
           </div>
         </div>
-      </div>
-      <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <div style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: C.text }}>
-          {fmt2(balance + accrued)}
-        </div>
-        <div style={{ fontSize: 11, color: C.green, marginTop: 2 }}>
-          +{fmt2(daily)}/dzień
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: C.text }}>
+            {fmt2(balance + accrued)}
+          </div>
+          <div style={{ fontSize: 11, color: C.green, marginTop: 2 }}>
+            +{fmt2(daily)}/dzień
+          </div>
         </div>
       </div>
     </div>

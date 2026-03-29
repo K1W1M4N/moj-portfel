@@ -477,7 +477,6 @@ export function BondRow({ bond, color, onClick }) {
       {/* Pasek lewostronny */}
       <div style={{width:4,borderRadius:2,background:c,flexShrink:0,alignSelf:"stretch"}}/>
 
-      {/* Treść */}
       <div style={{flex:1,minWidth:0}}>
         {/* Wiersz 1: nazwa + wartość */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
@@ -497,11 +496,6 @@ export function BondRow({ bond, color, onClick }) {
           <div style={{fontSize:11,color:"#00c896",fontFamily:"'DM Mono',monospace",flexShrink:0,whiteSpace:"nowrap"}}>
             +{fmt2(earned)} (+{gainPct.toFixed(2)}%)
           </div>
-        </div>
-
-        {/* Wiersz 3: pasek postępu */}
-        <div style={{height:3,background:"#1e2a38",borderRadius:99,overflow:"hidden",marginTop:6}}>
-          <div style={{width:(calc.progress*100)+"%",height:"100%",background:c,borderRadius:99}}/>
         </div>
       </div>
     </div>
