@@ -374,15 +374,24 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
     if (dispG) {
       ctx.fillStyle = dispG.color; ctx.font = "500 11px 'Sora', sans-serif";
       ctx.fillText(dispG.name.split(" ")[0], cx, cy - 14);
+      
+      let fstV = fmt(dispG.value);
       ctx.fillStyle = "#e8f0f8"; ctx.font = "bold 15px 'DM Mono', monospace";
-      ctx.fillText(fmt(dispG.value), cx, cy + 8);
+      if (ctx.measureText(fstV).width > 105) ctx.font = "bold 13px 'DM Mono', monospace";
+      if (ctx.measureText(fstV).width > 105) ctx.font = "bold 11px 'DM Mono', monospace";
+      ctx.fillText(fstV, cx, cy + 8);
+      
       ctx.fillStyle = dispG.color; ctx.font = "500 13px 'DM Mono', monospace";
       ctx.fillText((dispG.pct * 100).toFixed(1) + "%", cx, cy + 27);
     } else {
       ctx.fillStyle = "#8a9bb0"; ctx.font = "500 10px 'Sora', sans-serif";
       ctx.fillText("ŁĄCZNIE", cx, cy - 6);
+      
+      let fst = fmt(total);
       ctx.fillStyle = "#00c896"; ctx.font = "bold 18px 'DM Mono', monospace";
-      ctx.fillText(fmt(total), cx, cy + 16);
+      if (ctx.measureText(fst).width > 105) ctx.font = "bold 15px 'DM Mono', monospace";
+      if (ctx.measureText(fst).width > 105) ctx.font = "bold 13px 'DM Mono', monospace";
+      ctx.fillText(fst, cx, cy + 16);
     }
   }, [getGrouped, assets, activeFilter, hovered]);
 
@@ -1173,6 +1182,8 @@ export default function App() {
                       } else {
                         setActivePortfolioId(p.id);
                         setEditingPortfolio(false);
+                        setActiveFilter(null);
+                        setHovered(null);
                       }
                     }}
                     style={{
