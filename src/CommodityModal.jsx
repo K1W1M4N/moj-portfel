@@ -13,7 +13,10 @@ export const COMMODITIES = [
 const TO_OZ = { oz: 1, g: 0.032150747, kg: 32.150747 };
 
 const UNIT_LABELS = { oz: "uncja troy (oz)", g: "gram (g)", kg: "kilogram (kg)" };
-const CURRENCY_LABELS = { PLN: "PLN 🇵🇱", USD: "USD 🇺🇸", EUR: "EUR 🇪🇺" };
+const CURRENCY_LABELS = { PLN: "PLN", USD: "USD", EUR: "EUR" };
+
+// Kolor kategorii "Surowce" z wykresu kołowego
+const CATEGORY_COLOR = "#00d4f0";
 
 function getCommodity(symbol) {
   return COMMODITIES.find(c => c.symbol === symbol) || COMMODITIES[0];
@@ -189,13 +192,12 @@ export function CommodityDetailPanel({ asset, commodityPrices, onEdit, onDelete,
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 8 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#e8f0f8", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 20 }}>{commodity.icon}</span>
-              <span style={{ color: commodity.color, fontFamily: "'DM Mono', monospace" }}>{commodity.name}</span>
+              <span style={{ color: CATEGORY_COLOR, fontFamily: "'DM Mono', monospace" }}>{commodity.name}</span>
               {asset.commodityCustomName && (
                 <span style={{ fontSize: 13, color: "#8a9bb0", fontWeight: 400 }}>· {asset.commodityCustomName}</span>
               )}
             </div>
-            <div style={{ fontSize: 11, color: "#5a6a7e", marginLeft: 28 }}>
+            <div style={{ fontSize: 11, color: "#5a6a7e" }}>
               {asset.commodityAmount} {asset.commodityUnit}
               {asset.commodityUnit !== "oz" && (
                 <span style={{ marginLeft: 6, color: "#3a4a5e" }}>= {oz.toFixed(4)} oz</span>
@@ -486,7 +488,7 @@ export function CommodityModal({ asset, onSave, onDelete, onClose }) {
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "#e8f0f8" }}>{isEdit ? "Edytuj surowiec" : "Dodaj surowiec 🪙"}</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#e8f0f8" }}>{isEdit ? "Edytuj surowiec" : "Dodaj surowiec"}</div>
           <button onClick={onClose} onMouseEnter={() => setHovClose(true)} onMouseLeave={() => setHovClose(false)}
             style={{ background: hovClose ? "#f0506018" : "#161d28", border: `1px solid ${hovClose ? "#f05060" : "#f0506030"}`, borderRadius: 6, color: "#f05060", cursor: "pointer", fontSize: 18, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
         </div>
@@ -494,20 +496,11 @@ export function CommodityModal({ asset, onSave, onDelete, onClose }) {
         {/* Wybór surowca */}
         <div style={{ marginBottom: 14 }}>
           <label style={labelSt}>Surowiec</label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <select style={baseInp} value={symbol} onChange={e => setSymbol(e.target.value)} onFocus={focusInp} onBlur={blurInp}>
             {COMMODITIES.map(c => (
-              <button key={c.symbol} onClick={() => setSymbol(c.symbol)}
-                style={{
-                  padding: "10px 12px", borderRadius: 10, cursor: "pointer", fontFamily: "'Sora',sans-serif",
-                  border: `2px solid ${symbol === c.symbol ? c.color : "#1e2a38"}`,
-                  background: symbol === c.symbol ? c.color + "15" : "transparent",
-                  display: "flex", alignItems: "center", gap: 8, transition: "all .15s",
-                }}>
-                <span style={{ fontSize: 18 }}>{c.icon}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: symbol === c.symbol ? c.color : "#8a9bb0" }}>{c.name}</span>
-              </button>
+              <option key={c.symbol} value={c.symbol} style={{ background: "#1a2535" }}>{c.name}</option>
             ))}
-          </div>
+          </select>
         </div>
 
         {/* Cena spot na żywo */}
@@ -641,14 +634,13 @@ export function CommodityRow({ asset, commodityPrices, onClick }) {
       style={{
         display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
         background: hov ? "#111720" : "#161d28", borderRadius: 12, marginBottom: 8,
-        border: `1px solid ${hov ? commodity.color + "50" : "#1e2a38"}`, cursor: "pointer", transition: "all .15s",
+        border: `1px solid ${hov ? CATEGORY_COLOR + "50" : "#1e2a38"}`, cursor: "pointer", transition: "all .15s",
       }}>
-      <div style={{ width: 4, borderRadius: 2, background: commodity.color, flexShrink: 0, alignSelf: "stretch" }} />
+      <div style={{ width: 4, borderRadius: 2, background: CATEGORY_COLOR, flexShrink: 0, alignSelf: "stretch" }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
           <div style={{ minWidth: 0, overflow: "hidden", display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 16, flexShrink: 0 }}>{commodity.icon}</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: commodity.color }}>{commodity.name}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: CATEGORY_COLOR }}>{commodity.name}</span>
             {asset.commodityCustomName && (
               <span style={{ fontSize: 12, color: "#8a9bb0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 · {asset.commodityCustomName}
