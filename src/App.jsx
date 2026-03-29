@@ -867,7 +867,26 @@ export default function App() {
     try { const s = localStorage.getItem("pt-assets"); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [categories, setCategories] = useState(() => {
-    try { const s = localStorage.getItem("pt-categories"); return s ? JSON.parse(s) : DEFAULT_CATEGORIES; } catch { return DEFAULT_CATEGORIES; }
+    try {
+      const s = localStorage.getItem("pt-categories");
+      if (!s) return DEFAULT_CATEGORIES;
+      const stored = JSON.parse(s);
+      
+      const mapped = stored.map(c => {
+        const def = DEFAULT_CATEGORIES.find(d => d.name === c.name);
+        return def ? def : c;
+      });
+      
+      DEFAULT_CATEGORIES.forEach(def => {
+        if (!mapped.find(m => m.name === def.name)) {
+          mapped.push(def);
+        }
+      });
+      
+      return mapped;
+    } catch {
+      return DEFAULT_CATEGORIES;
+    }
   });
   const [activeFilter, setActiveFilter] = useState(null);
   const [hovered, setHovered] = useState(null);
