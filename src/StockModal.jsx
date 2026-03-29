@@ -488,10 +488,13 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
   } : null);
 
   const initialLots = stock?.stockLots || [];
-  const [mode, setMode] = useState(initialLots.length > 0 ? "lots" : "simple");
+  const [mode, setMode] = useState(stock?.stockBrokerMode ? "broker" : initialLots.length > 0 ? "lots" : "simple");
   const [quantity, setQuantity] = useState(stock?.stockQuantity?.toString() || "");
   const [avgPrice, setAvgPrice] = useState(stock?.stockAvgPrice?.toString() || "");
   const [lots, setLots] = useState(initialLots.length > 0 ? initialLots : [{ quantity: "", paidPLN: "", date: "", note: "" }]);
+  // Tryb "Z brokera"
+  const [brokerValue, setBrokerValue] = useState(stock?.stockBrokerValue?.toString() || "");
+  const [brokerPnl, setBrokerPnl] = useState(stock?.stockBrokerPnl?.toString() || "");
   const [note, setNote] = useState(stock?.note || "");
   const [currentPrice, setCurrentPrice] = useState(null);
   const [fxRate, setFxRate] = useState(null);
@@ -531,7 +534,14 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
   const fx = fxRate || 1;
 
   let totalQty, totalAvgPrice, paidPLN;
-  if (mode === "lots") {
+  if (mode === "broker") {
+    const bv = parseFloat(String(brokerValue).replace(",", ".")) || 0;
+    const bp = parseFloat(String(brokerPnl).replace(",", ".")) || 0;
+    paidPLN = bv - bp;  // zainwestowano = obecna wartość - zysk/strata
+    // Wylicz ilość sztuk z live ceny
+    totalQty = currentPrice && fx > 0 ? bv / (currentPrice * fx) : 0;
+    totalAvgPrice = totalQty > 0 ? (paidPLN / fx) / totalQty : 0;
+  } else if (mode === "lots") {
     const calc = calcStockFromLots(lots, fx);
     totalQty = calc.totalQty; totalAvgPrice = calc.avgPrice; paidPLN = calc.totalCostPLN;
   } else {
@@ -540,11 +550,17 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
     paidPLN = totalQty * totalAvgPrice * fx;
   }
 
-  const currentValuePLN = currentPrice && totalQty > 0 ? totalQty * currentPrice * fx : null;
+  const currentValuePLN = mode === "broker"
+    ? (parseFloat(String(brokerValue).replace(",", ".")) || 0)
+    : (currentPrice && totalQty > 0 ? totalQty * currentPrice * fx : null);
   const pnlPLN = currentValuePLN !== null && paidPLN > 0 ? currentValuePLN - paidPLN : null;
   const pnlPct = pnlPLN !== null && paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : null;
 
-  const canSave = selected && totalQty > 0 && (mode === "lots" ? paidPLN > 0 : totalAvgPrice > 0);
+  const canSave = selected && (
+    mode === "broker" ? (parseFloat(brokerValue) > 0 && brokerPnl !== "") :
+    mode === "lots" ? (totalQty > 0 && paidPLN > 0) :
+    (totalQty > 0 && totalAvgPrice > 0)
+  );
 
   function addLot() { setLots(l => [...l, { quantity: "", paidPLN: "", date: "", note: "" }]); }
   function updateLot(i, lot) { setLots(l => l.map((x, j) => j === i ? lot : x)); }
@@ -559,6 +575,9 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
       stockSymbol: selected.symbol, stockName: selected.name, stockExchange: selected.exchange, stockCurrency: currency,
       stockType: selected.type, stockQuantity: totalQty, stockAvgPrice: totalAvgPrice, stockPaidPLN: paidPLN,
       stockLots: cleanLots.length > 0 ? cleanLots : undefined,
+      stockBrokerMode: mode === "broker" ? true : undefined,
+      stockBrokerValue: mode === "broker" ? parseFloat(brokerValue) : undefined,
+      stockBrokerPnl: mode === "broker" ? parseFloat(brokerPnl) : undefined,
     });
     onClose();
   }
@@ -605,12 +624,16 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
         {selected && (
           <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
             <button onClick={() => setMode("simple")}
-              style={{ flex: 1, padding: "7px 12px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif", border: `1px solid ${mode === "simple" ? "#e8e040" : "#243040"}`, background: mode === "simple" ? "#e8e04010" : "transparent", color: mode === "simple" ? "#e8e040" : "#5a6a7e" }}>
-              Szybko (średnia cena)
+              style={{ flex: 1, padding: "7px 8px", borderRadius: 8, fontSize: 11, cursor: "pointer", fontFamily: "'Sora',sans-serif", border: `1px solid ${mode === "simple" ? "#e8e040" : "#243040"}`, background: mode === "simple" ? "#e8e04010" : "transparent", color: mode === "simple" ? "#e8e040" : "#5a6a7e" }}>
+              Szybko
             </button>
             <button onClick={() => setMode("lots")}
-              style={{ flex: 1, padding: "7px 12px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif", border: `1px solid ${mode === "lots" ? "#e8e040" : "#243040"}`, background: mode === "lots" ? "#e8e04010" : "transparent", color: mode === "lots" ? "#e8e040" : "#5a6a7e" }}>
-              Transze (historia zakupów)
+              style={{ flex: 1, padding: "7px 8px", borderRadius: 8, fontSize: 11, cursor: "pointer", fontFamily: "'Sora',sans-serif", border: `1px solid ${mode === "lots" ? "#e8e040" : "#243040"}`, background: mode === "lots" ? "#e8e04010" : "transparent", color: mode === "lots" ? "#e8e040" : "#5a6a7e" }}>
+              Transze
+            </button>
+            <button onClick={() => setMode("broker")}
+              style={{ flex: 1, padding: "7px 8px", borderRadius: 8, fontSize: 11, cursor: "pointer", fontFamily: "'Sora',sans-serif", border: `1px solid ${mode === "broker" ? "#e8e040" : "#243040"}`, background: mode === "broker" ? "#e8e04010" : "transparent", color: mode === "broker" ? "#e8e040" : "#5a6a7e" }}>
+              Z brokera
             </button>
           </div>
         )}
@@ -638,6 +661,49 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
               style={{ marginTop: 8, width: "100%", padding: "8px", borderRadius: 8, border: "1px dashed #e8e04040", background: "transparent", color: "#e8e040", fontSize: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
               + Dodaj transzę
             </button>
+          </div>
+        )}
+
+        {/* Tryb: Z brokera */}
+        {selected && mode === "broker" && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ background: "#0f1520", borderRadius: 10, padding: "12px 14px", border: "1px solid #1e2a38" }}>
+              <div style={{ fontSize: 11, color: "#5a6a7e", marginBottom: 10 }}>Wpisz dane z aplikacji brokera (np. XTB)</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={labelSt}>Obecna wartość (PLN)</label>
+                  <input style={{ ...baseInp, MozAppearance: "textfield" }} type="number" step="any" placeholder="np. 3147.34"
+                    value={brokerValue} onChange={e => setBrokerValue(e.target.value)} onFocus={focusInp} onBlur={blurInp} />
+                  <div style={{ fontSize: 10, color: "#3a4a5e", marginTop: 3 }}>Wartość pozycji w PLN</div>
+                </div>
+                <div>
+                  <label style={labelSt}>Zysk / strata (PLN)</label>
+                  <input style={{ ...baseInp, MozAppearance: "textfield" }} type="number" step="any" placeholder="np. -126.17"
+                    value={brokerPnl} onChange={e => setBrokerPnl(e.target.value)} onFocus={focusInp} onBlur={blurInp}
+                    onKeyDown={e => e.key === "Enter" && submit()} />
+                  <div style={{ fontSize: 10, color: "#3a4a5e", marginTop: 3 }}>Ujemna = strata, dodatnia = zysk</div>
+                </div>
+              </div>
+              {/* Wyliczone */}
+              {parseFloat(brokerValue) > 0 && brokerPnl !== "" && (
+                <div style={{ marginTop: 12, padding: "10px 12px", background: "#0a1018", borderRadius: 8, border: "1px solid #1a2a20" }}>
+                  <div style={{ fontSize: 10, color: "#5a6a7e", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Wyliczone</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#4a5a6e" }}>Zainwestowano</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#e8f0f8", fontFamily: "'DM Mono',monospace" }}>{fmtPLN2(paidPLN)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#4a5a6e" }}>Ilość szt. (wyliczona)</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#e8e040", fontFamily: "'DM Mono',monospace" }}>
+                        {totalQty > 0 ? totalQty.toFixed(4) : "—"}
+                      </div>
+                      {!currentPrice && <div style={{ fontSize: 10, color: "#f05060" }}>wymaga live ceny</div>}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
