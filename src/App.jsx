@@ -244,6 +244,7 @@ function MenuDropdown({ onNavigate }) {
   }, []);
 
   const items = [
+    { id: "savings", label: "Konta Oszcz.", icon: "🏦", desc: "Zarządzaj kontami" },
     { id: "bonds",   label: "Obligacje",            icon: "📋", desc: "Aktualne stawki" },
   ];
 
@@ -843,7 +844,6 @@ function AssetTypeSelectorModal({ onClose, onSelect }) {
   const [hovClose, setHovClose] = useState(false);
   const TYPES = [
     { id: "Waluty / Gotówka", icon: "💵", desc: "PLN, USD, EUR i gotówka w portfelu" },
-    { id: "Konto oszcz.", icon: "🏦", desc: "Konta bankowe, lokaty" },
     { id: "Obligacje", icon: "📑", desc: "Skarbowe obligacje indeksowane i stałe" },
     { id: "Akcje / ETF", icon: "📈", desc: "Polskie i zagraniczne giełdy" },
     { id: "Surowce", icon: "🥇", desc: "Złoto, srebro, monety bulionowe" },
@@ -1164,6 +1164,38 @@ export default function App() {
             }} />
           </div>
         </div>
+
+        {/* ── Widok kont oszczędnościowych ── */}
+        {currentView === "savings" && (
+          <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 16px 32px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 13, color: "#5a6a7e" }}>Twoje konta oszczędnościowe w tym portfelu</div>
+              <button onClick={() => setShowSavingsForm(true)}
+                style={{ padding: "8px 16px", borderRadius: 8, background: "#00c896", color: "#000", fontWeight: 700, fontSize: 12, border: "none", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+                + Dodaj konto
+              </button>
+            </div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+              {assetsWithLivePrices.filter(a => a.isSavings).map(account => (
+                <div key={account.id}
+                  onClick={() => setSelectedSavings(account)}
+                  style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 14, padding: "16px", cursor: "pointer", transition: "all .15s" }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#00c896", marginBottom: 4, fontFamily: "'DM Mono',monospace" }}>{account.savingsBankName}</div>
+                  <div style={{ fontSize: 12, color: "#8a9bb0", display: "flex", justifyContent: "space-between" }}>
+                    <span>Saldo: {new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:0}).format(account.savingsBalance)}</span>
+                    <span style={{ color: "#e8f0f8" }}>{account.savingsRate}%</span>
+                  </div>
+                </div>
+              ))}
+              {assetsWithLivePrices.filter(a => a.isSavings).length === 0 && (
+                <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "40px 0", color: "#5a6a7e", fontSize: 13, background: "#161d28", borderRadius: 12, border: "2px dashed #2a3a50" }}>
+                  Brak zapisanych kont oszczędnościowych. Kliknij "Dodaj konto" aby rozpocząć.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Widok obligacji ── */}
         {currentView === "bonds" && <BondRatesView />}
