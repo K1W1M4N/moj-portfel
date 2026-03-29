@@ -451,7 +451,8 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
   const grouped = getGrouped();
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap", justifyContent: "center" }}>
+    <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 32, flexWrap: "wrap", width: 580, maxWidth: "100%", justifyContent: "center" }}>
       <canvas ref={canvasRef}
         style={{ flexShrink: 0, width: "220px", height: "220px", cursor: "pointer" }}
         onMouseMove={handleMouseMove}
@@ -459,7 +460,7 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
         onClick={handleClick}
         onTouchEnd={handleTouch}
       />
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      <div className="pie-legend" style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1, minWidth: 260 }}>
         {grouped.map(g => (
           <div key={g.name}
             onClick={() => { setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
@@ -481,7 +482,8 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
         ))}
       </div>
     </div>
-  );
+  </div>
+);
 }
 
 const labelSt = {
