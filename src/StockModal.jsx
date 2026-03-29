@@ -201,7 +201,7 @@ function Sparkline({ symbol, exchange, width = 220, height = 50 }) {
 }
 
 // ─── Panel szczegółów akcji/ETF (wzorowany na BondDetailPanel) ────────────────
-export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose }) {
+export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose, onMove }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const priceData = stockPrices[stock.stockSymbol];
@@ -250,6 +250,13 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
                     onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                     ✏️ Edytuj
                   </button>
+                  {onMove && (
+                    <button onClick={() => { setMenuOpen(false); onMove(stock); }}
+                      style={{ display: "block", width: "100%", padding: "9px 14px", background: "transparent", border: "none", color: "#e8f0f8", fontSize: 13, cursor: "pointer", textAlign: "left", borderRadius: 6, fontFamily: "'Sora',sans-serif" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      💼 Przenieś
+                    </button>
+                  )}
                   <button onClick={() => { setMenuOpen(false); onDelete(stock.id); onClose(); }}
                     style={{ display: "block", width: "100%", padding: "9px 14px", background: "transparent", border: "none", color: "#f05060", fontSize: 13, cursor: "pointer", textAlign: "left", borderRadius: 6, fontFamily: "'Sora',sans-serif" }}
                     onMouseEnter={e => e.currentTarget.style.background = "#f0506018"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
