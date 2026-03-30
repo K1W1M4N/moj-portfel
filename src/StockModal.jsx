@@ -417,10 +417,10 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
               </div>
               {hasLive && priceData && (
                 <div style={{ fontSize: 12, color: "#8a9bb0", marginTop: 3 }}>
-                  {priceData.priceOrig.toFixed(4)} {stock.stockCurrency}
+                  {priceData.priceOrig.toFixed(2)} {stock.stockCurrency}
                   {stock.stockCurrency !== "PLN" && (
                     <span style={{ marginLeft: 6, color: "#5a6a7e" }}>
-                      × {priceData.fx.toFixed(4)} PLN/
+                      × {priceData.fx.toFixed(2)} PLN/
                       {stock.stockCurrency}
                     </span>
                   )}
@@ -525,8 +525,9 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
   });
 
   // Tryb Z brokera
-  const [brokerValue, setBrokerValue]  = useState(stock?.stockBrokerValue?.toString() || "");
-  const [brokerPnl, setBrokerPnl]      = useState(stock?.stockBrokerPnl?.toString() || "");
+  const [brokerValue, setBrokerValue]    = useState(stock?.stockBrokerValue?.toString() || "");
+  const [brokerPnl, setBrokerPnl]        = useState(stock?.stockBrokerPnl?.toString() || "");
+  const [brokerQty, setBrokerQty]        = useState(stock?.stockBrokerValue != null ? (stock?.stockQuantity?.toString() || "") : "");
 
   const [note, setNote] = useState(stock?.note || "");
 
@@ -614,7 +615,7 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
     }
     if (mode === "broker") {
       const { val } = calcBroker();
-      return val > 0 && !loadingPrice;
+      return val > 0;
     }
     return false;
   })();
@@ -653,11 +654,10 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
       };
     } else if (mode === "broker") {
       const { val, pnl, invested } = calcBroker();
-      const pricePLN = currentPrice && fxRate ? currentPrice * fxRate : null;
-      const derivedQty = pricePLN && val > 0 ? val / pricePLN : (stock?.stockQuantity || 0);
+      const qty = parseFloat(String(brokerQty).replace(",", ".")) || 0;
       asset = { ...asset,
         value: val,
-        stockQuantity: derivedQty,
+        stockQuantity: qty,
         stockPaidPLN: invested,
         stockBrokerValue: val,
         stockBrokerPnl: pnl,
@@ -847,7 +847,7 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
               return (
                 <>
                   <div style={{ fontSize: 11, color: "#5a6a7e", marginBottom: 10, lineHeight: 1.5 }}>
-                    Przepisz wartości wprost z XTB: otwórz pozycję i wpisz aktualną wartość i P&L.
+                    Przepisz wartości wprost z XTB: otwórz pozycję i wpisz aktualną wartość, P&L i ilość jednostek.
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                     <div>
@@ -862,9 +862,16 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
                       <input style={{ ...baseInp, MozAppearance: "textfield" }} type="number" step="any"
                         placeholder="z XTB → zysk/strata"
                         value={brokerPnl} onChange={e => setBrokerPnl(e.target.value)}
-                        onFocus={focusInp} onBlur={blurInp}
-                        onKeyDown={e => e.key === "Enter" && submit()} />
+                        onFocus={focusInp} onBlur={blurInp} />
                     </div>
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={labelSt}>Ilość jednostek</label>
+                    <input style={{ ...baseInp, MozAppearance: "textfield" }} type="number" step="any"
+                      placeholder="z XTB → ilość jednostek"
+                      value={brokerQty} onChange={e => setBrokerQty(e.target.value)}
+                      onFocus={focusInp} onBlur={blurInp}
+                      onKeyDown={e => e.key === "Enter" && submit()} />
                   </div>
                   {val > 0 && (
                     <div style={{ background: "#0f1a27", border: "1px solid #1a3a20", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
@@ -885,14 +892,6 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
                           )}
                         </div>
                       </div>
-                      {currentPrice && fxRate && (
-                        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2535" }}>
-                          <div style={{ fontSize: 11, color: "#5a7a9e" }}>Ilość jednostek (wyliczone)</div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>
-                            {(val / (currentPrice * fxRate)).toFixed(4)} szt.
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </>
