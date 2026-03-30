@@ -965,8 +965,8 @@ function Summary({ paid, current, pnl, pnlPct, sub }) {
 function StockLogo({ symbol, size = 28 }) {
   const [step, setStep] = useState(0);
   const srcs = [
+    `https://img.logo.dev/ticker/${symbol}?token=sk_fSfcjjqGRsK5evfG9hHOuA&size=64`,
     `https://assets.parqet.com/logos/symbol/${symbol}?format=svg`,
-    `https://assets.parqet.com/logos/symbol/${symbol}?format=png`,
   ];
   const colors = ["#e8e040","#00c896","#3b9eff","#ff5ecb","#f0a030"];
   const color = colors[symbol.charCodeAt(0) % colors.length];
