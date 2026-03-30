@@ -151,7 +151,6 @@ export function useStockPrices(assets) {
 
 // ─── Wyszukiwarka symboli (przez Twelve Data symbol_search — nie jest ograniczona limitem cen) ──
 const EXCHANGE_PRIORITY = ["WSE", "XETR", "XWAR", "XAMS", "XPAR", "XLON", "XNAS", "XNYS"];
-const PROXY_BASE = "/api/stock-price";
 const TWELVE_DATA_KEY = "a681abc9ebc045a39c938d8b058567d9";
 
 function sortByExchange(results) {
