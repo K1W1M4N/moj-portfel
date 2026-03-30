@@ -963,8 +963,17 @@ function Summary({ paid, current, pnl, pnlPct, sub }) {
 
 // ─── Logo spółki/ETF ─────────────────────────────────────────────────────────
 function StockLogo({ symbol, size = 28 }) {
-  const [err, setErr] = useState(false);
-  const url = `https://s.yimg.com/lb/brands/150x150/${symbol.toLowerCase()}.png`;
+  const [srcIndex, setSrcIndex] = useState(0);
+  const sources = [
+    `https://assets.parqet.com/logos/symbol/${symbol}?format=svg`,
+    `https://img.logo.dev/ticker/${symbol.toLowerCase()}?token=pk_J2phABBNQlijRhAGdSRFKQ`,
+  ];
+  const url = sources[srcIndex];
+  const handleErr = () => {
+    if (srcIndex < sources.length - 1) setSrcIndex(i => i + 1);
+    else setSrcIndex(99);
+  };
+  if (srcIndex === 99) {
   if (err) {
     const colors = ["#e8e040","#00c896","#3b9eff","#ff5ecb","#f0a030"];
     const color = colors[symbol.charCodeAt(0) % colors.length];
@@ -974,7 +983,7 @@ function StockLogo({ symbol, size = 28 }) {
       </div>
     );
   }
-  return <img src={url} onError={() => setErr(true)} style={{ width: size, height: size, borderRadius: 6, objectFit: "contain", background: "#1a2535", flexShrink: 0 }} alt={symbol} />;
+  return <img src={url} onError={handleErr} style={{ width: size, height: size, borderRadius: 6, objectFit: "contain", background: "#1a2535", flexShrink: 0 }} alt={symbol} />;
 }
 
 // ─── Wiersz akcji/ETF na liście ───────────────────────────────────────────────
