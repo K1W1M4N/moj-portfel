@@ -966,11 +966,11 @@ function StockLogo({ symbol, size = 28 }) {
   const [step, setStep] = useState(0);
   const srcs = [
     `https://assets.parqet.com/logos/symbol/${symbol}?format=svg`,
-    `https://assets.parqet.com/logos/symbol/${symbol.toUpperCase()}?format=png`,
+    `https://assets.parqet.com/logos/symbol/${symbol}?format=png`,
   ];
+  const colors = ["#e8e040","#00c896","#3b9eff","#ff5ecb","#f0a030"];
+  const color = colors[symbol.charCodeAt(0) % colors.length];
   if (step >= srcs.length) {
-    const colors = ["#e8e040","#00c896","#3b9eff","#ff5ecb","#f0a030"];
-    const color = colors[symbol.charCodeAt(0) % colors.length];
     return (
       <div style={{ width: size, height: size, borderRadius: 6, background: color + "22", border: `1px solid ${color}60`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <span style={{ fontSize: size * 0.35, fontWeight: 700, color, fontFamily: "'DM Mono', monospace" }}>{symbol.slice(0,2)}</span>
@@ -978,16 +978,6 @@ function StockLogo({ symbol, size = 28 }) {
     );
   }
   return <img src={srcs[step]} onError={() => setStep(s => s + 1)} style={{ width: size, height: size, borderRadius: 6, objectFit: "contain", background: "#1a2535", flexShrink: 0 }} alt={symbol} />;
-}
-    const colors = ["#e8e040","#00c896","#3b9eff","#ff5ecb","#f0a030"];
-    const color = colors[symbol.charCodeAt(0) % colors.length];
-    return (
-      <div style={{ width: size, height: size, borderRadius: 6, background: color + "22", border: `1px solid ${color}60`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <span style={{ fontSize: size * 0.35, fontWeight: 700, color, fontFamily: "'DM Mono', monospace" }}>{symbol.slice(0,2)}</span>
-      </div>
-    );
-  }
-  return <img src={url} onError={handleErr} style={{ width: size, height: size, borderRadius: 6, objectFit: "contain", background: "#1a2535", flexShrink: 0 }} alt={symbol} />;
 }
 
 // ─── Wiersz akcji/ETF na liście ───────────────────────────────────────────────
