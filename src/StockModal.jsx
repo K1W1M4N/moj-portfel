@@ -963,18 +963,22 @@ function Summary({ paid, current, pnl, pnlPct, sub }) {
 
 // ─── Logo spółki/ETF ─────────────────────────────────────────────────────────
 function StockLogo({ symbol, size = 28 }) {
-  const [srcIndex, setSrcIndex] = useState(0);
-  const sources = [
+  const [step, setStep] = useState(0);
+  const srcs = [
     `https://assets.parqet.com/logos/symbol/${symbol}?format=svg`,
-    `https://img.logo.dev/ticker/${symbol.toLowerCase()}?token=pk_J2phABBNQlijRhAGdSRFKQ`,
+    `https://assets.parqet.com/logos/symbol/${symbol.toUpperCase()}?format=png`,
   ];
-  const url = sources[srcIndex];
-  const handleErr = () => {
-    if (srcIndex < sources.length - 1) setSrcIndex(i => i + 1);
-    else setSrcIndex(99);
-  };
-  if (srcIndex === 99) {
-  if (err) {
+  if (step >= srcs.length) {
+    const colors = ["#e8e040","#00c896","#3b9eff","#ff5ecb","#f0a030"];
+    const color = colors[symbol.charCodeAt(0) % colors.length];
+    return (
+      <div style={{ width: size, height: size, borderRadius: 6, background: color + "22", border: `1px solid ${color}60`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <span style={{ fontSize: size * 0.35, fontWeight: 700, color, fontFamily: "'DM Mono', monospace" }}>{symbol.slice(0,2)}</span>
+      </div>
+    );
+  }
+  return <img src={srcs[step]} onError={() => setStep(s => s + 1)} style={{ width: size, height: size, borderRadius: 6, objectFit: "contain", background: "#1a2535", flexShrink: 0 }} alt={symbol} />;
+}
     const colors = ["#e8e040","#00c896","#3b9eff","#ff5ecb","#f0a030"];
     const color = colors[symbol.charCodeAt(0) % colors.length];
     return (
