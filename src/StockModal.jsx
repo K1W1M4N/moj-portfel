@@ -298,8 +298,11 @@ const CHART_RANGES = [
   { label: "5L", value: "5y" },
 ];
 
-function StockChart({ symbol, exchange, currency }) {
-  const [open, setOpen]           = useState(false);
+function StockChart({ symbol, exchange, currency, open: openProp, onToggle }) {
+  const controlled = openProp !== undefined;
+  const [openInner, setOpenInner] = useState(false);
+  const open    = controlled ? openProp : openInner;
+  const setOpen = controlled ? (v => onToggle?.()) : setOpenInner;
   const [range, setRange]         = useState("1mo");
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading]     = useState(false);
@@ -370,30 +373,32 @@ function StockChart({ symbol, exchange, currency }) {
 
   return (
     <div style={{ marginBottom: 14 }}>
-      {/* Toggle */}
-      <button onClick={() => setOpen(o => !o)} style={{
-        width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
-        background: "#0f1a27", border: `1px solid ${open ? "#2a3a50" : "#1e2a38"}`,
-        borderRadius: open ? "10px 10px 0 0" : 10, padding: "10px 14px",
-        cursor: "pointer", color: "#8a9bb0", fontSize: 12, transition: "border-color .15s",
-      }}
-        onMouseEnter={e => e.currentTarget.style.borderColor = "#2a3a50"}
-        onMouseLeave={e => e.currentTarget.style.borderColor = open ? "#2a3a50" : "#1e2a38"}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 13 }}>📈</span>
-          <span>Wykres kursu</span>
-          {geom && (
-            <span style={{ color: geom.changeColor, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
-              {geom.changePct >= 0 ? "+" : ""}{geom.changePct.toFixed(2)}%
-            </span>
-          )}
-        </span>
-        <span style={{ fontSize: 13, color: "#5a6a7e", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s", display: "inline-block" }}>▾</span>
-      </button>
+      {/* Toggle button — tylko w trybie niekontrolowanym */}
+      {!controlled && (
+        <button onClick={() => setOpen(o => !o)} style={{
+          width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+          background: "#0f1a27", border: `1px solid ${open ? "#2a3a50" : "#1e2a38"}`,
+          borderRadius: open ? "10px 10px 0 0" : 10, padding: "10px 14px",
+          cursor: "pointer", color: "#8a9bb0", fontSize: 12, transition: "border-color .15s",
+        }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = "#2a3a50"}
+          onMouseLeave={e => e.currentTarget.style.borderColor = open ? "#2a3a50" : "#1e2a38"}
+        >
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 13 }}>📈</span>
+            <span>Wykres kursu</span>
+            {geom && (
+              <span style={{ color: geom.changeColor, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
+                {geom.changePct >= 0 ? "+" : ""}{geom.changePct.toFixed(2)}%
+              </span>
+            )}
+          </span>
+          <span style={{ fontSize: 13, color: "#5a6a7e", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s", display: "inline-block" }}>▾</span>
+        </button>
+      )}
 
       {open && (
-        <div style={{ background: "#0f1a27", border: "1px solid #2a3a50", borderTop: "none", borderRadius: "0 0 10px 10px", padding: "12px 14px" }}>
+        <div style={{ background: "#0f1a27", border: "1px solid #2a3a50", borderTop: controlled ? "none" : "none", borderRadius: controlled ? "0 0 14px 14px" : "0 0 10px 10px", padding: "12px 14px" }}>
           {/* Zakresy */}
           <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
             {CHART_RANGES.map(r => (
@@ -530,7 +535,8 @@ function Sparkline({ paid, current, color }) {
 
 // ─── Panel szczegółów akcji/ETF ───────────────────────────────────────────────
 export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose, onMove }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen]   = useState(false);
+  const [chartOpen, setChartOpen] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -629,7 +635,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
         </div>
 
         {/* Wartość główna */}
-        <div style={{ background: "#0f1a27", border: `1px solid ${pnlColor}30`, borderRadius: 14, padding: "18px 20px", marginBottom: 16 }}>
+        <div style={{ background: "#0f1a27", border: `1px solid ${pnlColor}30`, borderRadius: chartOpen ? "14px 14px 0 0" : 14, padding: "18px 20px", marginBottom: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <div style={{ fontSize: 11, color: "#5a7a9e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
@@ -653,7 +659,24 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
                 <div style={{ fontSize: 11, color: "#3a4a5e", marginTop: 3 }}>odświeżanie...</div>
               )}
             </div>
-            <Sparkline paid={paidPLN} current={currentValuePLN} color={pnlColor} />
+            {/* Sparkline — klikalny toggle wykresu */}
+            <button onClick={() => setChartOpen(o => !o)}
+              title="Kliknij, aby rozwinąć wykres kursu"
+              style={{
+                background: chartOpen ? `${pnlColor}18` : "transparent",
+                border: `1px solid ${chartOpen ? pnlColor + "60" : "transparent"}`,
+                borderRadius: 8, padding: 4, cursor: "pointer",
+                display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2,
+                transition: "background .15s, border-color .15s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = `${pnlColor}18`; e.currentTarget.style.borderColor = pnlColor + "60"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = chartOpen ? `${pnlColor}18` : "transparent"; e.currentTarget.style.borderColor = chartOpen ? pnlColor + "60" : "transparent"; }}
+            >
+              <Sparkline paid={paidPLN} current={currentValuePLN} color={pnlColor} />
+              <span style={{ fontSize: 9, color: "#4a5a6e", letterSpacing: "0.04em" }}>
+                {chartOpen ? "zwiń ▴" : "wykres ▾"}
+              </span>
+            </button>
           </div>
 
           {/* P&L */}
@@ -672,11 +695,17 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
           </div>
         </div>
 
-        {/* Wykres kursu */}
-        <StockChart symbol={stock.stockSymbol} exchange={stock.stockExchange} currency={stock.stockCurrency} />
+        {/* Wykres kursu — kontrolowany przez sparkline */}
+        <StockChart
+          symbol={stock.stockSymbol}
+          exchange={stock.stockExchange}
+          currency={stock.stockCurrency}
+          open={chartOpen}
+          onToggle={() => setChartOpen(o => !o)}
+        />
 
         {/* Szczegóły pozycji */}
-        <div style={{ background: "#0f1a27", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
+        <div style={{ background: "#0f1a27", borderRadius: 12, padding: "14px 16px", marginBottom: 14, marginTop: 16 }}>
           <div style={{ fontSize: 11, color: "#5a7a9e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Szczegóły pozycji</div>
 
           <Row label="Ilość" value={`${Number(stock.stockQuantity).toFixed(4)} szt.`} />
