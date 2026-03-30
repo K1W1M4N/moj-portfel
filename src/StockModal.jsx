@@ -555,7 +555,7 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
           fetchFxRate(selected.currency),
         ]);
         if (cancelled) return;
-        const priceVal = priceData?.price;
+        const priceVal = priceData?.prices?.[selected.symbol]?.price ?? priceData?.price;
         if (priceVal && !isNaN(parseFloat(priceVal))) {
           setCurrentPrice(parseFloat(priceVal));
         } else {
