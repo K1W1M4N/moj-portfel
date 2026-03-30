@@ -968,14 +968,15 @@ const GPW_LOGOS = {
   ALE: "allegro.eu", DNP: "dino-polska.pl", LPP: "lpp.com.pl", MBK: "mbank.pl",
   OPL: "orange.pl", JSW: "jsw.pl", KGH: "kghm.com", CCC: "ccc.eu",
   EUR: "eurocash.pl", BDX: "budimex.pl", ENG: "enea.pl", PGE: "gkpge.pl",
-  TPE: "tauron.pl", PKP: "pkpcargo.com", PGN: "pgnig.pl", SPL: "santander.pl",
+  TPE: "tauron.pl", PGN: "pgnig.pl", SPL: "santander.pl", ING: "ing.pl",
+  MGT: "mge.pl", AMC: "amica.pl", ATT: "assecosee.pl", SNK: "sanok.com.pl",
 };
 
 function StockLogo({ symbol, size = 28 }) {
   const [step, setStep] = useState(0);
   const gpwDomain = GPW_LOGOS[symbol];
   const srcs = [
-    gpwDomain ? `https://logo.clearbit.com/${gpwDomain}` : null,
+    gpwDomain ? `/api/logo?domain=${gpwDomain}` : null,
     `https://assets.parqet.com/logos/symbol/${symbol}?format=svg`,
     `https://img.logo.dev/ticker/${symbol}?token=sk_fSfcjjqGRsK5evfG9hHOuA&size=64`,
   ].filter(Boolean);
