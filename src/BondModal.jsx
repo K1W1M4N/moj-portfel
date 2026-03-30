@@ -141,8 +141,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
   }
 
   return (
-    <div onClick={e => e.target===e.currentTarget && onClose()}
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16}}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16}}>
       <div style={{background:"#161d28",border:"1px solid #2a3a50",borderRadius:16,padding:"20px 16px",width:"100%",maxWidth:500,maxHeight:"90vh",overflowY:"auto"}}>
 
         {/* Header — nazwa + przyciski w jednym wierszu */}
@@ -349,8 +348,7 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
   const rateColor = form.rate ? "#00c896" : autoRate ? "#f0a030" : "#5a7a9e";
 
   return (
-    <div onClick={e => e.target===e.currentTarget && onClose()}
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16}}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16}}>
       <div style={{background:"#161d28",border:"1px solid #2a3a50",borderRadius:16,padding:28,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto"}}>
 
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
