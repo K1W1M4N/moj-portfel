@@ -961,6 +961,22 @@ function Summary({ paid, current, pnl, pnlPct, sub }) {
   );
 }
 
+// ─── Logo spółki/ETF ─────────────────────────────────────────────────────────
+function StockLogo({ symbol, size = 28 }) {
+  const [err, setErr] = useState(false);
+  const url = `https://assets.parqet.com/logos/symbol/${symbol}?format=svg`;
+  if (err) {
+    const colors = ["#e8e040","#00c896","#3b9eff","#ff5ecb","#f0a030"];
+    const color = colors[symbol.charCodeAt(0) % colors.length];
+    return (
+      <div style={{ width: size, height: size, borderRadius: 6, background: color + "22", border: `1px solid ${color}60`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <span style={{ fontSize: size * 0.35, fontWeight: 700, color, fontFamily: "'DM Mono', monospace" }}>{symbol.slice(0,2)}</span>
+      </div>
+    );
+  }
+  return <img src={url} onError={() => setErr(true)} style={{ width: size, height: size, borderRadius: 6, objectFit: "contain", background: "#1a2535", flexShrink: 0 }} alt={symbol} />;
+}
+
 // ─── Wiersz akcji/ETF na liście ───────────────────────────────────────────────
 export function StockRow({ stock, stockPrices, onClick }) {
   const [hov, setHov] = useState(false);
