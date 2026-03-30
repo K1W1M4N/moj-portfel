@@ -964,7 +964,7 @@ function Summary({ paid, current, pnl, pnlPct, sub }) {
 // ─── Logo spółki/ETF ─────────────────────────────────────────────────────────
 function StockLogo({ symbol, size = 28 }) {
   const [err, setErr] = useState(false);
-  const url = `https://assets.parqet.com/logos/symbol/${symbol}?format=svg`;
+  const url = `https://s.yimg.com/lb/brands/150x150/${symbol.toLowerCase()}.png`;
   if (err) {
     const colors = ["#e8e040","#00c896","#3b9eff","#ff5ecb","#f0a030"];
     const color = colors[symbol.charCodeAt(0) % colors.length];
