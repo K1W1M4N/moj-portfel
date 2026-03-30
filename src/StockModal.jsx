@@ -688,8 +688,8 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
             <div>
               <div style={{ fontSize: 11, color: "#5a7a9e" }}>Zysk / strata</div>
               <div style={{ fontSize: 14, fontWeight: 600, color: pnlColor, fontFamily: "'DM Mono', monospace" }}>
-                {pnlPLN >= 0 ? "+" : ""}{fmtPLN(pnlPLN)}
-                <span style={{ fontSize: 12, marginLeft: 6 }}>({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)</span>
+                {pnlPLN >= 0 ? "+" : ""}{fmtPLN2(pnlPLN)}
+                <span style={{ fontSize: 12, marginLeft: 6 }}>({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)</span>
               </div>
             </div>
           </div>
@@ -1379,7 +1379,7 @@ export function StockRow({ stock, stockPrices, onClick }) {
           </div>
           {hasLivePrice && (
             <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0, whiteSpace: "nowrap", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
-              {pnlPLN >= 0 ? "+" : ""}{fmtPLN(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+              {pnlPLN >= 0 ? "+" : ""}{fmtPLN2(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)
             </div>
           )}
         </div>
