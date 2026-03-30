@@ -1006,7 +1006,7 @@ export function StockRow({ stock, stockPrices, onClick }) {
         background: hov ? "#111720" : "#161d28", borderRadius: 12, marginBottom: 8,
         border: `1px solid ${hov ? color + "50" : "#1e2a38"}`, cursor: "pointer", transition: "all .15s"
       }}>
-      <div style={{ width: 4, borderRadius: 2, background: color, flexShrink: 0, alignSelf: "stretch" }} />
+      <StockLogo symbol={stock.stockSymbol} size={32} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
           <div style={{ minWidth: 0, overflow: "hidden" }}>
