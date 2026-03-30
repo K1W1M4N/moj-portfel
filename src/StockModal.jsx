@@ -288,6 +288,226 @@ function SymbolSearch({ initialValue, onSelect }) {
   );
 }
 
+// ─── Wykres historyczny ────────────────────────────────────────────────────────
+const CHART_RANGES = [
+  { label: "1T", value: "5d" },
+  { label: "1M", value: "1mo" },
+  { label: "3M", value: "3mo" },
+  { label: "6M", value: "6mo" },
+  { label: "1R", value: "1y" },
+  { label: "5L", value: "5y" },
+];
+
+function StockChart({ symbol, exchange, currency }) {
+  const [open, setOpen]           = useState(false);
+  const [range, setRange]         = useState("1mo");
+  const [chartData, setChartData] = useState(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState(false);
+  const [hoverIdx, setHoverIdx]   = useState(null);
+  const svgRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true); setError(false); setChartData(null);
+    fetch(`/api/stock-chart?symbol=${encodeURIComponent(symbol)}&exchange=${encodeURIComponent(exchange || "")}&range=${range}`)
+      .then(r => r.json())
+      .then(d => { if (d.points?.length > 1) setChartData(d); else setError(true); })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [open, range, symbol, exchange]);
+
+  // SVG układ
+  const W = 420, H = 150;
+  const PT = 12, PR = 52, PB = 22, PL = 6;
+  const iW = W - PL - PR, iH = H - PT - PB;
+
+  let geom = null;
+  if (chartData?.points?.length > 1) {
+    const pts = chartData.points;
+    const prices = pts.map(p => p.close);
+    const minP = Math.min(...prices), maxP = Math.max(...prices);
+    const pRange = maxP - minP || 1;
+    const toX = i  => PL + (i / (pts.length - 1)) * iW;
+    const toY = v  => PT + iH - ((v - minP) / pRange) * iH;
+
+    const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(p.close).toFixed(1)}`).join(" ");
+    const areaPath = `${linePath} L${toX(pts.length - 1).toFixed(1)},${H - PB} L${PL},${H - PB} Z`;
+    const changePct   = ((pts[pts.length - 1].close - pts[0].close) / pts[0].close) * 100;
+    const changeColor = changePct >= 0 ? "#00c896" : "#f05060";
+
+    const yLabels = [0, 1, 2].map(i => ({
+      y: toY(minP + pRange * i / 2),
+      label: (minP + pRange * i / 2).toFixed(2),
+    }));
+    const xLabels = [0, 1, 2, 3].map(i => {
+      const idx = Math.round(i / 3 * (pts.length - 1));
+      const d = new Date(pts[idx].ts * 1000);
+      return { x: toX(idx), label: d.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" }) };
+    });
+
+    let hoverInfo = null;
+    if (hoverIdx !== null) {
+      const ci = Math.max(0, Math.min(pts.length - 1, hoverIdx));
+      hoverInfo = {
+        x: toX(ci), y: toY(pts[ci].close),
+        price: pts[ci].close,
+        date: new Date(pts[ci].ts * 1000).toLocaleDateString("pl-PL", { day: "2-digit", month: "short", year: "numeric" }),
+      };
+    }
+
+    geom = { linePath, areaPath, changePct, changeColor, yLabels, xLabels, hoverInfo,
+             lastX: toX(pts.length - 1), lastY: toY(pts[pts.length - 1].close), pts };
+  }
+
+  const handleMouseMove = e => {
+    if (!svgRef.current || !chartData?.points) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const relX = ((e.clientX - rect.left) / rect.width) * W - PL;
+    const idx = Math.round((relX / iW) * (chartData.points.length - 1));
+    setHoverIdx(Math.max(0, Math.min(chartData.points.length - 1, idx)));
+  };
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {/* Toggle */}
+      <button onClick={() => setOpen(o => !o)} style={{
+        width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+        background: "#0f1a27", border: `1px solid ${open ? "#2a3a50" : "#1e2a38"}`,
+        borderRadius: open ? "10px 10px 0 0" : 10, padding: "10px 14px",
+        cursor: "pointer", color: "#8a9bb0", fontSize: 12, transition: "border-color .15s",
+      }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = "#2a3a50"}
+        onMouseLeave={e => e.currentTarget.style.borderColor = open ? "#2a3a50" : "#1e2a38"}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 13 }}>📈</span>
+          <span>Wykres kursu</span>
+          {geom && (
+            <span style={{ color: geom.changeColor, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
+              {geom.changePct >= 0 ? "+" : ""}{geom.changePct.toFixed(2)}%
+            </span>
+          )}
+        </span>
+        <span style={{ fontSize: 13, color: "#5a6a7e", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s", display: "inline-block" }}>▾</span>
+      </button>
+
+      {open && (
+        <div style={{ background: "#0f1a27", border: "1px solid #2a3a50", borderTop: "none", borderRadius: "0 0 10px 10px", padding: "12px 14px" }}>
+          {/* Zakresy */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+            {CHART_RANGES.map(r => (
+              <button key={r.value} onClick={() => setRange(r.value)} style={{
+                padding: "3px 9px", borderRadius: 6, border: "1px solid",
+                borderColor: range === r.value ? "#e8e040" : "#1e2a38",
+                background: range === r.value ? "#e8e04018" : "transparent",
+                color: range === r.value ? "#e8e040" : "#5a6a7e",
+                fontSize: 11, cursor: "pointer", fontFamily: "'Sora', sans-serif", transition: "all .12s",
+              }}>
+                {r.label}
+              </button>
+            ))}
+          </div>
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "28px 0", color: "#5a6a7e", fontSize: 12 }}>
+              Ładowanie danych...
+            </div>
+          )}
+          {error && !loading && (
+            <div style={{ textAlign: "center", padding: "28px 0", color: "#f05060", fontSize: 12 }}>
+              Nie udało się pobrać danych wykresu
+            </div>
+          )}
+
+          {geom && !loading && (
+            <div>
+              {/* Hover info bar */}
+              <div style={{ height: 18, display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 11 }}>
+                {geom.hoverInfo ? (
+                  <>
+                    <span style={{ color: "#5a6a7e" }}>{geom.hoverInfo.date}</span>
+                    <span style={{ fontFamily: "'DM Mono', monospace", color: "#e8f0f8" }}>
+                      {geom.hoverInfo.price.toFixed(2)} {currency}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ color: "#5a6a7e" }}>
+                      {new Date(geom.pts[0].ts * 1000).toLocaleDateString("pl-PL", { day: "2-digit", month: "short", year: "numeric" })}
+                      {" → "}
+                      {new Date(geom.pts[geom.pts.length-1].ts * 1000).toLocaleDateString("pl-PL", { day: "2-digit", month: "short", year: "numeric" })}
+                    </span>
+                    <span style={{ fontFamily: "'DM Mono', monospace", color: geom.changeColor }}>
+                      {geom.changePct >= 0 ? "+" : ""}{geom.changePct.toFixed(2)}%
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* SVG chart */}
+              <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`}
+                style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
+                onMouseMove={handleMouseMove}
+                onMouseLeave={() => setHoverIdx(null)}
+              >
+                <defs>
+                  <linearGradient id={`cg_${symbol}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={geom.changeColor} stopOpacity="0.3" />
+                    <stop offset="100%" stopColor={geom.changeColor} stopOpacity="0.01" />
+                  </linearGradient>
+                </defs>
+
+                {/* Grid */}
+                {geom.yLabels.map((l, i) => (
+                  <line key={i} x1={PL} y1={l.y} x2={W - PR} y2={l.y} stroke="#1a2535" strokeWidth="1" />
+                ))}
+
+                {/* Area */}
+                <path d={geom.areaPath} fill={`url(#cg_${symbol})`} />
+
+                {/* Line */}
+                <path d={geom.linePath} fill="none" stroke={geom.changeColor} strokeWidth="1.5"
+                  strokeLinecap="round" strokeLinejoin="round" />
+
+                {/* Y labels */}
+                {geom.yLabels.map((l, i) => (
+                  <text key={i} x={W - PR + 5} y={l.y + 4} fontSize="9" fill="#4a5a6e" textAnchor="start">
+                    {l.label}
+                  </text>
+                ))}
+
+                {/* X labels */}
+                {geom.xLabels.map((l, i) => (
+                  <text key={i} x={l.x} y={H - 4} fontSize="9" fill="#4a5a6e" textAnchor="middle">
+                    {l.label}
+                  </text>
+                ))}
+
+                {/* Hover: linia + kółko */}
+                {geom.hoverInfo && (
+                  <>
+                    <line x1={geom.hoverInfo.x} y1={PT} x2={geom.hoverInfo.x} y2={H - PB}
+                      stroke="#2a3a50" strokeWidth="1" strokeDasharray="3,3" />
+                    <circle cx={geom.hoverInfo.x} cy={geom.hoverInfo.y} r="4"
+                      fill={geom.changeColor} stroke="#0f1a27" strokeWidth="2" />
+                  </>
+                )}
+
+                {/* Ostatni punkt (bez hovera) */}
+                {!geom.hoverInfo && (
+                  <circle cx={geom.lastX} cy={geom.lastY} r="3"
+                    fill={geom.changeColor} stroke="#0f1a27" strokeWidth="2" />
+                )}
+              </svg>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Mini sparkline SVG ───────────────────────────────────────────────────────
 function Sparkline({ paid, current, color }) {
   if (!paid || !current) return null;
@@ -451,6 +671,9 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
             </div>
           </div>
         </div>
+
+        {/* Wykres kursu */}
+        <StockChart symbol={stock.stockSymbol} exchange={stock.stockExchange} currency={stock.stockCurrency} />
 
         {/* Szczegóły pozycji */}
         <div style={{ background: "#0f1a27", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
