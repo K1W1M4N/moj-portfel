@@ -453,7 +453,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
         <div style={{ background: "#0f1a27", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
           <div style={{ fontSize: 11, color: "#5a7a9e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Szczegóły pozycji</div>
 
-          <Row label="Ilość" value={`${stock.stockQuantity} szt.`} />
+          <Row label="Ilość" value={`${Number(stock.stockQuantity).toFixed(4)} szt.`} />
 
           {/* Transze — lista zakupów */}
           {stock.stockTranches?.length > 0 ? (
@@ -614,7 +614,7 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
     }
     if (mode === "broker") {
       const { val } = calcBroker();
-      return val > 0;
+      return val > 0 && !loadingPrice;
     }
     return false;
   })();
@@ -653,9 +653,11 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
       };
     } else if (mode === "broker") {
       const { val, pnl, invested } = calcBroker();
+      const pricePLN = currentPrice && fxRate ? currentPrice * fxRate : null;
+      const derivedQty = pricePLN && val > 0 ? val / pricePLN : (stock?.stockQuantity || 0);
       asset = { ...asset,
         value: val,
-        stockQuantity: stock?.stockQuantity || 0,
+        stockQuantity: derivedQty,
         stockPaidPLN: invested,
         stockBrokerValue: val,
         stockBrokerPnl: pnl,
@@ -883,6 +885,14 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
                           )}
                         </div>
                       </div>
+                      {currentPrice && fxRate && (
+                        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a2535" }}>
+                          <div style={{ fontSize: 11, color: "#5a7a9e" }}>Ilość jednostek (wyliczone)</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>
+                            {(val / (currentPrice * fxRate)).toFixed(4)} szt.
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -1101,7 +1111,7 @@ export function StockRow({ stock, stockPrices, onClick }) {
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div style={{ fontSize: 11, color: "#4a5a6e", whiteSpace: "nowrap" }}>
-            {stock.stockQuantity > 0 && `${stock.stockQuantity} szt.`}
+            {stock.stockQuantity > 0 && `${Number(stock.stockQuantity).toFixed(4)} szt.`}
             {priceData && (
               <span style={{ marginLeft: 4, color: "#5a6a7e" }}>
                 @ {priceData.priceOrig.toFixed(2)} {stock.stockCurrency}
