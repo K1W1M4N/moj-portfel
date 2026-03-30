@@ -104,7 +104,7 @@ export function useStockPrices(assets) {
 
       if (symbols.length === 1) {
         // Płaska odpowiedź: { price: "123.45" }
-        const priceVal = data?.price;
+        const priceVal = data?.prices?.[symbols[0]]?.price ?? data?.price;
         if (priceVal && !isNaN(parseFloat(priceVal))) {
           const asset = unique[0];
           const currency = asset?.stockCurrency || "PLN";
@@ -115,7 +115,7 @@ export function useStockPrices(assets) {
       } else {
         // Zagnieżdżona: { SYMBOL: { price: "..." } }
         for (const sym of symbols) {
-          const priceVal = data?.[sym]?.price;
+          const priceVal = data?.prices?.[sym]?.price ?? data?.[sym]?.price;
           if (priceVal && !isNaN(parseFloat(priceVal))) {
             const asset = unique.find(a => a.stockSymbol === sym);
             const currency = asset?.stockCurrency || "PLN";
