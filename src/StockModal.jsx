@@ -322,9 +322,12 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
   }, []);
 
   const priceData = stockPrices[stock.stockSymbol];
-  const currentValuePLN = priceData
-    ? stock.stockQuantity * priceData.pricePLN
-    : stock.value;
+  const isBroker = stock.stockBrokerValue != null;
+  const currentValuePLN = isBroker
+    ? stock.stockBrokerValue
+    : priceData
+      ? stock.stockQuantity * priceData.pricePLN
+      : stock.value;
 
   // Koszt zakupu — obsługa wszystkich trybów zapisu
   let paidPLN = stock.stockPaidPLN || 0;
@@ -333,7 +336,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
   }
   if (!paidPLN) paidPLN = stock.value;
 
-  const pnlPLN = currentValuePLN - paidPLN;
+  const pnlPLN = isBroker ? (stock.stockBrokerPnl ?? 0) : currentValuePLN - paidPLN;
   const pnlPct = paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : 0;
   const pnlColor = pnlPLN >= 0 ? "#00c896" : "#f05060";
   const hasLive = !!priceData;
@@ -1070,9 +1073,12 @@ export function StockRow({ stock, stockPrices, onClick }) {
   const color = "#e8e040";
 
   const priceData = stockPrices[stock.stockSymbol];
-  const currentValuePLN = priceData
-    ? stock.stockQuantity * priceData.pricePLN
-    : stock.value;
+  const isBroker = stock.stockBrokerValue != null;
+  const currentValuePLN = isBroker
+    ? stock.stockBrokerValue
+    : priceData
+      ? stock.stockQuantity * priceData.pricePLN
+      : stock.value;
 
   // Koszt zakupu — obsługa wszystkich trybów
   let paidPLN = stock.stockPaidPLN || 0;
@@ -1081,7 +1087,7 @@ export function StockRow({ stock, stockPrices, onClick }) {
   }
   if (!paidPLN) paidPLN = stock.value;
 
-  const pnlPLN = currentValuePLN - paidPLN;
+  const pnlPLN = isBroker ? (stock.stockBrokerPnl ?? 0) : currentValuePLN - paidPLN;
   const pnlPct = paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : 0;
   const hasLivePrice = !!priceData;
 
@@ -1105,7 +1111,7 @@ export function StockRow({ stock, stockPrices, onClick }) {
             </span>
           </div>
           <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'DM Mono', monospace", color: "#e8f0f8", flexShrink: 0 }}>
-            {fmtPLN(currentValuePLN)}
+            {fmtPLN2(currentValuePLN)}
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
