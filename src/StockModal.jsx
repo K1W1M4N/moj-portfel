@@ -962,12 +962,22 @@ function Summary({ paid, current, pnl, pnlPct, sub }) {
 }
 
 // ─── Logo spółki/ETF ─────────────────────────────────────────────────────────
+const GPW_LOGOS = {
+  CDR: "cdprojekt.com", PKN: "orlen.pl", PZU: "pzu.pl", XTB: "xtb.com",
+  CBF: "cyberfolks.pl", KTY: "grupakety.com", PKO: "pkobp.pl", PEO: "pekao.com.pl",
+  ALE: "allegro.eu", DNP: "dino-polska.pl", LPP: "lpp.com.pl", MBK: "mbank.pl",
+  OPL: "orange.pl", JSW: "jsw.pl", KGH: "kghm.com", CCC: "ccc.eu",
+  EUR: "eurocash.pl", AGO: "agora.pl", BDX: "budimex.pl", ENG: "enea.pl",
+};
+
 function StockLogo({ symbol, size = 28 }) {
   const [step, setStep] = useState(0);
+  const gpwDomain = GPW_LOGOS[symbol];
   const srcs = [
-    `https://img.logo.dev/ticker/${symbol}?token=sk_fSfcjjqGRsK5evfG9hHOuA&size=64`,
     `https://assets.parqet.com/logos/symbol/${symbol}?format=svg`,
-  ];
+    gpwDomain ? `https://logo.clearbit.com/${gpwDomain}` : null,
+    `https://img.logo.dev/ticker/${symbol}?token=sk_fSfcjjqGRsK5evfG9hHOuA&size=64`,
+  ].filter(Boolean);
   const colors = ["#e8e040","#00c896","#3b9eff","#ff5ecb","#f0a030"];
   const color = colors[symbol.charCodeAt(0) % colors.length];
   if (step >= srcs.length) {
