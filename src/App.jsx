@@ -306,6 +306,19 @@ function MenuDropdown({ onNavigate }) {
 }
 
 // ─── Wykres kołowy ────────────────────────────────────────────────────────────
+function getAssetCostBasis(a) {
+  if (a.isStock)  return a.stockPaidPLN || 0;
+  if (a.cryptoPaid > 0) return a.cryptoPaid;
+  if (a.purchaseAmount > 0) return a.purchaseAmount;
+  return 0;
+}
+
+function fmtSigned(n) {
+  return (n >= 0 ? "+" : "") + new Intl.NumberFormat("pl-PL", {
+    style: "currency", currency: "PLN", maximumFractionDigits: 0,
+  }).format(n);
+}
+
 function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, setHovered }) {
   const canvasRef = useRef(null);
   const sliceMapRef = useRef([]);
@@ -450,44 +463,105 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
 
   const grouped = getGrouped();
 
+  const groupedPnl = grouped.map(g => {
+    const catAssets = assets.filter(a => a.category === g.name);
+    const paid = catAssets.reduce((s, a) => s + getAssetCostBasis(a), 0);
+    const pnl    = paid > 0 ? g.value - paid : null;
+    const pnlPct = paid > 0 ? (g.value - paid) / paid * 100 : null;
+    return { ...g, paid, pnl, pnlPct };
+  });
+
+  const totalPaid  = groupedPnl.reduce((s, g) => s + (g.paid || 0), 0);
+  const totalValue = assets.reduce((s, a) => s + a.value, 0);
+  const totalPnl   = totalPaid > 0 ? totalValue - totalPaid : null;
+  const totalPnlPct = totalPaid > 0 ? (totalValue - totalPaid) / totalPaid * 100 : null;
+
+  const shownPnl = activeFilter
+    ? groupedPnl.filter(g => g.name === activeFilter)
+    : groupedPnl;
+
   return (
-    <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 32, flexWrap: "wrap", width: 580, maxWidth: "100%", justifyContent: "center" }}>
-      <canvas ref={canvasRef}
-        style={{ flexShrink: 0, width: "220px", height: "220px", cursor: "pointer", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHovered(null)}
-        onClick={handleClick}
-        onTouchEnd={handleTouch}
-      />
-      <div className="pie-legend" style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1, minWidth: 260, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-        {grouped.map(g => (
-          <div key={g.name}
-            style={{
-              display: "flex", alignItems: "center", gap: 10,
-              opacity: activeFilter && activeFilter !== g.name ? 0.35 : 1,
-              transition: "opacity .15s"
-            }}>
-            <div 
-              style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", minWidth: 170 }}
-              onClick={() => { setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
-              onTouchEnd={e => { e.preventDefault(); setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
-              onMouseEnter={() => setHovered(g.name)}
-              onMouseLeave={() => setHovered(null)}
-            >
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: g.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: "#8a9bb0" }}>{g.name}</span>
+    <div style={{ display: "flex", gap: 28, flexWrap: "wrap", width: "100%", alignItems: "flex-start", userSelect: "none", WebkitUserSelect: "none" }}>
+
+      {/* Lewa kolumna: wykres kołowy + legenda % */}
+      <div style={{ display: "flex", alignItems: "center", gap: 24, flex: "1 1 300px", flexWrap: "wrap", justifyContent: "center" }}>
+        <canvas ref={canvasRef}
+          style={{ flexShrink: 0, width: "220px", height: "220px", cursor: "pointer", WebkitTouchCallout: "none" }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHovered(null)}
+          onClick={handleClick}
+          onTouchEnd={handleTouch}
+        />
+        <div className="pie-legend" style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1, minWidth: 200, WebkitTouchCallout: "none" }}>
+          <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Podział portfela</div>
+          {grouped.map(g => (
+            <div key={g.name} style={{ display: "flex", alignItems: "center", gap: 10, opacity: activeFilter && activeFilter !== g.name ? 0.35 : 1, transition: "opacity .15s" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", minWidth: 140 }}
+                onClick={() => { setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
+                onTouchEnd={e => { e.preventDefault(); setHovered(null); onFilterChange(g.name === activeFilter ? null : g.name); }}
+                onMouseEnter={() => setHovered(g.name)}
+                onMouseLeave={() => setHovered(null)}
+              >
+                <div style={{ width: 10, height: 10, borderRadius: 2, background: g.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "#8a9bb0" }}>{g.name}</span>
+              </div>
+              <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: "#e8f0f8", flex: 1, textAlign: "right" }}>{fmt(g.value)}</span>
+              <span style={{ fontSize: 11, color: g.color, minWidth: 42, textAlign: "right", fontFamily: "'DM Mono', monospace" }}>
+                {(g.pct * 100).toFixed(1)}%
+              </span>
             </div>
-            <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: "#e8f0f8", flex: 1, textAlign: "right", cursor: "default" }}>{fmt(g.value)}</span>
-            <span style={{ fontSize: 11, color: g.color, minWidth: 42, textAlign: "right", fontFamily: "'DM Mono', monospace", cursor: "default" }}>
-              {(g.pct * 100).toFixed(1)}%
+          ))}
+        </div>
+      </div>
+
+      {/* Separator */}
+      <div style={{ width: 1, background: "#1e2a38", alignSelf: "stretch", flexShrink: 0 }} />
+
+      {/* Prawa kolumna: Zysk / Strata */}
+      <div style={{ flex: "1 1 200px", minWidth: 200 }}>
+        <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>Zysk / Strata</span>
+          {activeFilter && (
+            <button onClick={() => onFilterChange(null)}
+              style={{ background: "transparent", border: "none", color: "#5a6a7e", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}
+              title="Wyczyść filtr">×</button>
+          )}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          {shownPnl.map(g => (
+            <div key={g.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: g.color, flexShrink: 0 }} />
+              {!activeFilter && <span style={{ fontSize: 12, color: "#8a9bb0", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>}
+              {activeFilter && <span style={{ fontSize: 12, color: g.color, flex: 1 }}>{g.name}</span>}
+              {g.pnl !== null ? (
+                <>
+                  <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: g.pnl >= 0 ? "#00c896" : "#f05060", whiteSpace: "nowrap" }}>
+                    {fmtSigned(g.pnl)}
+                  </span>
+                  <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: g.pnl >= 0 ? "#00c896" : "#f05060", minWidth: 52, textAlign: "right" }}>
+                    {g.pnlPct >= 0 ? "+" : ""}{g.pnlPct.toFixed(1)}%
+                  </span>
+                </>
+              ) : (
+                <span style={{ fontSize: 11, color: "#3a4a5e" }}>—</span>
+              )}
+            </div>
+          ))}
+        </div>
+        {totalPnl !== null && !activeFilter && (
+          <div style={{ borderTop: "1px solid #1e2a38", marginTop: 10, paddingTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "#5a6a7e", flex: 1 }}>Łącznie</span>
+            <span style={{ fontSize: 13, fontFamily: "'DM Mono', monospace", fontWeight: 600, color: totalPnl >= 0 ? "#00c896" : "#f05060", whiteSpace: "nowrap" }}>
+              {fmtSigned(totalPnl)}
+            </span>
+            <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: totalPnl >= 0 ? "#00c896" : "#f05060", minWidth: 52, textAlign: "right" }}>
+              {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(1)}%
             </span>
           </div>
-        ))}
+        )}
       </div>
     </div>
-  </div>
-);
+  );
 }
 
 const labelSt = {
