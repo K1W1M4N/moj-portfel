@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./BondModal";
-import { StockModal, StockRow, StockDetailPanel, useStockPrices } from "./StockModal";
+import { StockModal, StockRow, StockDetailPanel, useStockPrices, isMarketHours } from "./StockModal";
 import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue } from "./SavingsModal";
 import { CommodityModal, CommodityRow, CommodityDetailPanel, useCommodityPrices, calcCommodityValue } from "./CommodityModal";
 import { CurrencyModal, CurrencyRow, SUPPORTED_CURRENCIES } from "./CurrencyModal";
@@ -1054,7 +1054,7 @@ export default function App() {
   const [editingSavings, setEditingSavings] = useState(null);
 
   const { prices, lastUpdated } = useCryptoPrices(assets);
-  const { stockPrices, stockLastUpdated } = useStockPrices(assets);
+  const { stockPrices, stockLastUpdated, refetchStocks } = useStockPrices(assets);
   const { commodityPrices, commodityLastUpdated } = useCommodityPrices(assets);
   const { rates, lastUpdated: currencyLastUpdated } = useCurrencyRates(assets);
 
@@ -1069,8 +1069,9 @@ export default function App() {
     if (a.isSavings) {
       return { ...a, value: getSavingsValue(a) };
     }
-    if (a.isStock && a.stockSymbol && stockPrices[a.stockSymbol]) {
-      return { ...a, value: a.stockQuantity * stockPrices[a.stockSymbol].pricePLN };
+    if (a.isStock && a.stockSymbol) {
+      if (a.stockBrokerValue != null) return a; // tryb broker — wartość z ręcznego wpisu
+      if (stockPrices[a.stockSymbol]) return { ...a, value: a.stockQuantity * stockPrices[a.stockSymbol].pricePLN };
     }
     if (a.isCommodity && a.commoditySymbol) {
       return { ...a, value: calcCommodityValue(a, commodityPrices) };
@@ -1432,8 +1433,18 @@ export default function App() {
             <div style={{ textAlign: "center", fontSize: 11, color: "#4a5a6e", marginTop: 28, paddingBottom: 16 }}>
               Kliknij aktywo aby edytować · dane zapisane lokalnie w przeglądarce
               {anyLastUpdated && (
-                <div style={{ marginTop: 4 }}>
-                  Kursy live: {anyLastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+                <div style={{ marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <span>Kursy live: {anyLastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}</span>
+                  <span style={{ color: "#2a3a4e" }}>·</span>
+                  <span style={{ color: isMarketHours() ? "#00c89680" : "#3a4a5e" }}>
+                    {isMarketHours() ? "giełda otwarta" : "giełda zamknięta"}
+                  </span>
+                  <button onClick={refetchStocks}
+                    title="Odśwież kursy akcji"
+                    style={{ background: "transparent", border: "1px solid #2a3a50", borderRadius: 6, color: "#5a6a7e", cursor: "pointer", fontSize: 12, padding: "1px 7px", lineHeight: 1.6, transition: "all .15s" }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = "#00c896"; e.currentTarget.style.color = "#00c896"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#2a3a50"; e.currentTarget.style.color = "#5a6a7e"; }}
+                  >↻ odśwież</button>
                 </div>
               )}
               {(() => {

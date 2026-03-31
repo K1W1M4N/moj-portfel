@@ -70,12 +70,29 @@ async function fetchViaProxy(symbols, exchanges = [], retries = 2) {
 
 // ─── Klucz cache localStorage dla cen akcji ──────────────────────────────────
 const PRICE_CACHE_KEY = "pt-stock-cache";
+const CACHE_TTL = 30 * 60 * 1000; // 30 minut
 
 function loadPriceCache() {
-  try { return JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) || "{}"); } catch { return {}; }
+  try {
+    const raw = JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) || "{}");
+    const now = Date.now();
+    return Object.fromEntries(Object.entries(raw).filter(([, v]) => v.ts && now - v.ts < CACHE_TTL));
+  } catch { return {}; }
 }
 function savePriceCache(cache) {
   try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+
+// Czy giełdy są prawdopodobnie otwarte (pon–pt, 8:00–22:00 czasu lokalnego)
+export function isMarketHours() {
+  const now = new Date();
+  const day = now.getDay(); // 0=niedz, 6=sob
+  if (day === 0 || day === 6) return false;
+  const h = now.getHours();
+  return h >= 8 && h < 22;
+}
+function getRefreshInterval() {
+  return isMarketHours() ? 5 * 60 * 1000 : 30 * 60 * 1000;
 }
 
 // ─── Hook: live ceny dla aktywów giełdowych ───────────────────────────────────
@@ -103,25 +120,25 @@ export function useStockPrices(assets) {
       const newPrices = {};
 
       if (symbols.length === 1) {
-        // Płaska odpowiedź: { price: "123.45" }
-        const priceVal = data?.prices?.[symbols[0]]?.price ?? data?.price;
+        const entry = data?.prices?.[symbols[0]];
+        const priceVal = entry?.price ?? data?.price;
         if (priceVal && !isNaN(parseFloat(priceVal))) {
           const asset = unique[0];
           const currency = asset?.stockCurrency || "PLN";
           const priceOrig = parseFloat(priceVal);
           const fx = fxRates[currency] || 1;
-          newPrices[symbols[0]] = { priceOrig, pricePLN: priceOrig * fx, currency, fx, ts: Date.now() };
+          newPrices[symbols[0]] = { priceOrig, pricePLN: priceOrig * fx, currency, fx, ts: Date.now(), provider: entry?.provider || data?.provider || null };
         }
       } else {
-        // Zagnieżdżona: { SYMBOL: { price: "..." } }
         for (const sym of symbols) {
-          const priceVal = data?.prices?.[sym]?.price ?? data?.[sym]?.price;
+          const entry = data?.prices?.[sym];
+          const priceVal = entry?.price ?? data?.[sym]?.price;
           if (priceVal && !isNaN(parseFloat(priceVal))) {
             const asset = unique.find(a => a.stockSymbol === sym);
             const currency = asset?.stockCurrency || "PLN";
             const priceOrig = parseFloat(priceVal);
             const fx = fxRates[currency] || 1;
-            newPrices[sym] = { priceOrig, pricePLN: priceOrig * fx, currency, fx, ts: Date.now() };
+            newPrices[sym] = { priceOrig, pricePLN: priceOrig * fx, currency, fx, ts: Date.now(), provider: entry?.provider || null };
           }
         }
       }
@@ -136,17 +153,20 @@ export function useStockPrices(assets) {
       }
     } catch (e) {
       console.warn("Stock proxy error:", e);
-      // Fallback — zostaw ostatnie zapisane ceny (już są w state z loadPriceCache)
     }
   }, [symbolKey]); // eslint-disable-line
 
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    let timer;
+    function schedule() {
+      timer = setTimeout(() => { fetchAll(); schedule(); }, getRefreshInterval());
+    }
+    schedule();
+    return () => clearTimeout(timer);
   }, [fetchAll]);
 
-  return { stockPrices, stockLastUpdated };
+  return { stockPrices, stockLastUpdated, refetchStocks: fetchAll };
 }
 
 // ─── Wyszukiwarka symboli (przez Twelve Data symbol_search — nie jest ograniczona limitem cen) ──
@@ -730,8 +750,13 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
           {stock.note && <Row label="Notatka" value={stock.note} />}
 
           {cacheAge !== null && (
-            <div style={{ fontSize: 10, color: "#3a4a5e", marginTop: 8 }}>
-              Cena z {cacheAge < 1 ? "chwilę temu" : `${cacheAge} min temu`}
+            <div style={{ fontSize: 10, color: "#3a4a5e", marginTop: 8, display: "flex", justifyContent: "space-between" }}>
+              <span>Cena z {cacheAge < 1 ? "chwilę temu" : `${cacheAge} min temu`}</span>
+              {priceData?.provider && (
+                <span style={{ color: "#2a3a4e", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {priceData.provider === "twelvedata" ? "twelve data" : priceData.provider}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -1376,6 +1401,10 @@ export function StockRow({ stock, stockPrices, onClick }) {
             {!hasLivePrice && (
               <span style={{ color: "#3a4a5e", marginLeft: 4 }}>• odświeżanie...</span>
             )}
+            {hasLivePrice && priceData?.ts && (() => {
+              const age = Math.round((Date.now() - priceData.ts) / 60000);
+              return age > 10 ? <span style={{ color: "#3a4a5e", marginLeft: 4 }}>• {age} min temu</span> : null;
+            })()}
           </div>
           {hasLivePrice && (
             <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0, whiteSpace: "nowrap", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
