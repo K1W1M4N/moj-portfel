@@ -569,11 +569,9 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
 
   const priceData = stockPrices[stock.stockSymbol];
   const isBroker = stock.stockBrokerValue != null;
-  const currentValuePLN = isBroker
-    ? stock.stockBrokerValue
-    : priceData
-      ? stock.stockQuantity * priceData.pricePLN
-      : stock.value;
+  const currentValuePLN = priceData
+    ? stock.stockQuantity * priceData.pricePLN
+    : isBroker ? stock.stockBrokerValue : stock.value;
 
   // Koszt zakupu — obsługa wszystkich trybów zapisu
   let paidPLN = stock.stockPaidPLN || 0;
@@ -582,7 +580,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
   }
   if (!paidPLN) paidPLN = stock.value;
 
-  const pnlPLN = isBroker ? (stock.stockBrokerPnl ?? 0) : currentValuePLN - paidPLN;
+  const pnlPLN = currentValuePLN - paidPLN;
   const pnlPct = paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : 0;
   const pnlColor = pnlPLN >= 0 ? "#00c896" : "#f05060";
   const hasLive = !!priceData;
@@ -1350,11 +1348,9 @@ export function StockRow({ stock, stockPrices, onClick }) {
 
   const priceData = stockPrices[stock.stockSymbol];
   const isBroker = stock.stockBrokerValue != null;
-  const currentValuePLN = isBroker
-    ? stock.stockBrokerValue
-    : priceData
-      ? stock.stockQuantity * priceData.pricePLN
-      : stock.value;
+  const currentValuePLN = priceData
+    ? stock.stockQuantity * priceData.pricePLN
+    : isBroker ? stock.stockBrokerValue : stock.value;
 
   // Koszt zakupu — obsługa wszystkich trybów
   let paidPLN = stock.stockPaidPLN || 0;
@@ -1363,7 +1359,7 @@ export function StockRow({ stock, stockPrices, onClick }) {
   }
   if (!paidPLN) paidPLN = stock.value;
 
-  const pnlPLN = isBroker ? (stock.stockBrokerPnl ?? 0) : currentValuePLN - paidPLN;
+  const pnlPLN = currentValuePLN - paidPLN;
   const pnlPct = paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : 0;
   const hasLivePrice = !!priceData;
 

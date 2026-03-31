@@ -1070,7 +1070,6 @@ export default function App() {
       return { ...a, value: getSavingsValue(a) };
     }
     if (a.isStock && a.stockSymbol) {
-      if (a.stockBrokerValue != null) return a; // tryb broker — wartość z ręcznego wpisu
       if (stockPrices[a.stockSymbol]) return { ...a, value: a.stockQuantity * stockPrices[a.stockSymbol].pricePLN };
     }
     if (a.isCommodity && a.commoditySymbol) {
