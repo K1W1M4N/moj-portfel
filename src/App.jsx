@@ -164,6 +164,8 @@ function BondRatesView() {
             const prevKey = allKeys[i - 1];
             return rates[key] !== rates[prevKey];
           }).slice(0, 8);
+          const prevRate = recentKeys.length > 1 ? rates[recentKeys[1]] : null;
+          const delta = latest && prevRate != null ? latest.rate - prevRate : null;
 
           return (
             <div key={type}
@@ -187,8 +189,15 @@ function BondRatesView() {
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   {latest ? (
                     <>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: info.color, fontFamily: "'DM Mono', monospace" }}>
-                        {(latest.rate * 100).toFixed(2)}%
+                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "flex-end", gap: 6 }}>
+                        {delta !== null && Math.abs(delta) > 0.00001 && (
+                          <span style={{ fontSize: 11, fontWeight: 500, color: delta > 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono', monospace" }}>
+                            {delta > 0 ? "+" : ""}{(delta * 100).toFixed(2)}%
+                          </span>
+                        )}
+                        <div style={{ fontSize: 20, fontWeight: 700, color: info.color, fontFamily: "'DM Mono', monospace" }}>
+                          {(latest.rate * 100).toFixed(2)}%
+                        </div>
                       </div>
                       <div style={{ fontSize: 10, color: "#4a5a6e" }}>rok 1 · {latest.month}</div>
                     </>
