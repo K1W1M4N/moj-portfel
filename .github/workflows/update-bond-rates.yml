@@ -23,7 +23,7 @@ jobs:
           python-version: '3.11'
 
       - name: Instaluj zależności
-        run: pip install requests openpyxl beautifulsoup4
+        run: pip install requests beautifulsoup4
 
       - name: Pobierz i zaktualizuj stawki
         run: python scripts/fetch_bond_rates.py
