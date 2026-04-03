@@ -108,6 +108,7 @@ function useCurrencyRates(assets) {
 
 // ─── Widok Obligacji ──────────────────────────────────────────────────────────
 const BOND_DESCRIPTIONS = {
+  OTS: { full: "Trzymiesięczne Oszczędnościowe Skarbowe", desc: "Stałe oprocentowanie przez 3 miesiące. Odsetki wypłacane jednorazowo w dniu wykupu. Wcześniejszy wykup po 7 dniach — zwrot kapitału bez odsetek.", color: "#34d399", years: 0.25 },
   TOS: { full: "Trzyletnie Oszczędnościowe Skarbowe", desc: "Stałe oprocentowanie przez 3 lata. Odsetki kapitalizowane rocznie — wypłata w dniu wykupu.", color: "#f0a030", years: 3 },
   COI: { full: "Czteroletnie Oszczędnościowe Indeksowane", desc: "Rok 1: stałe. Rok 2–4: inflacja GUS + marża 1,5%. Odsetki wypłacane co rok.", color: "#a78bfa", years: 4 },
   EDO: { full: "Emerytalne Dziesięcioletnie Oszczędnościowe", desc: "Rok 1: stałe. Rok 2–10: inflacja GUS + marża 2%. Odsetki kapitalizowane rocznie.", color: "#00c896", years: 10 },
@@ -182,7 +183,7 @@ function BondRatesView() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: info.color, flexShrink: 0 }} />
                     <span style={{ fontSize: 16, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>{type}</span>
-                    <span style={{ fontSize: 11, color: "#4a5a6e" }}>{info.years} {info.years === 1 ? "rok" : info.years < 5 ? "lata" : "lat"}</span>
+                    <span style={{ fontSize: 11, color: "#4a5a6e" }}>{info.years < 1 ? `${Math.round(info.years * 12)} mies.` : `${info.years} ${info.years === 1 ? "rok" : info.years < 5 ? "lata" : "lat"}`}</span>
                   </div>
                   <div style={{ fontSize: 11, color: "#5a6a7e", marginLeft: 16 }}>{info.full}</div>
                 </div>
@@ -199,7 +200,7 @@ function BondRatesView() {
                           {(latest.rate * 100).toFixed(2)}%
                         </div>
                       </div>
-                      <div style={{ fontSize: 10, color: "#4a5a6e" }}>rok 1 · {latest.month}</div>
+                      <div style={{ fontSize: 10, color: "#4a5a6e" }}>{info.years < 1 ? "stałe" : "rok 1"} · {latest.month}</div>
                     </>
                   ) : (
                     <div style={{ fontSize: 12, color: "#4a5a6e" }}>brak danych</div>

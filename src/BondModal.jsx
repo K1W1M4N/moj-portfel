@@ -5,6 +5,9 @@ import { INFLATION_HISTORY, getInflationForBondPeriod } from "./inflationData";
 
 // ─── Typy obligacji ───────────────────────────────────────────────────────────
 export const BOND_TYPES = {
+  // isShortTerm=true → kalkulacja prosta (odsetki = kapitał × stopa × dni/365),
+  //                     termin wykupu liczony w miesiącach (nie latach)
+  "OTS": { label:"OTS (3-miesięczne, stałe)", months:3, periods:1, defaultRate:0.0200, rateType:"fixed", coupon:false, earlyRedemptionCost:0, isShortTerm:true },
   "TOS": { label:"TOS (3-latki, stałe)", months:36, periods:3, defaultRate:0.0565, rateType:"fixed", coupon:false, earlyRedemptionCost:1.0 },
   "COI": { label:"COI (4-latki, inflacja)", months:48, periods:4, defaultRate:0.0500, rateType:"inflation", margin:0.015, coupon:true, earlyRedemptionCost:2.0 },
   "EDO": { label:"EDO (10-latki, inflacja)", months:120, periods:10, defaultRate:0.0625, rateType:"inflation", margin:0.02, coupon:false, earlyRedemptionCost:3.0 },
@@ -16,6 +19,15 @@ export const BOND_TYPES = {
 
 // ─── Silnik obliczeń ──────────────────────────────────────────────────────────
 function calcSingleBond(params, purchaseDate, today, rate1) {
+  // OTS i inne krótkoterminowe: prosta formuła odsetkowa (stawka roczna × dni/365)
+  if (params.isShortTerm) {
+    const matDate = new Date(purchaseDate);
+    matDate.setMonth(matDate.getMonth() + params.months);
+    const periodDays = (matDate - purchaseDate) / 86400000;
+    const elapsed = Math.max(0, Math.min((today - purchaseDate) / 86400000, periodDays));
+    return Math.round(100 * (1 + rate1 * elapsed / 365) * 100) / 100;
+  }
+
   let val = 100.0;
   for (let k = 0; k < params.periods; k++) {
     const pStart = new Date(purchaseDate);
@@ -53,7 +65,11 @@ export function calcBondCurrentValue(bond) {
   const today = new Date(); today.setHours(0,0,0,0);
   const purchase = new Date(purchaseDate); purchase.setHours(0,0,0,0);
   const maturityDate = new Date(purchase);
-  maturityDate.setFullYear(maturityDate.getFullYear() + params.periods);
+  if (params.isShortTerm) {
+    maturityDate.setMonth(maturityDate.getMonth() + params.months);
+  } else {
+    maturityDate.setFullYear(maturityDate.getFullYear() + params.periods);
+  }
 
   const progress = Math.min(1, Math.max(0, (today - purchase) / (maturityDate - purchase)));
   const totalNominal = quantity * 100;
@@ -110,10 +126,17 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
   const periods = [];
   if (params) {
     for (let k = 0; k < params.periods; k++) {
-      const pStart = new Date(bond.purchaseDate);
-      pStart.setFullYear(pStart.getFullYear() + k);
-      const pEnd = new Date(bond.purchaseDate);
-      pEnd.setFullYear(pEnd.getFullYear() + k + 1);
+      let pStart, pEnd;
+      if (params.isShortTerm) {
+        pStart = new Date(bond.purchaseDate);
+        pEnd = new Date(bond.purchaseDate);
+        pEnd.setMonth(pEnd.getMonth() + params.months);
+      } else {
+        pStart = new Date(bond.purchaseDate);
+        pStart.setFullYear(pStart.getFullYear() + k);
+        pEnd = new Date(bond.purchaseDate);
+        pEnd.setFullYear(pEnd.getFullYear() + k + 1);
+      }
       const today = new Date();
 
       let rate, rateLabel;
@@ -259,7 +282,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
                   <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
                     <div style={{width:5,height:5,borderRadius:"50%",background:isCurrent?"#00c896":isPast?"#2a3a50":"#3a4a5e",flexShrink:0}}/>
                     <span style={{fontSize:12,fontWeight:isCurrent?600:400,color:isCurrent?"#e8f0f8":isPast?"#3a4a5e":"#5a6a7e",whiteSpace:"nowrap"}}>
-                      Rok {k+1}
+                      {params.isShortTerm ? `Okres ${params.months} mies.` : `Rok ${k+1}`}
                     </span>
                     {isCurrent && (
                       <span style={{fontSize:9,color:"#00c896",background:"#00c89620",padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap"}}>
