@@ -241,8 +241,8 @@ function SymbolSearch({ initialValue, onSelect }) {
     setLoading(true);
     timerRef.current = setTimeout(async () => {
       try {
-        // Auto-strip końcówki giełdy (np. IUSQ.DE → IUSQ)
-        const cleanQ = q.replace(/\.[A-Z]{1,4}$/, "");
+        // Auto-strip końcówki giełdy (np. IUSQ.DE → IUSQ, CDR.WA → CDR)
+        const cleanQ = q.replace(/\.[A-Z]+$/, "").trim();
         const res = await fetch(
           `https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(cleanQ)}&outputsize=30&apikey=${TWELVE_DATA_KEY}`
         );
@@ -273,7 +273,7 @@ function SymbolSearch({ initialValue, onSelect }) {
     <div ref={wrapRef} style={{ position: "relative" }}>
       <input
         style={baseInp}
-        placeholder="Wpisz nazwę lub ticker, np. IUSQ, Apple, PKN..."
+        placeholder="np. IUSQ, CDR, NVDA (bez .DE .WA)"
         value={query}
         onChange={handleInput}
         onFocus={e => { setOpen(true); focusInp(e); }}

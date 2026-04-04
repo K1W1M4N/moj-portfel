@@ -50,8 +50,29 @@ function fmtSmall(n) {
   return n.toLocaleString("pl-PL", { maximumFractionDigits: 4 });
 }
 
+// ─── Cache kursów krypto ──────────────────────────────────────────────────────
+const CRYPTO_CACHE_KEY = "pt-crypto-cache";
+const CRYPTO_CACHE_TTL = 10 * 60 * 1000; // 10 minut
+
+function loadCryptoCache() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CRYPTO_CACHE_KEY) || "{}");
+    const now = Date.now();
+    return Object.fromEntries(Object.entries(raw).filter(([, v]) => v.ts && now - v.ts < CRYPTO_CACHE_TTL));
+  } catch { return {}; }
+}
+function saveCryptoCache(data) {
+  try {
+    const withTs = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, { ...v, ts: Date.now() }]));
+    localStorage.setItem(CRYPTO_CACHE_KEY, JSON.stringify(withTs));
+  } catch {}
+}
+function loadStaleCryptoCache() {
+  try { return JSON.parse(localStorage.getItem(CRYPTO_CACHE_KEY) || "{}"); } catch { return {}; }
+}
+
 function useCryptoPrices(assets) {
-  const [prices, setPrices] = useState({});
+  const [prices, setPrices] = useState(() => loadCryptoCache());
   const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
@@ -59,17 +80,46 @@ function useCryptoPrices(assets) {
     if (cryptoAssets.length === 0) return;
     const ids = [...new Set(cryptoAssets.map(a => a.cryptoId))].join(",");
 
-    async function fetchPrices() {
+    const attemptFetch = async () => {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 8000);
       try {
         const res = await fetch(
-          `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=pln&include_24hr_change=true`
+          `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=pln&include_24hr_change=true`,
+          { signal: controller.signal }
         );
-        if (!res.ok) return;
-        const data = await res.json();
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } finally {
+        clearTimeout(tid);
+      }
+    };
+
+    async function fetchPrices() {
+      try {
+        let data;
+        try {
+          data = await attemptFetch();
+        } catch (e) {
+          if (e.name === "AbortError") {
+            await new Promise(r => setTimeout(r, 3000));
+            data = await attemptFetch();
+          } else {
+            throw e;
+          }
+        }
+        saveCryptoCache(data);
         setPrices(data);
         setLastUpdated(new Date());
       } catch (e) {
         console.warn("CoinGecko error:", e);
+        const stale = loadStaleCryptoCache();
+        if (Object.keys(stale).length > 0) {
+          const marked = Object.fromEntries(Object.entries(stale).map(([k, v]) => [k, { ...v, stale: true }]));
+          setPrices(prev => ({ ...prev, ...marked }));
+          const latestTs = Math.max(...Object.values(stale).map(v => v.ts || 0));
+          if (latestTs > 0) setLastUpdated(new Date(latestTs));
+        }
       }
     }
 
@@ -823,11 +873,13 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
   let change24h = null;
   let cryptoPrice = null;
 
+  let isCryptoStale = false;
   if (asset.cryptoId && asset.cryptoId !== "other" && prices[asset.cryptoId]) {
     const priceData = prices[asset.cryptoId];
     cryptoPrice = priceData.pln;
     displayValue = asset.cryptoAmount * cryptoPrice;
     change24h = priceData.pln_24h_change;
+    isCryptoStale = !!priceData.stale;
     if (asset.cryptoPaid && asset.cryptoPaid > 0) {
       pnlAmt = displayValue - asset.cryptoPaid;
       pnlPct = (pnlAmt / asset.cryptoPaid) * 100;
@@ -853,7 +905,7 @@ function AssetRow({ asset, total, categories, prices, onClick }) {
             {asset.name}
           </div>
           <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'DM Mono', monospace", color: "#e8f0f8", flexShrink: 0 }}>
-            {fmt(displayValue)}
+            {isCryptoStale ? "~" : ""}{fmt(displayValue)}
           </div>
         </div>
         {hasSubline && (
