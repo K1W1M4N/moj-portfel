@@ -49,22 +49,32 @@ export async function fetchFxRate(currency) {
   return fallback[currency] || 4.0;
 }
 
-// ─── Fetch przez proxy z retry ────────────────────────────────────────────────
-async function fetchViaProxy(symbols, exchanges = [], retries = 2) {
+// ─── Fetch przez proxy — timeout 8s, 1 retry po 3s przy timeout ──────────────
+async function fetchViaProxy(symbols, exchanges = []) {
   const symStr = Array.isArray(symbols) ? symbols.join(",") : symbols;
   const exchStr = Array.isArray(exchanges) ? exchanges.join(",") : (exchanges || "");
   const url = `${PROXY_BASE}?symbols=${encodeURIComponent(symStr)}${exchStr ? `&exchanges=${encodeURIComponent(exchStr)}` : ""}`;
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  const attemptFetch = async () => {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
     try {
-      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt));
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: controller.signal });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      return data;
-    } catch (e) {
-      if (attempt === retries) throw e;
+      return await res.json();
+    } finally {
+      clearTimeout(tid);
     }
+  };
+
+  try {
+    return await attemptFetch();
+  } catch (e) {
+    if (e.name === "AbortError") {
+      await new Promise(r => setTimeout(r, 3000));
+      return await attemptFetch();
+    }
+    throw e;
   }
 }
 
@@ -81,6 +91,9 @@ function loadPriceCache() {
 }
 function savePriceCache(cache) {
   try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+function loadStalePriceCache() {
+  try { return JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) || "{}"); } catch { return {}; }
 }
 
 // Czy giełdy są prawdopodobnie otwarte (pon–pt, 8:00–22:00 czasu lokalnego)
@@ -153,6 +166,13 @@ export function useStockPrices(assets) {
       }
     } catch (e) {
       console.warn("Stock proxy error:", e);
+      const stale = loadStalePriceCache();
+      if (Object.keys(stale).length > 0) {
+        const marked = Object.fromEntries(Object.entries(stale).map(([k, v]) => [k, { ...v, stale: true }]));
+        setStockPrices(prev => ({ ...prev, ...marked }));
+        const latestTs = Math.max(...Object.values(stale).map(v => v.ts || 0));
+        if (latestTs > 0) setStockLastUpdated(new Date(latestTs));
+      }
     }
   }, [symbolKey]); // eslint-disable-line
 
@@ -1383,7 +1403,7 @@ export function StockRow({ stock, stockPrices, onClick }) {
             </span>
           </div>
           <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'DM Mono', monospace", color: "#e8f0f8", flexShrink: 0 }}>
-            {fmtPLN2(currentValuePLN)}
+            {priceData?.stale ? "~" : ""}{fmtPLN2(currentValuePLN)}
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
@@ -1391,7 +1411,7 @@ export function StockRow({ stock, stockPrices, onClick }) {
             {stock.stockQuantity > 0 && `${Number(stock.stockQuantity).toFixed(4)} szt.`}
             {priceData && (
               <span style={{ marginLeft: 4, color: "#5a6a7e" }}>
-                @ {priceData.priceOrig.toFixed(2)} {stock.stockCurrency}
+                @ {priceData.stale ? "~" : ""}{priceData.priceOrig.toFixed(2)} {stock.stockCurrency}
               </span>
             )}
             {!hasLivePrice && (

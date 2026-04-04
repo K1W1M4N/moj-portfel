@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { Component, useState, useRef, useEffect, useCallback } from "react";
 import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./BondModal";
 import { StockModal, StockRow, StockDetailPanel, useStockPrices, isMarketHours } from "./StockModal";
 import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue } from "./SavingsModal";
@@ -998,6 +998,40 @@ function MoveAssetModal({ asset, portfolios, onClose, onConfirm }) {
   )
 }
 
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err, info) { console.error("ErrorBoundary:", err, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ background: "#161d28", border: "1px solid #2a3a50", borderRadius: 12, padding: 24, textAlign: "center", color: "#8a9bb0", margin: "16px 0" }}>
+          <div style={{ fontSize: 13, marginBottom: 12 }}>Nie udało się załadować tej sekcji</div>
+          <button
+            onClick={() => this.setState({ hasError: false })}
+            style={{ padding: "6px 16px", borderRadius: 8, background: "#1e2a38", border: "1px solid #2a3a50", color: "#e8f0f8", cursor: "pointer", fontSize: 12, fontFamily: "'Sora', sans-serif" }}>
+            Spróbuj ponownie
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ─── Wersja schematu localStorage ────────────────────────────────────────────
+const SCHEMA_VERSION = 1;
+
+function migrateData(oldVersion) {
+  // v0 → v1: brak migracji danych, tylko zapis wersji
+  // Przyszłe migracje: if (oldVersion < 2) { ... }
+  try { localStorage.setItem("pt-schema-version", String(SCHEMA_VERSION)); } catch {}
+}
+
 // ─── Główna aplikacja ─────────────────────────────────────────────────────────
 export default function App() {
   const [welcomed, setWelcomed] = useState(() => {
@@ -1093,6 +1127,13 @@ export default function App() {
     }
     return a;
   });
+
+  useEffect(() => {
+    try {
+      const stored = parseInt(localStorage.getItem("pt-schema-version") || "0", 10);
+      if (stored < SCHEMA_VERSION) migrateData(stored);
+    } catch {}
+  }, []); // eslint-disable-line
 
   useEffect(() => { try { localStorage.setItem("pt-portfolios", JSON.stringify(portfolios)); } catch {} }, [portfolios]);
   useEffect(() => { try { localStorage.setItem("pt-active-portfolio", activePortfolioId); } catch {} }, [activePortfolioId]);
@@ -1285,7 +1326,7 @@ export default function App() {
         )}
 
         {/* ── Widok obligacji ── */}
-        {currentView === "bonds" && <BondRatesView />}
+        {currentView === "bonds" && <ErrorBoundary key="bonds-view"><BondRatesView /></ErrorBoundary>}
 
         {/* ── Widok portfolio ── */}
         {currentView === "portfolio" && (
@@ -1411,6 +1452,7 @@ export default function App() {
             </div>
 
             {/* Lista aktywów */}
+            <ErrorBoundary key="asset-list">
             {visible.length === 0 ? (
               <div style={{ background: "#161d28", border: "1px dashed #1e2a38", borderRadius: 12, padding: 32, textAlign: "center", color: "#4a5a6e", fontSize: 13, lineHeight: 1.7 }}>
                 {assets.length === 0
@@ -1437,6 +1479,7 @@ export default function App() {
                 </div>
               ))
             )}
+            </ErrorBoundary>
 
             {/* Stopka */}
             <div style={{ textAlign: "center", fontSize: 11, color: "#4a5a6e", marginTop: 28, paddingBottom: 16 }}>
