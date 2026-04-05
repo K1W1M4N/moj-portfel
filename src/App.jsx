@@ -1385,12 +1385,6 @@ export default function App() {
     } catch {}
   }, []); // eslint-disable-line
 
-  useEffect(() => {
-    if (snapshotTakenRef.current || total <= 0) return;
-    snapshotTakenRef.current = true;
-    setHistory(h => saveSnapshot(h, total, assetsWithLivePrices, categories));
-  }, [total]); // eslint-disable-line
-
   useEffect(() => { try { localStorage.setItem("pt-portfolios", JSON.stringify(portfolios)); } catch {} }, [portfolios]);
   useEffect(() => { try { localStorage.setItem("pt-active-portfolio", activePortfolioId); } catch {} }, [activePortfolioId]);
   useEffect(() => { try { localStorage.setItem("pt-assets", JSON.stringify(allAssets)); } catch {} }, [allAssets]);
@@ -1483,6 +1477,14 @@ export default function App() {
   }
 
   const total = assetsWithLivePrices.reduce((s, a) => s + a.value, 0);
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (snapshotTakenRef.current || total <= 0) return;
+    snapshotTakenRef.current = true;
+    setHistory(h => saveSnapshot(h, total, assetsWithLivePrices, categories));
+  }, [total]); // eslint-disable-line
+
   const visible = activeFilter ? assetsWithLivePrices.filter(a => a.category === activeFilter) : assetsWithLivePrices;
   const usedCats = categories.filter(c => assetsWithLivePrices.some(a => a.category === c.name));
 
