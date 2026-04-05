@@ -78,6 +78,169 @@ async function fetchViaProxy(symbols, exchanges = []) {
   }
 }
 
+// ─── Helper: czas temu (pl) ───────────────────────────────────────────────────
+function timeAgo(ms) {
+  const diff = Date.now() - ms;
+  const min  = Math.floor(diff / 60000);
+  const h    = Math.floor(diff / 3600000);
+  const d    = Math.floor(diff / 86400000);
+  if (d > 30) return new Date(ms).toLocaleDateString("pl-PL", { day: "numeric", month: "short" });
+  if (d >= 1)  return `${d} ${d === 1 ? "dzień" : d < 5 ? "dni" : "dni"} temu`;
+  if (h >= 1)  return `${h} godz. temu`;
+  if (min >= 1) return `${min} min temu`;
+  return "przed chwilą";
+}
+
+// ─── Cache newsów ─────────────────────────────────────────────────────────────
+const NEWS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 godziny
+
+function loadNewsCache(symbol) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(`pt-news-${symbol}`) || "null");
+    if (!raw || !raw.fetchedAt || Date.now() - raw.fetchedAt > NEWS_CACHE_TTL) return null;
+    return raw;
+  } catch { return null; }
+}
+
+function saveNewsCache(symbol, data) {
+  try { localStorage.setItem(`pt-news-${symbol}`, JSON.stringify(data)); } catch {}
+}
+
+function useStockNews(symbol) {
+  const [data, setData]       = useState(() => loadNewsCache(symbol));
+  const [loading, setLoading] = useState(false);
+
+  const fetchNews = useCallback(async () => {
+    if (!symbol) return;
+    setLoading(true);
+    try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 10000);
+      try {
+        const res = await fetch(`/api/stock-news?symbol=${encodeURIComponent(symbol)}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        saveNewsCache(symbol, json);
+        setData(json);
+      } finally {
+        clearTimeout(tid);
+      }
+    } catch (e) {
+      console.warn("News fetch error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [symbol]);
+
+  useEffect(() => {
+    const cached = loadNewsCache(symbol);
+    if (cached) { setData(cached); return; }
+    fetchNews();
+    const interval = setInterval(fetchNews, NEWS_CACHE_TTL);
+    return () => clearInterval(interval);
+  }, [symbol, fetchNews]);
+
+  return { articles: data?.articles || [], fetchedAt: data?.fetchedAt ?? null, loading, refresh: fetchNews };
+}
+
+// ─── Komponent: sekcja newsów w panelu szczegółów ─────────────────────────────
+function StockNewsSection({ symbol, pnlPct }) {
+  const { articles, fetchedAt, loading, refresh } = useStockNews(symbol);
+  const bigMove = Math.abs(pnlPct) >= 5;
+  const moveUp  = pnlPct >= 0;
+  const accentColor = moveUp ? "#00c896" : "#f05060";
+
+  return (
+    <div style={{ background: "#0f1a27", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
+      {/* Nagłówek sekcji */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: "#5a7a9e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          Aktualności
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {fetchedAt && !loading && (
+            <span style={{ fontSize: 10, color: "#3a4a5e" }}>
+              {timeAgo(fetchedAt)}
+            </span>
+          )}
+          <button
+            onClick={refresh} disabled={loading}
+            title="Odśwież newsy"
+            style={{
+              fontSize: 13, color: loading ? "#3a4a5e" : "#4a7a9e",
+              background: "transparent", border: "1px solid #2a3a50",
+              borderRadius: 5, padding: "1px 7px", cursor: loading ? "default" : "pointer",
+              fontFamily: "'Sora', sans-serif", lineHeight: "18px",
+              transition: "color .15s, border-color .15s",
+            }}
+            onMouseEnter={e => { if (!loading) { e.currentTarget.style.color = "#8ab8de"; e.currentTarget.style.borderColor = "#4a6a8e"; } }}
+            onMouseLeave={e => { e.currentTarget.style.color = loading ? "#3a4a5e" : "#4a7a9e"; e.currentTarget.style.borderColor = "#2a3a50"; }}
+          >
+            {loading ? "···" : "↻"}
+          </button>
+        </div>
+      </div>
+
+      {/* Banner kontekstowy przy dużej zmianie kursu */}
+      {bigMove && (
+        <div style={{
+          background: `${accentColor}10`,
+          border: `1px solid ${accentColor}35`,
+          borderRadius: 8, padding: "8px 11px", marginBottom: 10,
+          fontSize: 11, color: accentColor, lineHeight: 1.5,
+        }}>
+          <span style={{ fontWeight: 600 }}>
+            {moveUp ? "▲" : "▼"} Kurs zmienił się o {moveUp ? "+" : ""}{pnlPct.toFixed(1)}% od zakupu.
+          </span>
+          {" "}Poniższe newsy mogły mieć wpływ na tę zmianę.
+        </div>
+      )}
+
+      {/* Stan: ładowanie */}
+      {loading && articles.length === 0 && (
+        <div style={{ fontSize: 12, color: "#3a4a5e", textAlign: "center", padding: "14px 0" }}>
+          Wczytywanie newsów…
+        </div>
+      )}
+
+      {/* Stan: brak wyników */}
+      {!loading && articles.length === 0 && (
+        <div style={{ fontSize: 12, color: "#3a4a5e", textAlign: "center", padding: "14px 0" }}>
+          Brak newsów dla tego symbolu
+        </div>
+      )}
+
+      {/* Lista artykułów */}
+      {articles.map((a, i) => (
+        <a
+          key={i}
+          href={a.link} target="_blank" rel="noopener noreferrer"
+          style={{
+            display: "block", textDecoration: "none",
+            paddingBottom: i < articles.length - 1 ? 9 : 0,
+            borderBottom: i < articles.length - 1 ? "1px solid #1a2535" : "none",
+            marginBottom: i < articles.length - 1 ? 9 : 0,
+          }}>
+          <div style={{ fontSize: 12, color: "#c8d8e8", lineHeight: 1.45, marginBottom: 3, transition: "color .1s" }}
+            onMouseEnter={e => e.currentTarget.style.color = "#e8f4ff"}
+            onMouseLeave={e => e.currentTarget.style.color = "#c8d8e8"}
+          >
+            {a.title}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 10, color: "#3a5a7e" }}>{a.publisher}</span>
+            {a.publishedAt && (
+              <span style={{ fontSize: 10, color: "#3a4a5e" }}>{timeAgo(a.publishedAt)}</span>
+            )}
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 // ─── Klucz cache localStorage dla cen akcji ──────────────────────────────────
 const PRICE_CACHE_KEY = "pt-stock-cache";
 const CACHE_TTL = 30 * 60 * 1000; // 30 minut
@@ -778,6 +941,9 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
             </div>
           )}
         </div>
+
+        {/* Aktualności i kontekst */}
+        <StockNewsSection symbol={stock.stockSymbol} pnlPct={pnlPct} />
       </div>
     </div>
   );
