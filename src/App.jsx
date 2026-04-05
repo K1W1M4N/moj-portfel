@@ -7,6 +7,7 @@ import { CurrencyModal, CurrencyRow, SUPPORTED_CURRENCIES } from "./CurrencyModa
 import { fetchFxRate } from "./fxUtils";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
+import { MarketView } from "./MarketView";
 
 const CRYPTO_LIST = [
   { label: "Bitcoin (BTC)",    id: "bitcoin" },
@@ -313,6 +314,7 @@ function MenuDropdown({ onNavigate }) {
     { id: "savings", label: "Konta Oszcz.", desc: "Zarządzaj kontami" },
     { id: "bonds",   label: "Obligacje", desc: "Aktualne stawki" },
     { id: "history", label: "Historia", desc: "Wartość portfela w czasie" },
+    { id: "market",  label: "Rynek", desc: "Liderzy wzrostów i newsy" },
   ];
 
   return (
@@ -1585,6 +1587,9 @@ export default function App() {
 
         {/* ── Widok historii ── */}
         {currentView === "history" && <HistoryView history={history} />}
+
+        {/* ── Widok rynku ── */}
+        {currentView === "market" && <MarketView />}
 
         {/* ── Widok obligacji ── */}
         {currentView === "bonds" && <ErrorBoundary key="bonds-view"><BondRatesView /></ErrorBoundary>}
