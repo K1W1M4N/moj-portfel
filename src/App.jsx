@@ -50,6 +50,12 @@ function fmtSmall(n) {
   return n.toLocaleString("pl-PL", { maximumFractionDigits: 4 });
 }
 
+function fmtK(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(".", ",") + " M";
+  if (n >= 1000) return Math.round(n / 1000) + " k";
+  return Math.round(n).toString();
+}
+
 // ─── Cache kursów krypto ──────────────────────────────────────────────────────
 const CRYPTO_CACHE_KEY = "pt-crypto-cache";
 const CRYPTO_CACHE_TTL = 10 * 60 * 1000; // 10 minut
@@ -306,6 +312,7 @@ function MenuDropdown({ onNavigate }) {
   const items = [
     { id: "savings", label: "Konta Oszcz.", desc: "Zarządzaj kontami" },
     { id: "bonds",   label: "Obligacje", desc: "Aktualne stawki" },
+    { id: "history", label: "Historia", desc: "Wartość portfela w czasie" },
   ];
 
   return (
@@ -1050,6 +1057,190 @@ function MoveAssetModal({ asset, portfolios, onClose, onConfirm }) {
   )
 }
 
+// ─── Historia wartości portfela ───────────────────────────────────────────────
+function saveSnapshot(history, total, assetsWithLivePrices, categories) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (history.length > 0 && history[history.length - 1].date === today) return history;
+  const byCategory = {};
+  categories.forEach(c => {
+    const val = assetsWithLivePrices.filter(a => a.category === c.name).reduce((s, a) => s + a.value, 0);
+    if (val > 0) byCategory[c.name] = Math.round(val * 100) / 100;
+  });
+  const next = [...history, { date: today, total: Math.round(total * 100) / 100, byCategory }];
+  while (next.length > 365) next.shift();
+  try { localStorage.setItem("pt-history", JSON.stringify(next)); } catch {}
+  return next;
+}
+
+function HistoryChart({ history }) {
+  const canvasRef = useRef(null);
+  const [tooltip, setTooltip] = useState(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || history.length < 2) return;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.offsetWidth;
+    const H = canvas.offsetHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    const values = history.map(e => e.total);
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const range = maxV - minV || 1;
+    const pad = { top: 20, right: 16, bottom: 32, left: 64 };
+    const chartW = W - pad.left - pad.right;
+    const chartH = H - pad.top - pad.bottom;
+
+    const xOf = i => pad.left + (i / (history.length - 1)) * chartW;
+    const yOf = v => pad.top + (1 - (v - minV) / range) * chartH;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Poziome linie siatki
+    ctx.strokeStyle = "#1e2a38";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (i / 4) * chartH;
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(W - pad.right, y);
+      ctx.stroke();
+      ctx.fillStyle = "#4a5a6e";
+      ctx.font = `11px 'DM Mono', monospace`;
+      ctx.textAlign = "right";
+      ctx.fillText(fmtK(maxV - (i / 4) * range), pad.left - 6, y + 4);
+    }
+
+    // Wypełnienie gradientem
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+    grad.addColorStop(0, "rgba(0,200,150,0.25)");
+    grad.addColorStop(1, "rgba(0,200,150,0)");
+    ctx.beginPath();
+    history.forEach((e, i) => {
+      i === 0 ? ctx.moveTo(xOf(i), yOf(e.total)) : ctx.lineTo(xOf(i), yOf(e.total));
+    });
+    ctx.lineTo(xOf(history.length - 1), pad.top + chartH);
+    ctx.lineTo(xOf(0), pad.top + chartH);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Linia
+    ctx.beginPath();
+    history.forEach((e, i) => {
+      i === 0 ? ctx.moveTo(xOf(i), yOf(e.total)) : ctx.lineTo(xOf(i), yOf(e.total));
+    });
+    ctx.strokeStyle = "#00c896";
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    // Etykiety osi X (max 6)
+    const labelCount = Math.min(6, history.length);
+    ctx.fillStyle = "#4a5a6e";
+    ctx.font = `10px 'DM Mono', monospace`;
+    ctx.textAlign = "center";
+    for (let i = 0; i < labelCount; i++) {
+      const idx = Math.round((i / (labelCount - 1)) * (history.length - 1));
+      ctx.fillText(history[idx].date.slice(5), xOf(idx), H - pad.bottom + 16);
+    }
+
+    // Kropka tooltipa
+    if (tooltip !== null && tooltip >= 0 && tooltip < history.length) {
+      const x = xOf(tooltip), y = yOf(history[tooltip].total);
+      ctx.beginPath(); ctx.arc(x, y, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = "#00c896"; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, 2 * Math.PI);
+      ctx.fillStyle = "#0a0e14"; ctx.fill();
+    }
+  }, [history, tooltip]);
+
+  function handleMouseMove(e) {
+    const canvas = canvasRef.current;
+    if (!canvas || history.length < 2) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const W = canvas.offsetWidth;
+    const pad = { left: 64, right: 16 };
+    const frac = (x - pad.left) / (W - pad.left - pad.right);
+    const idx = Math.round(frac * (history.length - 1));
+    setTooltip(idx >= 0 && idx < history.length ? idx : null);
+  }
+
+  const active = tooltip !== null ? history[tooltip] : null;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <canvas ref={canvasRef} style={{ width: "100%", height: 200, display: "block" }}
+        onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)} />
+      {active && (
+        <div style={{
+          position: "absolute", top: 8, left: 74, background: "#1a2535",
+          border: "1px solid #2a3a50", borderRadius: 8, padding: "6px 12px",
+          pointerEvents: "none", fontSize: 12, lineHeight: 1.6,
+        }}>
+          <div style={{ color: "#5a6a7e", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>{active.date}</div>
+          <div style={{ color: "#00c896", fontWeight: 600 }}>{fmt(active.total)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryView({ history }) {
+  if (history.length === 0) {
+    return (
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: "60px 16px 32px", textAlign: "center", color: "#5a6a7e" }}>
+        <div style={{ fontSize: 13 }}>Brak danych historycznych</div>
+        <div style={{ fontSize: 12, marginTop: 8, color: "#3a4a5e" }}>Snapshoty są tworzone automatycznie raz dziennie przy starcie aplikacji.</div>
+      </div>
+    );
+  }
+
+  const today = history[history.length - 1];
+  const monthAgo = history.length >= 30 ? history[history.length - 30] : history[0];
+  const diff = today.total - monthAgo.total;
+  const diffPct = monthAgo.total > 0 ? (diff / monthAgo.total) * 100 : 0;
+  const isPos = diff >= 0;
+
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 16px 32px" }}>
+      <div style={{ fontSize: 13, color: "#5a6a7e", marginBottom: 20 }}>
+        Wartość portfela w czasie ({history.length} {history.length === 1 ? "dzień" : "dni"})
+      </div>
+
+      <div style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "20px 16px", marginBottom: 16 }}>
+        <HistoryChart history={history} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+        <div style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 12, padding: "16px 14px" }}>
+          <div style={{ fontSize: 11, color: "#4a5a6e", marginBottom: 6, fontFamily: "'DM Mono', monospace" }}>DZIŚ</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>{fmt(today.total)}</div>
+        </div>
+        <div style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 12, padding: "16px 14px" }}>
+          <div style={{ fontSize: 11, color: "#4a5a6e", marginBottom: 6, fontFamily: "'DM Mono', monospace" }}>MIESIĄC TEMU</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>{fmt(monthAgo.total)}</div>
+          {history.length < 30 && <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 4 }}>({monthAgo.date})</div>}
+        </div>
+        <div style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 12, padding: "16px 14px" }}>
+          <div style={{ fontSize: 11, color: "#4a5a6e", marginBottom: 6, fontFamily: "'DM Mono', monospace" }}>ZMIANA</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: isPos ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
+            {isPos ? "+" : ""}{diffPct.toFixed(1)}%
+          </div>
+          <div style={{ fontSize: 11, color: isPos ? "#00c896" : "#f05060", marginTop: 2 }}>
+            {isPos ? "+" : ""}{fmt(diff)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -1076,11 +1267,13 @@ class ErrorBoundary extends Component {
 }
 
 // ─── Wersja schematu localStorage ────────────────────────────────────────────
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 function migrateData(oldVersion) {
   // v0 → v1: brak migracji danych, tylko zapis wersji
-  // Przyszłe migracje: if (oldVersion < 2) { ... }
+  if (oldVersion < 2) {
+    try { if (!localStorage.getItem("pt-history")) localStorage.setItem("pt-history", "[]"); } catch {}
+  }
   try { localStorage.setItem("pt-schema-version", String(SCHEMA_VERSION)); } catch {}
 }
 
@@ -1154,6 +1347,11 @@ export default function App() {
   const { commodityPrices, commodityLastUpdated } = useCommodityPrices(assets);
   const { rates, lastUpdated: currencyLastUpdated } = useCurrencyRates(assets);
 
+  const [history, setHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("pt-history") || "[]"); } catch { return []; }
+  });
+  const snapshotTakenRef = useRef(false);
+
   const [editingPortfolio, setEditingPortfolio] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState("");
 
@@ -1186,6 +1384,12 @@ export default function App() {
       if (stored < SCHEMA_VERSION) migrateData(stored);
     } catch {}
   }, []); // eslint-disable-line
+
+  useEffect(() => {
+    if (snapshotTakenRef.current || total <= 0) return;
+    snapshotTakenRef.current = true;
+    setHistory(h => saveSnapshot(h, total, assetsWithLivePrices, categories));
+  }, [total]); // eslint-disable-line
 
   useEffect(() => { try { localStorage.setItem("pt-portfolios", JSON.stringify(portfolios)); } catch {} }, [portfolios]);
   useEffect(() => { try { localStorage.setItem("pt-active-portfolio", activePortfolioId); } catch {} }, [activePortfolioId]);
@@ -1376,6 +1580,9 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* ── Widok historii ── */}
+        {currentView === "history" && <HistoryView history={history} />}
 
         {/* ── Widok obligacji ── */}
         {currentView === "bonds" && <ErrorBoundary key="bonds-view"><BondRatesView /></ErrorBoundary>}
