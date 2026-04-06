@@ -7,6 +7,7 @@ import { CurrencyModal, CurrencyRow, SUPPORTED_CURRENCIES } from "./CurrencyModa
 import { fetchFxRate } from "./fxUtils";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
+import { SAVINGS_RATES_DB } from "./savingsRates";
 import { MarketView } from "./MarketView";
 
 const CRYPTO_LIST = [
@@ -1343,6 +1344,8 @@ export default function App() {
   const [selectedSavings, setSelectedSavings] = useState(null);
   const [showSavingsForm, setShowSavingsForm] = useState(false);
   const [editingSavings, setEditingSavings] = useState(null);
+  const [offersPage, setOffersPage] = useState(1);
+  const [expandedOffer, setExpandedOffer] = useState(null);
 
   const { prices, lastUpdated } = useCryptoPrices(assets);
   const { stockPrices, stockLastUpdated, refetchStocks } = useStockPrices(assets);
@@ -1554,36 +1557,266 @@ export default function App() {
         </div>
 
         {/* ── Widok kont oszczędnościowych ── */}
-        {currentView === "savings" && (
-          <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 16px 32px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 13, color: "#5a6a7e" }}>Twoje konta oszczędnościowe w tym portfelu</div>
-              <button onClick={() => setShowSavingsForm(true)}
-                style={{ padding: "8px 16px", borderRadius: 8, background: "#00c896", color: "#000", fontWeight: 700, fontSize: 12, border: "none", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
-                + Dodaj konto
-              </button>
-            </div>
-            
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-              {assetsWithLivePrices.filter(a => a.isSavings).map(account => (
-                <div key={account.id}
-                  onClick={() => setSelectedSavings(account)}
-                  style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 14, padding: "16px", cursor: "pointer", transition: "all .15s" }}>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "#00c896", marginBottom: 4, fontFamily: "'DM Mono',monospace" }}>{account.savingsBankName}</div>
-                  <div style={{ fontSize: 12, color: "#8a9bb0", display: "flex", justifyContent: "space-between" }}>
-                    <span>Saldo: {new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:0}).format(account.savingsBalance)}</span>
-                    <span style={{ color: "#e8f0f8" }}>{account.savingsRate}%</span>
+        {currentView === "savings" && (() => {
+          const sortedOffers = [...SAVINGS_RATES_DB.accounts].sort((a, b) => {
+            const rateA = a.ratePromo ?? a.rateStandard;
+            const rateB = b.ratePromo ?? b.rateStandard;
+            return rateB - rateA;
+          });
+          const PAGE_SIZE = 8;
+          const visibleOffers = sortedOffers.slice(0, offersPage * PAGE_SIZE);
+          const hasMore = visibleOffers.length < sortedOffers.length;
+          const fmt = v => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 }).format(v);
+
+          return (
+            <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 16px 32px" }}>
+              {/* Twoje konta */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 13, color: "#5a6a7e" }}>Twoje konta oszczędnościowe w tym portfelu</div>
+                <button onClick={() => setShowSavingsForm(true)}
+                  style={{ padding: "8px 16px", borderRadius: 8, background: "#00c896", color: "#000", fontWeight: 700, fontSize: 12, border: "none", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+                  + Dodaj konto
+                </button>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                {assetsWithLivePrices.filter(a => a.isSavings).map(account => (
+                  <div key={account.id}
+                    onClick={() => setSelectedSavings(account)}
+                    style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 14, padding: "16px", cursor: "pointer", transition: "all .15s" }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "#00c896", marginBottom: 4, fontFamily: "'DM Mono',monospace" }}>{account.savingsBankName}</div>
+                    <div style={{ fontSize: 12, color: "#8a9bb0", display: "flex", justifyContent: "space-between" }}>
+                      <span>Saldo: {new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:0}).format(account.savingsBalance)}</span>
+                      <span style={{ color: "#e8f0f8" }}>{account.savingsRate}%</span>
+                    </div>
+                  </div>
+                ))}
+                {assetsWithLivePrices.filter(a => a.isSavings).length === 0 && (
+                  <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "40px 0", color: "#5a6a7e", fontSize: 13, background: "#161d28", borderRadius: 12, border: "2px dashed #2a3a50" }}>
+                    Brak zapisanych kont oszczędnościowych. Kliknij "Dodaj konto" aby rozpocząć.
+                  </div>
+                )}
+              </div>
+
+              {/* Oferty kont oszczędnościowych */}
+              <div style={{ marginTop: 36 }}>
+                {(() => {
+                  const [year, month] = SAVINGS_RATES_DB.lastUpdated.split('-').map(Number);
+                  const dataDate = new Date(year, month - 1, 1);
+                  const now = new Date();
+                  const diffDays = Math.floor((now - dataDate) / (1000 * 60 * 60 * 24));
+                  const isStale = diffDays > 45;
+                  return isStale ? (
+                    <div style={{ background: "#2a1a00", border: "1px solid #5a3a00", borderRadius: 8, padding: "8px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#f0a030" }}>
+                      <span>⚠</span>
+                      <span>Dane mogą być nieaktualne (ostatnia aktualizacja: {SAVINGS_RATES_DB.lastUpdated}). Zawsze weryfikuj na stronie banku.</span>
+                    </div>
+                  ) : null;
+                })()}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#e8edf3", letterSpacing: ".05em" }}>
+                    Najlepsze oferty kont oszczędnościowych
+                  </div>
+                  <div style={{ fontSize: 11, color: "#4a5a6e", fontFamily: "'DM Mono',monospace" }}>
+                    aktualizacja: {SAVINGS_RATES_DB.lastUpdated}
                   </div>
                 </div>
-              ))}
-              {assetsWithLivePrices.filter(a => a.isSavings).length === 0 && (
-                <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "40px 0", color: "#5a6a7e", fontSize: 13, background: "#161d28", borderRadius: 12, border: "2px dashed #2a3a50" }}>
-                  Brak zapisanych kont oszczędnościowych. Kliknij "Dodaj konto" aby rozpocząć.
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {visibleOffers.map((offer, i) => {
+                    const bestRate = offer.ratePromo ?? offer.rateStandard;
+                    const isPromo = offer.ratePromo != null;
+                    return (
+                      <div key={i}
+                        onClick={() => setExpandedOffer(offer)}
+                        style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", transition: "border-color .15s" }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = "#2a4060"}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = "#1e2a38"}>
+                        {/* Rank */}
+                        <div style={{ minWidth: 24, fontSize: 11, color: "#4a5a6e", fontFamily: "'DM Mono',monospace", textAlign: "right" }}>
+                          {i + 1}.
+                        </div>
+                        {/* Rate badge */}
+                        <div style={{ minWidth: 54, textAlign: "center" }}>
+                          <div style={{ fontSize: 17, fontWeight: 700, color: isPromo ? "#00c896" : "#6bcfae", fontFamily: "'DM Mono',monospace", lineHeight: 1 }}>
+                            {bestRate.toFixed(1)}%
+                          </div>
+                          {isPromo && (
+                            <div style={{ fontSize: 9, color: "#4a5a6e", marginTop: 2, fontFamily: "'DM Mono',monospace" }}>
+                              promo
+                            </div>
+                          )}
+                        </div>
+                        {/* Info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#e8edf3", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {offer.bank}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#6b7f96", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {offer.name}
+                          </div>
+                        </div>
+                        {/* Details */}
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, minWidth: 100 }}>
+                          {offer.promoLimit != null && (
+                            <div style={{ fontSize: 10, color: "#8a9bb0", fontFamily: "'DM Mono',monospace" }}>
+                              do {fmt(offer.promoLimit)}
+                            </div>
+                          )}
+                          {offer.promoDays != null && (
+                            <div style={{ fontSize: 10, color: "#8a9bb0", fontFamily: "'DM Mono',monospace" }}>
+                              przez {offer.promoDays} dni
+                            </div>
+                          )}
+                          {isPromo && (
+                            <div style={{ fontSize: 10, color: "#4a5a6e", fontFamily: "'DM Mono',monospace" }}>
+                              std: {offer.rateStandard}%
+                            </div>
+                          )}
+                        </div>
+                        {/* ROR badge */}
+                        {offer.requiresROR && (
+                          <div style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "#1e2a38", color: "#6b7f96", fontFamily: "'DM Mono',monospace", whiteSpace: "nowrap" }}>
+                            wymaga ROR
+                          </div>
+                        )}
+                        <div style={{ fontSize: 10, color: "#3a4a5e" }}>›</div>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+
+                {/* Popup szczegółów oferty */}
+                {expandedOffer && (() => {
+                  const o = expandedOffer;
+                  const bestRate = o.ratePromo ?? o.rateStandard;
+                  const isPromo = o.ratePromo != null;
+                  return (
+                    <div onClick={() => setExpandedOffer(null)}
+                      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+                      <div onClick={e => e.stopPropagation()}
+                        style={{ background: "#161d28", border: "1px solid #2a3a50", borderRadius: 16, padding: "28px 24px", maxWidth: 480, width: "100%", maxHeight: "85vh", overflowY: "auto" }}>
+                        {/* Header */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+                          <div>
+                            <div style={{ fontSize: 18, fontWeight: 700, color: "#e8edf3" }}>{o.bank}</div>
+                            <div style={{ fontSize: 12, color: "#6b7f96", marginTop: 4 }}>{o.name}</div>
+                          </div>
+                          <button onClick={() => setExpandedOffer(null)}
+                            style={{ background: "none", border: "none", color: "#6b7f96", fontSize: 20, cursor: "pointer", lineHeight: 1, padding: "0 4px" }}>
+                            ×
+                          </button>
+                        </div>
+
+                        {/* Oprocentowanie */}
+                        <div style={{ background: "#0d131c", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", gap: 24, flexWrap: "wrap" }}>
+                          <div style={{ textAlign: "center" }}>
+                            <div style={{ fontSize: 32, fontWeight: 700, color: isPromo ? "#00c896" : "#6bcfae", fontFamily: "'DM Mono',monospace", lineHeight: 1 }}>
+                              {bestRate.toFixed(1)}%
+                            </div>
+                            <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 4 }}>
+                              {isPromo ? "oprocentowanie promo" : "oprocentowanie"}
+                            </div>
+                          </div>
+                          {isPromo && (
+                            <div style={{ textAlign: "center" }}>
+                              <div style={{ fontSize: 20, fontWeight: 600, color: "#4a5a6e", fontFamily: "'DM Mono',monospace", lineHeight: 1 }}>
+                                {o.rateStandard}%
+                              </div>
+                              <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 4 }}>po promocji</div>
+                            </div>
+                          )}
+                          {o.promoDays != null && (
+                            <div style={{ textAlign: "center" }}>
+                              <div style={{ fontSize: 20, fontWeight: 600, color: "#e8edf3", fontFamily: "'DM Mono',monospace", lineHeight: 1 }}>
+                                {o.promoDays}
+                              </div>
+                              <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 4 }}>dni promocji</div>
+                            </div>
+                          )}
+                          {o.promoLimit != null && (
+                            <div style={{ textAlign: "center" }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: "#e8edf3", fontFamily: "'DM Mono',monospace", lineHeight: 1 }}>
+                                {fmt(o.promoLimit)}
+                              </div>
+                              <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 4 }}>limit środków</div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Warunki */}
+                        {o.promoConditionsList && o.promoConditionsList.length > 0 && (
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#8a9bb0", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>
+                              Warunki oferty
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {o.promoConditionsList.map((cond, ci) => (
+                                <div key={ci} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                                  <div style={{ minWidth: 16, height: 16, borderRadius: "50%", background: "#0d3a28", border: "1px solid #00c896", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#00c896" }} />
+                                  </div>
+                                  <div style={{ fontSize: 13, color: "#c8d8e8", lineHeight: 1.5 }}>{cond}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Badges */}
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+                          {o.requiresROR && (
+                            <div style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: "#1e2a38", color: "#8a9bb0", border: "1px solid #2a3a50" }}>
+                              Wymaga konta osobistego (ROR)
+                            </div>
+                          )}
+                          {!o.requiresROR && (
+                            <div style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: "#0d3a28", color: "#00c896", border: "1px solid #1a5a40" }}>
+                              Bez konta osobistego
+                            </div>
+                          )}
+                          {isPromo && (
+                            <div style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: "#1e2a38", color: "#f0a030", border: "1px solid #3a3010" }}>
+                              Oferta promocyjna
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Link do oferty */}
+                        {o.url && (
+                          <a href={o.url} target="_blank" rel="noopener noreferrer"
+                            style={{ display: "block", textAlign: "center", padding: "12px", borderRadius: 10, background: "#00c896", color: "#000", fontWeight: 700, fontSize: 13, textDecoration: "none", fontFamily: "'Sora',sans-serif" }}>
+                            Przejdź do oferty →
+                          </a>
+                        )}
+
+                        <div style={{ fontSize: 10, color: "#3a4a5e", textAlign: "center", marginTop: 12 }}>
+                          Dane orientacyjne · aktualizacja {SAVINGS_RATES_DB.lastUpdated} · zawsze weryfikuj na stronie banku
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Pagination */}
+                <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 14 }}>
+                  {hasMore && (
+                    <button onClick={() => setOffersPage(p => p + 1)}
+                      style={{ padding: "8px 20px", borderRadius: 8, background: "#1e2a38", color: "#8a9bb0", fontSize: 12, border: "1px solid #2a3a50", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+                      Pokaż więcej ({sortedOffers.length - visibleOffers.length} kolejnych)
+                    </button>
+                  )}
+                  {offersPage > 1 && (
+                    <button onClick={() => setOffersPage(1)}
+                      style={{ padding: "8px 20px", borderRadius: 8, background: "none", color: "#4a5a6e", fontSize: 12, border: "1px solid #1e2a38", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+                      Zwiń listę
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── Widok historii ── */}
         {currentView === "history" && <HistoryView history={history} />}
