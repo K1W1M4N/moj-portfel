@@ -145,12 +145,89 @@ function useStockNews(symbol) {
   return { articles: data?.articles || [], fetchedAt: data?.fetchedAt ?? null, loading, refresh: fetchNews };
 }
 
+// ─── Cache analizy AI ──────────────────────────────────────────────────────────
+const SUMMARY_CACHE_TTL = 60 * 60 * 1000; // 1 godzina
+
+function loadSummaryCache(symbol) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(`pt-summary-${symbol}`) || "null");
+    if (!raw || !raw.generatedAt || Date.now() - raw.generatedAt > SUMMARY_CACHE_TTL) return null;
+    return raw;
+  } catch { return null; }
+}
+
+function saveSummaryCache(symbol, data) {
+  try { localStorage.setItem(`pt-summary-${symbol}`, JSON.stringify(data)); } catch {}
+}
+
+function useNewsSummary(symbol, articles, pnlPct) {
+  const [data, setData]       = useState(() => loadSummaryCache(symbol));
+  const [loading, setLoading] = useState(false);
+
+  const fetchSummary = useCallback(async (arts) => {
+    if (!symbol || !arts || arts.length === 0) return;
+    setLoading(true);
+    try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 25000);
+      try {
+        const res = await fetch("/api/news-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol, articles: arts, pnlPct }),
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        saveSummaryCache(symbol, json);
+        setData(json);
+      } finally {
+        clearTimeout(tid);
+      }
+    } catch (e) {
+      console.warn("Summary fetch error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [symbol, pnlPct]);
+
+  // Gdy artykuły się załadują, wygeneruj analizę (jeśli cache wygasł)
+  useEffect(() => {
+    if (articles.length === 0) return;
+    const cached = loadSummaryCache(symbol);
+    if (cached) { setData(cached); return; }
+    fetchSummary(articles);
+  }, [symbol, articles, fetchSummary]);
+
+  const refresh = useCallback(() => {
+    localStorage.removeItem(`pt-summary-${symbol}`);
+    setData(null);
+    fetchSummary(articles);
+  }, [symbol, articles, fetchSummary]);
+
+  return { summary: data?.summary || "", relevantIndices: data?.relevantIndices || [], loading, refresh };
+}
+
 // ─── Komponent: sekcja newsów w panelu szczegółów ─────────────────────────────
 function StockNewsSection({ symbol, pnlPct }) {
-  const { articles, fetchedAt, loading, refresh } = useStockNews(symbol);
+  const { articles, fetchedAt, loading: newsLoading, refresh: refreshNews } = useStockNews(symbol);
+  const { summary, relevantIndices, loading: summaryLoading, refresh: refreshSummary } = useNewsSummary(symbol, articles, pnlPct);
+
   const bigMove = Math.abs(pnlPct) >= 5;
   const moveUp  = pnlPct >= 0;
   const accentColor = moveUp ? "#00c896" : "#f05060";
+
+  const loading = newsLoading || summaryLoading;
+
+  const refresh = useCallback(() => {
+    refreshNews();
+    refreshSummary();
+  }, [refreshNews, refreshSummary]);
+
+  // Artykuły powiązane z analizą (lub wszystkie jeśli analiza jeszcze nie gotowa)
+  const displayArticles = relevantIndices.length > 0
+    ? relevantIndices.map(i => articles[i]).filter(Boolean)
+    : articles;
 
   return (
     <div style={{ background: "#0f1a27", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
@@ -194,49 +271,78 @@ function StockNewsSection({ symbol, pnlPct }) {
           <span style={{ fontWeight: 600 }}>
             {moveUp ? "▲" : "▼"} Kurs zmienił się o {moveUp ? "+" : ""}{pnlPct.toFixed(1)}% od zakupu.
           </span>
-          {" "}Poniższe newsy mogły mieć wpływ na tę zmianę.
         </div>
       )}
 
-      {/* Stan: ładowanie */}
-      {loading && articles.length === 0 && (
+      {/* Pigułka AI */}
+      {summaryLoading && !summary && (
+        <div style={{
+          background: "#0a1520", border: "1px solid #1a2535",
+          borderRadius: 8, padding: "10px 12px", marginBottom: 10,
+          fontSize: 11, color: "#3a5a7e", lineHeight: 1.6,
+          fontStyle: "italic",
+        }}>
+          Analizuję sytuację spółki…
+        </div>
+      )}
+      {summary && (
+        <div style={{
+          background: "#0a1520", border: "1px solid #1e3048",
+          borderRadius: 8, padding: "10px 12px", marginBottom: 10,
+          fontSize: 12, color: "#a8c4de", lineHeight: 1.7,
+        }}>
+          {summary}
+        </div>
+      )}
+
+      {/* Stan: ładowanie newsów */}
+      {newsLoading && articles.length === 0 && (
         <div style={{ fontSize: 12, color: "#3a4a5e", textAlign: "center", padding: "14px 0" }}>
           Wczytywanie newsów…
         </div>
       )}
 
       {/* Stan: brak wyników */}
-      {!loading && articles.length === 0 && (
+      {!newsLoading && articles.length === 0 && (
         <div style={{ fontSize: 12, color: "#3a4a5e", textAlign: "center", padding: "14px 0" }}>
           Brak newsów dla tego symbolu
         </div>
       )}
 
-      {/* Lista artykułów */}
-      {articles.map((a, i) => (
-        <a
-          key={i}
-          href={a.link} target="_blank" rel="noopener noreferrer"
-          style={{
-            display: "block", textDecoration: "none",
-            paddingBottom: i < articles.length - 1 ? 9 : 0,
-            borderBottom: i < articles.length - 1 ? "1px solid #1a2535" : "none",
-            marginBottom: i < articles.length - 1 ? 9 : 0,
-          }}>
-          <div style={{ fontSize: 12, color: "#c8d8e8", lineHeight: 1.45, marginBottom: 3, transition: "color .1s" }}
-            onMouseEnter={e => e.currentTarget.style.color = "#e8f4ff"}
-            onMouseLeave={e => e.currentTarget.style.color = "#c8d8e8"}
-          >
-            {a.title}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 10, color: "#3a5a7e" }}>{a.publisher}</span>
-            {a.publishedAt && (
-              <span style={{ fontSize: 10, color: "#3a4a5e" }}>{timeAgo(a.publishedAt)}</span>
-            )}
-          </div>
-        </a>
-      ))}
+      {/* Lista artykułów (tylko powiązane z analizą) */}
+      {displayArticles.length > 0 && (
+        <>
+          {summary && (
+            <div style={{ fontSize: 10, color: "#3a4a5e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
+              Źródła
+            </div>
+          )}
+          {displayArticles.map((a, i) => (
+            <a
+              key={i}
+              href={a.link} target="_blank" rel="noopener noreferrer"
+              style={{
+                display: "block", textDecoration: "none",
+                paddingBottom: i < displayArticles.length - 1 ? 9 : 0,
+                borderBottom: i < displayArticles.length - 1 ? "1px solid #1a2535" : "none",
+                marginBottom: i < displayArticles.length - 1 ? 9 : 0,
+              }}>
+              <div style={{ fontSize: 12, color: "#c8d8e8", lineHeight: 1.45, marginBottom: 3, transition: "color .1s" }}
+                onMouseEnter={e => e.currentTarget.style.color = "#e8f4ff"}
+                onMouseLeave={e => e.currentTarget.style.color = "#c8d8e8"}
+              >
+                {a.title}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 10, color: "#3a5a7e" }}>{a.publisher}</span>
+                {a.publishedAt && (
+                  <span style={{ fontSize: 10, color: "#3a4a5e" }}>{timeAgo(a.publishedAt)}</span>
+                )}
+              </div>
+            </a>
+          ))}
+        </>
+      )}
     </div>
   );
 }

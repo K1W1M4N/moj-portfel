@@ -1,6 +1,7 @@
 {
   "functions": {
     "api/stock-price.js": { "maxDuration": 15 },
-    "api/stock-chart.js": { "maxDuration": 15 }
+    "api/stock-chart.js": { "maxDuration": 15 },
+    "api/news-summary.js": { "maxDuration": 30 }
   }
 }
