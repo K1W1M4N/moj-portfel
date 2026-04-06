@@ -56,20 +56,23 @@ ${moveInfo ? `- Zmiana kursu od zakupu: ${moveInfo}` : ""}
 Artykuły jako dodatkowy kontekst rynkowy:
 ${articlesList}
 
-TWOJE ZADANIE — napisz analizę w 3-4 zdaniach po polsku, która odpowiada na:
-1. Co śledzi ten ETF — jaka jest jego ekspozycja geograficzna i sektorowa (np. top sektory, regiony)
-2. Co aktualnie dzieje się na tym rynku/indeksie — główne trendy, nastroje, istotne wydarzenia
-3. Co może wyjaśniać zmianę kursu${moveInfo ? ` o ${moveInfo}` : ""} — powiąż z globalnym otoczeniem
+TWOJE ZADANIE — przygotuj DWA osobne teksty po polsku:
+
+1. "description" (1-2 zdania) — ogólny profil ETF-a:
+   Co śledzi ten ETF, jaka jest jego ekspozycja geograficzna i sektorowa, dla kogo jest przeznaczony.
+   Pisz jak encyklopedia — fakty, liczby, bez odniesień do aktualnej sytuacji rynkowej.
+
+2. "insight" (2-3 zdania) — aktualna sytuacja rynkowa:
+   Co się teraz dzieje na tym rynku/indeksie, jakie są główne trendy i co może tłumaczyć zmianę kursu${moveInfo ? ` o ${moveInfo}` : ""}.
+   Korzystaj z artykułów jako kontekstu. Jeśli artykuły dotyczą spółek z indeksu — wspomnij o tym.
 
 ZASADY:
-- Pisz konkretnie i edukacyjnie — użytkownik ma się czegoś dowiedzieć
-- Korzystaj ze swojej wiedzy o rynkach, artykuły to tylko dodatkowy kontekst
-- Jeśli artykuły dotyczą spółek wchodzących w skład indeksu — wspomnij o tym
-- Zero ogólników w stylu "rynek jest zmienny" — daj konkretną wiedzę
-- Jeśli nie masz pewnych informacji, powiedz to wprost zamiast zgadywać
+- Korzystaj ze swojej wiedzy, artykuły to tylko dodatkowy kontekst
+- Zero ogólników — konkretne fakty, nazwy, liczby
+- Jeśli artykuły są niepowiązane, napisz to wprost w "insight" i daj kontekst z własnej wiedzy
 
 Odpowiedź WYŁĄCZNIE w formacie JSON (bez markdown, bez dodatkowego tekstu):
-{"summary":"...","relevantIndices":[0,1,2]}`;
+{"description":"...","insight":"...","relevantIndices":[0,1,2]}`;
 
   // ── Prompt dla spółki ─────────────────────────────────────────────────────────
   const stockPrompt = `Jesteś doświadczonym analitykiem finansowym i edukatorem inwestycyjnym. Dzisiaj jest ${today}.
@@ -82,19 +85,23 @@ ${moveInfo ? `- Zmiana kursu od zakupu: ${moveInfo}` : ""}
 Najnowsze artykuły o tej spółce:
 ${articlesList}
 
-TWOJE ZADANIE — napisz analizę w 3-4 zdaniach po polsku, która odpowiada na:
-1. Czym zajmuje się spółka i jaka jest jej pozycja w branży
-2. Co aktualnie się dzieje ze spółką — wyniki, strategia, otoczenie konkurencyjne, regulacje
-3. Co może wyjaśniać zmianę kursu${moveInfo ? ` o ${moveInfo}` : ""} — powiąż z konkretnymi newsami lub trendami sektorowymi
+TWOJE ZADANIE — przygotuj DWA osobne teksty po polsku:
+
+1. "description" (1-2 zdania) — ogólny profil spółki:
+   Czym zajmuje się spółka, jaka jest jej pozycja w branży, kluczowe produkty/usługi lub rynki.
+   Pisz jak encyklopedia — fakty bez odniesień do aktualnej sytuacji rynkowej.
+
+2. "insight" (2-3 zdania) — aktualna sytuacja:
+   Co się teraz dzieje ze spółką — wyniki, strategia, otoczenie konkurencyjne, regulacje.
+   Co może tłumaczyć zmianę kursu${moveInfo ? ` o ${moveInfo}` : ""}. Odwołuj się do konkretnych faktów z artykułów.
 
 ZASADY:
-- Pisz konkretnie i edukacyjnie — odwołuj się do faktów z artykułów
-- Jeśli artykuły nie dotyczą bezpośrednio tej spółki, powiedz to i daj kontekst sektorowy z własnej wiedzy
+- Jeśli artykuły nie dotyczą tej spółki bezpośrednio — zaznacz to w "insight" i daj kontekst sektorowy
 - Zero ogólników — konkretne fakty, liczby, nazwy
-- Artykuły, których NIE użyłeś do analizy, nie wpisuj do relevantIndices
+- Artykuły nieużyte do analizy nie trafiają do relevantIndices
 
 Odpowiedź WYŁĄCZNIE w formacie JSON (bez markdown, bez dodatkowego tekstu):
-{"summary":"...","relevantIndices":[0,1,2]}`;
+{"description":"...","insight":"...","relevantIndices":[0,1,2]}`;
 
   try {
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -126,7 +133,8 @@ Odpowiedź WYŁĄCZNIE w formacie JSON (bez markdown, bez dodatkowego tekstu):
 
     const parsed = JSON.parse(jsonMatch[0]);
     return res.status(200).json({
-      summary: parsed.summary || "",
+      description:    parsed.description    || "",
+      insight:        parsed.insight        || "",
       relevantIndices: Array.isArray(parsed.relevantIndices) ? parsed.relevantIndices : [],
       generatedAt: Date.now(),
     });

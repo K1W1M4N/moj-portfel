@@ -208,12 +208,18 @@ function useNewsSummary(symbol, stockName, articles, pnlPct) {
     fetchSummary(articles);
   }, [symbol, articles, fetchSummary]);
 
-  return { summary: data?.summary || "", relevantIndices: data?.relevantIndices || [], loading, refresh };
+  return {
+    description:    data?.description    || "",
+    insight:        data?.insight        || "",
+    relevantIndices: data?.relevantIndices || [],
+    loading,
+    refresh,
+  };
 }
 
 // ─── Komponent: sekcja newsów w panelu szczegółów ─────────────────────────────
 // Czysty komponent sekcji newsów — dane przychodzą z zewnątrz
-function StockNewsSection({ articles, fetchedAt, loading, onRefresh, relevantIndices, pnlPct }) {
+function StockNewsSection({ articles, fetchedAt, loading, onRefresh, relevantIndices, pnlPct, insight, insightLoading }) {
   const bigMove = Math.abs(pnlPct) >= 5;
   const moveUp  = pnlPct >= 0;
   const accentColor = moveUp ? "#00c896" : "#f05060";
@@ -261,6 +267,22 @@ function StockNewsSection({ articles, fetchedAt, loading, onRefresh, relevantInd
           <span style={{ fontWeight: 600 }}>
             {moveUp ? "▲" : "▼"} Kurs zmienił się o {moveUp ? "+" : ""}{pnlPct.toFixed(1)}% od zakupu.
           </span>
+        </div>
+      )}
+
+      {/* Pigułka — aktualna sytuacja rynkowa */}
+      {insightLoading && (
+        <div style={{ fontSize: 11, color: "#3a5a7e", fontStyle: "italic", marginBottom: 10 }}>
+          Analizuję aktualności…
+        </div>
+      )}
+      {insight && (
+        <div style={{
+          background: "#0a1520", border: "1px solid #1e3048",
+          borderRadius: 8, padding: "10px 12px", marginBottom: 10,
+          fontSize: 12, color: "#a8c4de", lineHeight: 1.7,
+        }}>
+          {insight}
         </div>
       )}
 
@@ -838,7 +860,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
 
   const cacheAge = priceData?.ts ? Math.round((Date.now() - priceData.ts) / 60000) : null;
 
-  const { summary, relevantIndices, loading: summaryLoading, refresh: refreshSummary } = useNewsSummary(stock.stockSymbol, stockName, articles, pnlPct);
+  const { description, insight, relevantIndices, loading: summaryLoading, refresh: refreshSummary } = useNewsSummary(stock.stockSymbol, stockName, articles, pnlPct);
 
   const handleRefreshAll = useCallback(() => {
     refreshNews();
@@ -1016,21 +1038,15 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
             </div>
           )}
 
-          {/* Opis spółki / ETF — analiza AI */}
-          {summaryLoading && !summary && (
-            <div style={{
-              marginTop: 12, borderTop: "1px solid #1a2535", paddingTop: 12,
-              fontSize: 11, color: "#3a5a7e", fontStyle: "italic",
-            }}>
-              Analizuję sytuację…
+          {/* Opis spółki / ETF */}
+          {summaryLoading && !description && (
+            <div style={{ marginTop: 12, borderTop: "1px solid #1a2535", paddingTop: 12, fontSize: 11, color: "#3a5a7e", fontStyle: "italic" }}>
+              Wczytuję opis…
             </div>
           )}
-          {summary && (
-            <div style={{
-              marginTop: 12, borderTop: "1px solid #1a2535", paddingTop: 12,
-              fontSize: 12, color: "#a8c4de", lineHeight: 1.7,
-            }}>
-              {summary}
+          {description && (
+            <div style={{ marginTop: 12, borderTop: "1px solid #1a2535", paddingTop: 12, fontSize: 12, color: "#8a9bb0", lineHeight: 1.7 }}>
+              {description}
             </div>
           )}
         </div>
@@ -1043,6 +1059,8 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
           onRefresh={handleRefreshAll}
           relevantIndices={relevantIndices}
           pnlPct={pnlPct}
+          insight={insight}
+          insightLoading={summaryLoading && !insight}
         />
       </div>
     </div>
