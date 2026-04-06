@@ -212,41 +212,29 @@ function useNewsSummary(symbol, stockName, articles, pnlPct) {
 }
 
 // ─── Komponent: sekcja newsów w panelu szczegółów ─────────────────────────────
-function StockNewsSection({ symbol, stockName, pnlPct }) {
-  const { articles, fetchedAt, loading: newsLoading, refresh: refreshNews } = useStockNews(symbol, stockName);
-  const { summary, relevantIndices, loading: summaryLoading, refresh: refreshSummary } = useNewsSummary(symbol, stockName, articles, pnlPct);
-
+// Czysty komponent sekcji newsów — dane przychodzą z zewnątrz
+function StockNewsSection({ articles, fetchedAt, loading, onRefresh, relevantIndices, pnlPct }) {
   const bigMove = Math.abs(pnlPct) >= 5;
   const moveUp  = pnlPct >= 0;
   const accentColor = moveUp ? "#00c896" : "#f05060";
 
-  const loading = newsLoading || summaryLoading;
-
-  const refresh = useCallback(() => {
-    refreshNews();
-    refreshSummary();
-  }, [refreshNews, refreshSummary]);
-
-  // Artykuły powiązane z analizą (lub wszystkie jeśli analiza jeszcze nie gotowa)
   const displayArticles = relevantIndices.length > 0
     ? relevantIndices.map(i => articles[i]).filter(Boolean)
     : articles;
 
   return (
     <div style={{ background: "#0f1a27", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
-      {/* Nagłówek sekcji */}
+      {/* Nagłówek */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <div style={{ fontSize: 11, color: "#5a7a9e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
           Aktualności
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {fetchedAt && !loading && (
-            <span style={{ fontSize: 10, color: "#3a4a5e" }}>
-              {timeAgo(fetchedAt)}
-            </span>
+            <span style={{ fontSize: 10, color: "#3a4a5e" }}>{timeAgo(fetchedAt)}</span>
           )}
           <button
-            onClick={refresh} disabled={loading}
+            onClick={onRefresh} disabled={loading}
             title="Odśwież newsy"
             style={{
               fontSize: 13, color: loading ? "#3a4a5e" : "#4a7a9e",
@@ -263,11 +251,10 @@ function StockNewsSection({ symbol, stockName, pnlPct }) {
         </div>
       </div>
 
-      {/* Banner kontekstowy przy dużej zmianie kursu */}
+      {/* Banner przy dużej zmianie kursu */}
       {bigMove && (
         <div style={{
-          background: `${accentColor}10`,
-          border: `1px solid ${accentColor}35`,
+          background: `${accentColor}10`, border: `1px solid ${accentColor}35`,
           borderRadius: 8, padding: "8px 11px", marginBottom: 10,
           fontSize: 11, color: accentColor, lineHeight: 1.5,
         }}>
@@ -277,53 +264,24 @@ function StockNewsSection({ symbol, stockName, pnlPct }) {
         </div>
       )}
 
-      {/* Pigułka AI */}
-      {summaryLoading && !summary && (
-        <div style={{
-          background: "#0a1520", border: "1px solid #1a2535",
-          borderRadius: 8, padding: "10px 12px", marginBottom: 10,
-          fontSize: 11, color: "#3a5a7e", lineHeight: 1.6,
-          fontStyle: "italic",
-        }}>
-          Analizuję sytuację spółki…
-        </div>
+      {/* Stany */}
+      {loading && articles.length === 0 && (
+        <div style={{ fontSize: 12, color: "#3a4a5e", textAlign: "center", padding: "14px 0" }}>Wczytywanie newsów…</div>
       )}
-      {summary && (
-        <div style={{
-          background: "#0a1520", border: "1px solid #1e3048",
-          borderRadius: 8, padding: "10px 12px", marginBottom: 10,
-          fontSize: 12, color: "#a8c4de", lineHeight: 1.7,
-        }}>
-          {summary}
-        </div>
+      {!loading && articles.length === 0 && (
+        <div style={{ fontSize: 12, color: "#3a4a5e", textAlign: "center", padding: "14px 0" }}>Brak newsów dla tego symbolu</div>
       )}
 
-      {/* Stan: ładowanie newsów */}
-      {newsLoading && articles.length === 0 && (
-        <div style={{ fontSize: 12, color: "#3a4a5e", textAlign: "center", padding: "14px 0" }}>
-          Wczytywanie newsów…
-        </div>
-      )}
-
-      {/* Stan: brak wyników */}
-      {!newsLoading && articles.length === 0 && (
-        <div style={{ fontSize: 12, color: "#3a4a5e", textAlign: "center", padding: "14px 0" }}>
-          Brak newsów dla tego symbolu
-        </div>
-      )}
-
-      {/* Lista artykułów (tylko powiązane z analizą) */}
+      {/* Lista artykułów */}
       {displayArticles.length > 0 && (
         <>
-          {summary && (
+          {relevantIndices.length > 0 && (
             <div style={{ fontSize: 10, color: "#3a4a5e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
               Źródła
             </div>
           )}
           {displayArticles.map((a, i) => (
-            <a
-              key={i}
-              href={a.link} target="_blank" rel="noopener noreferrer"
+            <a key={i} href={a.link} target="_blank" rel="noopener noreferrer"
               style={{
                 display: "block", textDecoration: "none",
                 paddingBottom: i < displayArticles.length - 1 ? 9 : 0,
@@ -332,15 +290,12 @@ function StockNewsSection({ symbol, stockName, pnlPct }) {
               }}>
               <div style={{ fontSize: 12, color: "#c8d8e8", lineHeight: 1.45, marginBottom: 3, transition: "color .1s" }}
                 onMouseEnter={e => e.currentTarget.style.color = "#e8f4ff"}
-                onMouseLeave={e => e.currentTarget.style.color = "#c8d8e8"}
-              >
+                onMouseLeave={e => e.currentTarget.style.color = "#c8d8e8"}>
                 {a.title}
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 10, color: "#3a5a7e" }}>{a.publisher}</span>
-                {a.publishedAt && (
-                  <span style={{ fontSize: 10, color: "#3a4a5e" }}>{timeAgo(a.publishedAt)}</span>
-                )}
+                {a.publishedAt && <span style={{ fontSize: 10, color: "#3a4a5e" }}>{timeAgo(a.publishedAt)}</span>}
               </div>
             </a>
           ))}
@@ -851,6 +806,10 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
   const [chartOpen, setChartOpen] = useState(false);
   const menuRef = useRef(null);
 
+  // Hooki newsów i analizy AI na poziomie panelu
+  const stockName = stock.stockName || stock.name;
+  const { articles, fetchedAt, loading: newsLoading, refresh: refreshNews } = useStockNews(stock.stockSymbol, stockName);
+
   useEffect(() => {
     function handleOutside(e) {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
@@ -878,6 +837,13 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
   const hasLive = !!priceData;
 
   const cacheAge = priceData?.ts ? Math.round((Date.now() - priceData.ts) / 60000) : null;
+
+  const { summary, relevantIndices, loading: summaryLoading, refresh: refreshSummary } = useNewsSummary(stock.stockSymbol, stockName, articles, pnlPct);
+
+  const handleRefreshAll = useCallback(() => {
+    refreshNews();
+    refreshSummary();
+  }, [refreshNews, refreshSummary]);
 
   return (
     <div style={{
@@ -1049,10 +1015,35 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
               )}
             </div>
           )}
+
+          {/* Opis spółki / ETF — analiza AI */}
+          {summaryLoading && !summary && (
+            <div style={{
+              marginTop: 12, borderTop: "1px solid #1a2535", paddingTop: 12,
+              fontSize: 11, color: "#3a5a7e", fontStyle: "italic",
+            }}>
+              Analizuję sytuację…
+            </div>
+          )}
+          {summary && (
+            <div style={{
+              marginTop: 12, borderTop: "1px solid #1a2535", paddingTop: 12,
+              fontSize: 12, color: "#a8c4de", lineHeight: 1.7,
+            }}>
+              {summary}
+            </div>
+          )}
         </div>
 
-        {/* Aktualności i kontekst */}
-        <StockNewsSection symbol={stock.stockSymbol} stockName={stock.stockName || stock.name} pnlPct={pnlPct} />
+        {/* Aktualności */}
+        <StockNewsSection
+          articles={articles}
+          fetchedAt={fetchedAt}
+          loading={newsLoading || summaryLoading}
+          onRefresh={handleRefreshAll}
+          relevantIndices={relevantIndices}
+          pnlPct={pnlPct}
+        />
       </div>
     </div>
   );
