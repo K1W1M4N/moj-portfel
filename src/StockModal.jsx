@@ -106,23 +106,27 @@ function saveNewsCache(symbol, data) {
   try { localStorage.setItem(`pt-news-${symbol}`, JSON.stringify(data)); } catch {}
 }
 
-function useStockNews(symbol) {
-  const [data, setData]       = useState(() => loadNewsCache(symbol));
+function useStockNews(symbol, stockName) {
+  // Klucz cache i zapytanie oparte na nazwie (lepsze wyniki niż sam ticker)
+  const searchQuery = stockName || symbol;
+  const cacheKey    = stockName ? `pt-news-name-${stockName}` : `pt-news-${symbol}`;
+
+  const [data, setData]       = useState(() => loadNewsCache(cacheKey));
   const [loading, setLoading] = useState(false);
 
   const fetchNews = useCallback(async () => {
-    if (!symbol) return;
+    if (!searchQuery) return;
     setLoading(true);
     try {
       const controller = new AbortController();
       const tid = setTimeout(() => controller.abort(), 10000);
       try {
-        const res = await fetch(`/api/stock-news?symbol=${encodeURIComponent(symbol)}`, {
+        const res = await fetch(`/api/stock-news?symbol=${encodeURIComponent(searchQuery)}`, {
           signal: controller.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        saveNewsCache(symbol, json);
+        saveNewsCache(cacheKey, json);
         setData(json);
       } finally {
         clearTimeout(tid);
@@ -132,15 +136,15 @@ function useStockNews(symbol) {
     } finally {
       setLoading(false);
     }
-  }, [symbol]);
+  }, [searchQuery, cacheKey]);
 
   useEffect(() => {
-    const cached = loadNewsCache(symbol);
+    const cached = loadNewsCache(cacheKey);
     if (cached) { setData(cached); return; }
     fetchNews();
     const interval = setInterval(fetchNews, NEWS_CACHE_TTL);
     return () => clearInterval(interval);
-  }, [symbol, fetchNews]);
+  }, [cacheKey, fetchNews]);
 
   return { articles: data?.articles || [], fetchedAt: data?.fetchedAt ?? null, loading, refresh: fetchNews };
 }
@@ -209,8 +213,8 @@ function useNewsSummary(symbol, articles, pnlPct) {
 }
 
 // ─── Komponent: sekcja newsów w panelu szczegółów ─────────────────────────────
-function StockNewsSection({ symbol, pnlPct }) {
-  const { articles, fetchedAt, loading: newsLoading, refresh: refreshNews } = useStockNews(symbol);
+function StockNewsSection({ symbol, stockName, pnlPct }) {
+  const { articles, fetchedAt, loading: newsLoading, refresh: refreshNews } = useStockNews(symbol, stockName);
   const { summary, relevantIndices, loading: summaryLoading, refresh: refreshSummary } = useNewsSummary(symbol, articles, pnlPct);
 
   const bigMove = Math.abs(pnlPct) >= 5;
@@ -1049,7 +1053,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
         </div>
 
         {/* Aktualności i kontekst */}
-        <StockNewsSection symbol={stock.stockSymbol} pnlPct={pnlPct} />
+        <StockNewsSection symbol={stock.stockSymbol} stockName={stock.stockName || stock.name} pnlPct={pnlPct} />
       </div>
     </div>
   );
