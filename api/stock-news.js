@@ -26,13 +26,16 @@ function parseRSS(xml) {
       const m = block.match(new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`, "i"));
       return m ? m[1].trim() : null;
     };
-    const title       = get("title");
-    const link        = get("link") || get("guid");
-    const pubDate     = get("pubDate") || get("dc:date");
-    const publisher   = get("author") || get("dc:creator") || null;
-    if (title && link) {
+    const title     = get("title");
+    const link      = get("link") || get("guid");
+    const pubDate   = get("pubDate") || get("dc:date");
+    // Google News używa <source>, inne używają <author> lub <dc:creator>
+    const publisher = get("source") || get("author") || get("dc:creator") || null;
+    // Tytuł w Google News ma format "Tytuł - Wydawca" — czyścimy
+    const titleClean = title?.replace(/\s+[-–]\s+[^-–]{2,40}$/, "").trim() || title;
+    if (titleClean && link) {
       items.push({
-        title,
+        title: titleClean,
         link,
         publisher,
         publishedAt: pubDate ? new Date(pubDate).getTime() : null,
@@ -43,28 +46,34 @@ function parseRSS(xml) {
   return items;
 }
 
-// ─── Bankier.pl RSS dla spółki GPW ───────────────────────────────────────────
-async function fetchBankier(ticker) {
-  // Bankier używa własnych skrótów — próbujemy kilka wariantów URL
-  const urls = [
-    `https://www.bankier.pl/rss/spolka/${ticker}.xml`,
-    `https://www.bankier.pl/rss/spółka/${ticker}.xml`,
-  ];
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; PortfolioTracker/1.0)" },
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!r.ok) continue;
-      const xml = await r.text();
-      const items = parseRSS(xml);
-      if (items.length > 0) {
-        return items.map(a => ({ ...a, publisher: a.publisher || "Bankier.pl" }));
-      }
-    } catch { /* próbuj dalej */ }
+// ─── Google News RSS dla polskich spółek ─────────────────────────────────────
+// Agreguje z Bankier.pl, Parkiet, Stockwatch, Business Insider PL i innych
+async function fetchGoogleNewsPolish(companyName) {
+  const query = encodeURIComponent(companyName);
+  const url = `https://news.google.com/rss/search?q=${query}&hl=pl&gl=PL&ceid=PL:pl`;
+  try {
+    const r = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PortfolioTracker/1.0)" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return [];
+    const xml = await r.text();
+    const items = parseRSS(xml);
+
+    return items.slice(0, 8).map(a => {
+      // Google News dołącza " - Wydawca" do tytułu — odcinamy
+      const titleClean = a.title?.replace(/\s+[-–]\s+[^-–]+$/, "").trim() || a.title;
+      // Publisher z tagu <source> (nasz parser go pomija — wyciągamy osobno)
+      const srcMatch = xml.match(/<source[^>]*>([^<]+)<\/source>/);
+      return {
+        ...a,
+        title: titleClean,
+        publisher: a.publisher || srcMatch?.[1] || "Google News",
+      };
+    });
+  } catch {
+    return [];
   }
-  return [];
 }
 
 // ─── Sprawdzenie czy spółka jest z GPW ───────────────────────────────────────
@@ -89,14 +98,14 @@ export default async function handler(req, res) {
   const searchQuery = isEtf ? (extractIndexName(symbol) || symbol) : symbol;
 
   // ─── Fetch równoległy: Yahoo Finance + opcjonalnie Bankier ─────────────────
-  const [yahooArticles, bankierArticles] = await Promise.all([
+  const [yahooArticles, polishArticles] = await Promise.all([
     fetchYahoo(searchQuery),
-    isPL && !isEtf ? fetchBankier(symbol) : Promise.resolve([]),
+    isPL && !isEtf ? fetchGoogleNewsPolish(searchQuery) : Promise.resolve([]),
   ]);
 
   // Scalanie i deduplicacja po tytule
   const seen = new Set();
-  const articles = [...bankierArticles, ...yahooArticles]
+  const articles = [...polishArticles, ...yahooArticles]
     .filter(a => {
       if (!a.title || !a.link) return false;
       const key = a.title.slice(0, 60).toLowerCase();
