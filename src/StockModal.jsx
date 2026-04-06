@@ -106,8 +106,7 @@ function saveNewsCache(symbol, data) {
   try { localStorage.setItem(`pt-news-${symbol}`, JSON.stringify(data)); } catch {}
 }
 
-function useStockNews(symbol, stockName) {
-  // Klucz cache i zapytanie oparte na nazwie (lepsze wyniki niż sam ticker)
+function useStockNews(symbol, stockName, exchange) {
   const searchQuery = stockName || symbol;
   const cacheKey    = stockName ? `pt-news-name-${stockName}` : `pt-news-${symbol}`;
 
@@ -119,9 +118,11 @@ function useStockNews(symbol, stockName) {
     setLoading(true);
     try {
       const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 10000);
+      const tid = setTimeout(() => controller.abort(), 12000);
       try {
-        const res = await fetch(`/api/stock-news?symbol=${encodeURIComponent(searchQuery)}`, {
+        const params = new URLSearchParams({ symbol: searchQuery });
+        if (exchange) params.set("exchange", exchange);
+        const res = await fetch(`/api/stock-news?${params}`, {
           signal: controller.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -830,7 +831,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
 
   // Hooki newsów i analizy AI na poziomie panelu
   const stockName = stock.stockName || stock.name;
-  const { articles, fetchedAt, loading: newsLoading, refresh: refreshNews } = useStockNews(stock.stockSymbol, stockName);
+  const { articles, fetchedAt, loading: newsLoading, refresh: refreshNews } = useStockNews(stock.stockSymbol, stockName, stock.stockExchange);
 
   useEffect(() => {
     function handleOutside(e) {
