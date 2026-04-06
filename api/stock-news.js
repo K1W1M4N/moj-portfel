@@ -1,4 +1,23 @@
-// api/stock-news.js — Newsy finansowe dla spółki z Yahoo Finance
+// api/stock-news.js — Newsy finansowe dla spółki/ETF z Yahoo Finance
+
+// Wykrywa czy nazwa to ETF
+function detectETF(name = "") {
+  return /\b(ETF|UCITS|iShares|Vanguard|Xtrackers|SPDR|Lyxor|Amundi|WisdomTree|Invesco|MSCI|FTSE)\b/i.test(name);
+}
+
+// Wyciąga nazwę indeksu z pełnej nazwy ETF
+// np. "iShares Core MSCI World UCITS ETF USD (Acc)" → "MSCI World"
+// np. "Vanguard FTSE All-World UCITS ETF" → "FTSE All-World"
+// np. "Xtrackers S&P 500 Swap UCITS ETF" → "S&P 500"
+function extractIndexName(name = "") {
+  return name
+    .replace(/^(iShares\s+Core\s+|iShares\s+|Vanguard\s+|Xtrackers\s+|SPDR\s+|Lyxor\s+|Amundi\s+|WisdomTree\s+|Invesco\s+|BlackRock\s+)/i, "")
+    .replace(/\s+(Swap\s+)?UCITS\s+ETF.*/i, "")
+    .replace(/\s+ETF.*/i, "")
+    .replace(/\s+(USD|EUR|PLN|GBP)\s*\(.*\)\s*$/i, "")
+    .replace(/\s+(USD|EUR|PLN|GBP)\s*$/i, "")
+    .trim();
+}
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -11,9 +30,13 @@ export default async function handler(req, res) {
   const { symbol } = req.query;
   if (!symbol) return res.status(400).json({ error: "Missing 'symbol' parameter" });
 
-  // Próba 1: Yahoo Finance v1 search (zwraca news dla symbolu)
+  // Inteligentne zapytanie: dla ETF wyciągnij nazwę indeksu
+  const isEtf = detectETF(symbol);
+  const searchQuery = isEtf ? (extractIndexName(symbol) || symbol) : symbol;
+
+  // Próba 1: Yahoo Finance v1 search
   try {
-    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}&newsCount=8&enableFuzzyQuery=false&enableCb=false&enableNavLinks=false&enableEnhancedTrivialQuery=true`;
+    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(searchQuery)}&newsCount=8&enableFuzzyQuery=false&enableCb=false&enableNavLinks=false&enableEnhancedTrivialQuery=true`;
     const r = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; PortfolioTracker/1.0)",
@@ -35,11 +58,11 @@ export default async function handler(req, res) {
       }))
       .filter(a => a.title && a.link);
 
-    return res.status(200).json({ articles, fetchedAt: Date.now() });
+    return res.status(200).json({ articles, fetchedAt: Date.now(), searchQuery, isEtf });
   } catch (e1) {
-    // Próba 2: Yahoo Finance v2 news (alternatywny endpoint)
+    // Próba 2: Yahoo Finance v2 news
     try {
-      const url2 = `https://query2.finance.yahoo.com/v2/finance/news?symbols=${encodeURIComponent(symbol)}&count=8`;
+      const url2 = `https://query2.finance.yahoo.com/v2/finance/news?symbols=${encodeURIComponent(searchQuery)}&count=8`;
       const r2 = await fetch(url2, {
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible; PortfolioTracker/1.0)",
@@ -61,7 +84,7 @@ export default async function handler(req, res) {
         }))
         .filter(a => a.title && a.link);
 
-      return res.status(200).json({ articles, fetchedAt: Date.now() });
+      return res.status(200).json({ articles, fetchedAt: Date.now(), searchQuery, isEtf });
     } catch (e2) {
       console.error("stock-news: both endpoints failed", e1.message, e2.message);
       return res.status(502).json({ error: "Could not fetch news", details: e2.message });

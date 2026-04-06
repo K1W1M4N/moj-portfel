@@ -164,12 +164,12 @@ function saveSummaryCache(symbol, data) {
   try { localStorage.setItem(`pt-summary-${symbol}`, JSON.stringify(data)); } catch {}
 }
 
-function useNewsSummary(symbol, articles, pnlPct) {
+function useNewsSummary(symbol, stockName, articles, pnlPct) {
   const [data, setData]       = useState(() => loadSummaryCache(symbol));
   const [loading, setLoading] = useState(false);
 
   const fetchSummary = useCallback(async (arts) => {
-    if (!symbol || !arts || arts.length === 0) return;
+    if (!symbol) return;
     setLoading(true);
     try {
       const controller = new AbortController();
@@ -178,7 +178,7 @@ function useNewsSummary(symbol, articles, pnlPct) {
         const res = await fetch("/api/news-summary", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ symbol, articles: arts, pnlPct }),
+          body: JSON.stringify({ symbol, stockName, articles: arts || [], pnlPct }),
           signal: controller.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -193,11 +193,10 @@ function useNewsSummary(symbol, articles, pnlPct) {
     } finally {
       setLoading(false);
     }
-  }, [symbol, pnlPct]);
+  }, [symbol, stockName, pnlPct]);
 
-  // Gdy artykuły się załadują, wygeneruj analizę (jeśli cache wygasł)
+  // Generuj analizę od razu (nie czekaj na artykuły — model korzysta z własnej wiedzy)
   useEffect(() => {
-    if (articles.length === 0) return;
     const cached = loadSummaryCache(symbol);
     if (cached) { setData(cached); return; }
     fetchSummary(articles);
@@ -215,7 +214,7 @@ function useNewsSummary(symbol, articles, pnlPct) {
 // ─── Komponent: sekcja newsów w panelu szczegółów ─────────────────────────────
 function StockNewsSection({ symbol, stockName, pnlPct }) {
   const { articles, fetchedAt, loading: newsLoading, refresh: refreshNews } = useStockNews(symbol, stockName);
-  const { summary, relevantIndices, loading: summaryLoading, refresh: refreshSummary } = useNewsSummary(symbol, articles, pnlPct);
+  const { summary, relevantIndices, loading: summaryLoading, refresh: refreshSummary } = useNewsSummary(symbol, stockName, articles, pnlPct);
 
   const bigMove = Math.abs(pnlPct) >= 5;
   const moveUp  = pnlPct >= 0;
