@@ -19,7 +19,7 @@ export const SAVINGS_RATES_DB = {
       requiresROR: false,
       isNew: true,
       addedDate: "2026-04-07",
-      url: "https://www.bosbank.pl/konto-oszczednosciowe",
+      url: "https://www.bosbank.pl/klient-indywidualny/oszczednosci/konta-oszczednosciowe/konto-oszczednosciowe-cyfrowy-zysk",
     },
     {
       bank: "BNP Paribas",
@@ -34,7 +34,7 @@ export const SAVINGS_RATES_DB = {
       requiresROR: true,
       isNew: true,
       addedDate: "2026-04-07",
-      url: "https://www.bnpparibas.pl/konto-lokacyjne",
+      url: "https://www.bnpparibas.pl/klienci-indywidualni/oszczednosci-i-inwestycje/konto-lokacyjne",
     },
     {
       bank: "Nest Bank",
@@ -47,7 +47,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Nowi klienci, wpływ 2000 zł lub 10 transakcji",
       promoConditionsList: ["Tylko dla nowych klientów Nest Banku", "Wymagane konto osobiste Nest Konto", "Wpływ min. 2 000 zł/mies. LUB min. 10 transakcji kartą", "Okres promocji: 90 dni", "Limit: 25 000 zł"],
       requiresROR: true,
-      url: "https://www.nestbank.pl/konta/konto-oszczednosciowe",
+      url: "https://nestbank.pl/nest-konto-oszczednosciowe/",
     },
     {
       bank: "VeloBank",
@@ -60,7 +60,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Nowi klienci, 5 transakcji/mies.",
       promoConditionsList: ["Tylko dla nowych klientów VeloBanku", "Wymagane konto osobiste VeloKonto", "Min. 5 transakcji kartą/BLIK miesięcznie", "Okres promocji: 92 dni", "Limit: 50 000 zł"],
       requiresROR: true,
-      url: "https://www.velobank.pl/konta/konto-oszczednosciowe",
+      url: "https://www.velobank.pl/bankowosc-premium/oszczednosci/konto-oszczednosciowe.html",
     },
     {
       bank: "ING Bank Śląski",
@@ -73,7 +73,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Bonus na start, 3 logowania + 15 transakcji",
       promoConditionsList: ["Oferta dla nowych klientów ING (Bonus na start)", "Wymagane konto osobiste ING Direct", "Min. 3 logowania do bankowości internetowej/mies.", "Min. 15 transakcji kartą/BLIK miesięcznie", "Okres promocji: 90 dni", "Limit: 400 000 zł"],
       requiresROR: true,
-      url: "https://www.ing.pl/indywidualni/oszczedzanie/konto-oszczednosciowe",
+      url: "https://www.ing.pl/indywidualni/inwestycje-i-oszczednosci/otwarte-konto-oszczednosciowe-bonus",
     },
     {
       bank: "mBank",
@@ -86,7 +86,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Nowi klienci mKonto Intensive",
       promoConditionsList: ["Tylko dla nowych klientów mBanku", "Wymagane konto mKonto Intensive", "Okres promocji: 90 dni", "Limit: 50 000 zł"],
       requiresROR: true,
-      url: "https://www.mbank.pl/indywidualny/oszczednosci/moje-cele/",
+      url: "https://www.mbank.pl/indywidualny/inwestycje-i-oszczednosci/regularne-odkladanie/ekonto-oszczednosciowe/",
     },
     {
       bank: "Alior Bank",
@@ -99,7 +99,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Nowi klienci, transakcje 500 zł/mies.",
       promoConditionsList: ["Tylko dla nowych klientów Alior Banku", "Wymagane konto osobiste", "Transakcje kartą na min. 500 zł/mies.", "Okres promocji: 120 dni", "Limit: 30 000 zł"],
       requiresROR: true,
-      url: "https://www.aliorbank.pl/indywidualni/oszczednosci/konto-oszczednosciowe.html",
+      url: "https://www.aliorbank.pl/klienci-indywidualni/oszczednosci/konto-oszczednosciowe-na-start.html",
     },
     {
       bank: "Bank Pekao SA",
@@ -112,7 +112,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Nowi klienci lub niskie saldo",
       promoConditionsList: ["Dla nowych klientów lub klientów z niskim saldem", "Wymagane konto osobiste Pekao", "Okres promocji: 92 dni", "Limit: 100 000 zł"],
       requiresROR: true,
-      url: "https://www.pekao.com.pl/konto-oszczednosciowe.html",
+      url: "https://www.pekao.com.pl/klient-indywidualny/oszczedzam-i-inwestuje/programy-oszczednosciowe/konto-oszczednosciowe.html",
     },
     {
       bank: "Bank Millennium",
@@ -125,7 +125,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Nowe środki, 5 transakcji/mies.",
       promoConditionsList: ["Dotyczy nowych środków (ponad dotychczasowe saldo)", "Wymagane konto osobiste Millennium 360°", "Min. 5 transakcji kartą/BLIK miesięcznie", "Okres promocji: 91 dni", "Limit: 200 000 zł"],
       requiresROR: true,
-      url: "https://www.bankmillennium.pl/konta/konto-oszczednosciowe-profit",
+      url: "https://www.bankmillennium.pl/klienci-indywidualni/produkty-oszczednosciowe/rachunki-oszczednosciowe/konto-oszczednosciowe-profit",
     },
     {
       bank: "Toyota Bank",
@@ -151,7 +151,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Citigold, min. 400 tys. zł, 3 transakcje 500 zł/mies.",
       promoConditionsList: ["Wymaga statusu Citigold (aktywa min. 400 000 zł)", "Min. 3 transakcje po min. 500 zł/mies.", "Okres promocji: 180 dni"],
       requiresROR: true,
-      url: "https://www.citibank.pl/pl/konto-oszczednosciowe.html",
+      url: "https://www.citibank.pl/konta-osobiste/produkty-oszczednosciowe/konto-superoszczednosciowe/",
     },
     {
       bank: "Alior Bank",
@@ -164,7 +164,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Nowe środki, transakcje 500 zł/mies.",
       promoConditionsList: ["Dotyczy nowych środków", "Transakcje kartą na min. 500 zł/mies.", "Okres promocji: 90 dni", "Limit: 200 000 zł"],
       requiresROR: true,
-      url: "https://www.aliorbank.pl/indywidualni/oszczednosci/konto-mega-oszczednosciowe.html",
+      url: "https://www.aliorbank.pl/klienci-indywidualni/oszczednosci/konto-oszczednosciowe.html",
     },
     {
       bank: "UniCredit",
@@ -177,7 +177,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: null,
       promoConditionsList: ["Stała stawka 4,5% bez okresu promocyjnego", "Brak wymogu konta osobistego"],
       requiresROR: false,
-      url: "https://www.unicredit.pl/pl/klienci-indywidualni/oszczednosci/konto-oszczednosciowe.html",
+      url: "https://www.unicredit.pl/indywidualni/oszczednosci/konto-oszczednosciowe",
     },
     {
       bank: "ING Bank Śląski",
@@ -190,7 +190,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Bez warunków",
       promoConditionsList: ["Stała stawka 4,3% bez dodatkowych warunków", "Brak wymogu konta osobistego"],
       requiresROR: false,
-      url: "https://www.ing.pl/indywidualni/oszczedzanie/smart-saver",
+      url: "https://www.ing.pl/indywidualni/inwestycje-i-oszczednosci/smart-saver",
     },
     {
       bank: "Santander Bank Polska",
@@ -203,7 +203,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Nowe środki",
       promoConditionsList: ["Dotyczy nowych środków", "Wymagane konto osobiste Santander Select"],
       requiresROR: true,
-      url: "https://www.santander.pl/klient-indywidualny/konta/konto-oszczednosciowe",
+      url: "https://www.santander.pl/select/oszczednosci-i-inwestycje/konto-oszczednosciowe-select",
     },
     {
       bank: "Renault Bank",
@@ -216,7 +216,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: null,
       promoConditionsList: ["Stała stawka 4% bez okresu promocyjnego", "Brak wymogu konta osobistego"],
       requiresROR: false,
-      url: "https://www.renaultbank.pl/oszczednosci/konto-oszczednosciowe",
+      url: "https://www.raisin.com/pl-pl/banki/renault-bank/",
     },
     {
       bank: "Credit Agricole",
@@ -229,7 +229,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: "Nowi klienci",
       promoConditionsList: ["Tylko dla nowych klientów Credit Agricole", "Wymagane konto osobiste CA", "Okres promocji: 90 dni", "Limit: 100 000 zł"],
       requiresROR: true,
-      url: "https://www.credit-agricole.pl/klienci-indywidualni/konta/konto-oszczednosciowe",
+      url: "https://www.credit-agricole.pl/klienci-indywidualni/oszczednosci/rachunek-oszczedzam",
     },
     {
       bank: "PKO BP",
@@ -242,7 +242,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: null,
       promoConditionsList: ["Wymagane konto osobiste PKO BP", "Stawka standardowa 0,5%"],
       requiresROR: true,
-      url: "https://www.pkobp.pl/klienci-indywidualni/konta/konto-oszczednosciowe/",
+      url: "https://www.pkobp.pl/klient-indywidualny/konta/konto-oszczednosciowe",
     },
     {
       bank: "mBank",
@@ -255,7 +255,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: null,
       promoConditionsList: ["Wymagane konto osobiste mKonto", "Stawka standardowa 0,5%"],
       requiresROR: true,
-      url: "https://www.mbank.pl/indywidualny/oszczednosci/ekonto-oszczednosciowe/",
+      url: "https://www.mbank.pl/indywidualny/inwestycje-i-oszczednosci/regularne-odkladanie/ekonto-oszczednosciowe/",
     },
   ],
 };
