@@ -1742,7 +1742,7 @@ export default function App() {
                         style={{ fontSize: 10, padding: "4px 8px", borderRadius: 6, background: "#1e2a38", color: "#8a9bb0", border: "1px solid #2a3a50", cursor: "pointer", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap" }}>
                         Stawka aktualna
                       </button>
-                      <button onClick={() => setSelectedSavings(account)}
+                      <button onClick={() => { setEditingSavings(account); setShowSavingsForm(true); }}
                         style={{ fontSize: 10, padding: "4px 8px", borderRadius: 6, background: "#2a1e00", color: "#e8c060", border: "1px solid #4a3800", cursor: "pointer", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap" }}>
                         Zaktualizuj
                       </button>
@@ -1758,7 +1758,8 @@ export default function App() {
                   const balance = (calc.currentBalance || 0) + (calc.accruedToday || 0);
                   const dailyGain = calc.dailyGain || 0;
                   const nextCapDate = calc.nextCapDate;
-                  const accrued = calc.accruedToday || 0;
+                  const accruedSinceCap = calc.accruedSinceCap || 0;
+                  const daysAccrued = calc.daysAccrued || 0;
                   const fmtPLN = v => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
                   const fmtPLN0 = v => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 }).format(v);
                   // P3: Najlepsza oferta w DB
@@ -1785,29 +1786,32 @@ export default function App() {
                       </div>
                       {/* Saldo */}
                       <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 11, color: "#5a6a7e", marginBottom: 2 }}>Saldo + narosłe odsetki</div>
+                        <div style={{ fontSize: 11, color: "#5a6a7e", marginBottom: 2 }}>Saldo</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: "#e8edf3", fontFamily: "'DM Mono',monospace" }}>
                           {calc.currentBalance != null ? fmtPLN0(balance) : "—"}
                         </div>
                       </div>
                       {/* Statystyki */}
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                        <div style={{ background: "#0d131c", borderRadius: 8, padding: "8px 10px" }}>
-                          <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 2 }}>Dzienny przyrost</div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#00c896", fontFamily: "'DM Mono',monospace" }}>
-                            {dailyGain > 0 ? `+${fmtPLN(dailyGain)}` : "—"}
-                          </div>
-                        </div>
-                        <div style={{ background: "#0d131c", borderRadius: 8, padding: "8px 10px" }}>
-                          <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 2 }}>Narosłe dziś</div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#6bcfae", fontFamily: "'DM Mono',monospace" }}>
-                            {accrued > 0 ? `+${fmtPLN(accrued)}` : "—"}
-                          </div>
-                        </div>
+                        {/* Główna — narosłe od ostatniej kapitalizacji */}
                         <div style={{ background: "#0d131c", borderRadius: 8, padding: "8px 10px", gridColumn: "1/-1" }}>
-                          <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 2 }}>Następna kapitalizacja</div>
+                          <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 3 }}>Narosłe od kap. <span style={{ color: "#3a4a5e" }}>({daysAccrued}d)</span></div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: "#00c896", fontFamily: "'DM Mono',monospace" }}>
+                            {accruedSinceCap > 0 ? `+${fmtPLN(accruedSinceCap)}` : "—"}
+                          </div>
+                        </div>
+                        {/* Następna kapitalizacja */}
+                        <div style={{ background: "#0d131c", borderRadius: 8, padding: "8px 10px" }}>
+                          <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 2 }}>Nast. kapitalizacja</div>
                           <div style={{ fontSize: 12, fontWeight: 600, color: "#e8edf3", fontFamily: "'DM Mono',monospace" }}>
-                            {nextCapDate ? new Date(nextCapDate).toLocaleDateString("pl-PL", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                            {nextCapDate ? new Date(nextCapDate + "T12:00:00").toLocaleDateString("pl-PL", { day: "numeric", month: "short" }) : "—"}
+                          </div>
+                        </div>
+                        {/* Drugorzędne — dzienny przyrost */}
+                        <div style={{ background: "#0d131c", borderRadius: 8, padding: "8px 10px" }}>
+                          <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 2 }}>Dziennie (netto)</div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: "#5a8a78", fontFamily: "'DM Mono',monospace" }}>
+                            {dailyGain > 0 ? `+${fmtPLN(dailyGain)}` : "—"}
                           </div>
                         </div>
                       </div>

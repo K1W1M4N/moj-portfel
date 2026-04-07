@@ -43,52 +43,59 @@ const daysSince = (dateStr) => {
 const BELKA = 0.19; // podatek od zysków kapitałowych
 
 export function computeSavings(account) {
-  const { openDate, rate, transactions = [] } = account;
+  const { openDate, rate, rateHistory, transactions = [] } = account;
   if (!openDate || rate == null) return null;
 
-  const annualRate = rate / 100;
   const todayStr = today();
   const todayDate = new Date(todayStr);
   const openDateObj = new Date(openDate);
 
+  // Zwraca stawkę roczną (jako ułamek) obowiązującą w danym dniu
+  const getRate = (dateStr) => {
+    if (!rateHistory || rateHistory.length === 0) return rate / 100;
+    const sorted = [...rateHistory].sort((a, b) => (a.date > b.date ? 1 : -1));
+    let r = sorted[0].rate;
+    for (const entry of sorted) {
+      if (entry.date <= dateStr) r = entry.rate;
+      else break;
+    }
+    return r / 100;
+  };
+
   const sorted = [...transactions].sort((a, b) => (a.date > b.date ? 1 : -1));
 
+  // Saldo początkowe: transakcje w dniu otwarcia lub wcześniej
   let balance = 0;
   for (const tx of sorted) {
-    if (tx.date <= openDate) {
-      balance += tx.amount;
-    }
+    if (tx.date <= openDate) balance += tx.amount;
   }
 
   let totalInterestGross = 0;
   let totalInterestNet = 0;
   const months = [];
 
+  // Kapitalizacja zawsze 1. dnia miesiąca
   let periodStart = new Date(openDateObj);
+  let periodEnd = new Date(openDateObj.getFullYear(), openDateObj.getMonth() + 1, 1);
   let monthIndex = 0;
 
   while (true) {
-    const periodEnd = new Date(periodStart);
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-
     if (periodEnd > todayDate) break;
 
     const periodStartStr = periodStart.toISOString().slice(0, 10);
-    const periodEndStr = periodEnd.toISOString().slice(0, 10);
-
-    const openBal = balance;
+    const periodEndStr   = periodEnd.toISOString().slice(0, 10);
+    const annualRate     = getRate(periodStartStr);
+    const openBal        = balance;
 
     const txInPeriod = sorted.filter(
       (tx) => tx.date > periodStartStr && tx.date <= periodEndStr
     );
     const txSum = txInPeriod.reduce((s, tx) => s + tx.amount, 0);
 
-    const days = Math.round((periodEnd - periodStart) / 86400000);
+    const days          = Math.round((periodEnd - periodStart) / 86400000);
     const interestGross = Math.round(openBal * annualRate * (days / 365) * 100) / 100;
-    const interestNet = Math.round(interestGross * (1 - BELKA) * 100) / 100;
-
-    // Saldo po kapitalizacji uwzględnia podatek Belki (bank wypłaca netto)
-    const closeBal = Math.round((openBal + interestNet + txSum) * 100) / 100;
+    const interestNet   = Math.round(interestGross * (1 - BELKA) * 100) / 100;
+    const closeBal      = Math.round((openBal + interestNet + txSum) * 100) / 100;
 
     months.push({
       label: periodEnd.toLocaleDateString("pl-PL", { month: "long", year: "numeric" }),
@@ -102,38 +109,42 @@ export function computeSavings(account) {
     });
 
     totalInterestGross += interestGross;
-    totalInterestNet += interestNet;
+    totalInterestNet   += interestNet;
     balance = closeBal;
 
     periodStart = new Date(periodEnd);
+    periodEnd   = new Date(periodEnd.getFullYear(), periodEnd.getMonth() + 1, 1);
     monthIndex++;
-
     if (monthIndex > 600) break;
   }
 
-  const lastCapDate = periodStart.toISOString().slice(0, 10);
-  const txAfterCap = sorted.filter((tx) => tx.date > lastCapDate && tx.date <= todayStr);
-  const txAfterCapSum = txAfterCap.reduce((s, tx) => s + tx.amount, 0);
+  // Bieżący okres (od ostatniej kapitalizacji do dziś)
+  const lastCapDate    = periodStart.toISOString().slice(0, 10);
+  const nextCapDate    = periodEnd.toISOString().slice(0, 10); // już ustawione na 1. kolejnego miesiąca
+  const txAfterCap     = sorted.filter((tx) => tx.date > lastCapDate && tx.date <= todayStr);
+  const txAfterCapSum  = txAfterCap.reduce((s, tx) => s + tx.amount, 0);
   const currentBalance = Math.round((balance + txAfterCapSum) * 100) / 100;
-  const daysAccrued = Math.max(0, Math.round((todayDate - periodStart) / 86400000));
-  const accruedGross = Math.round(currentBalance * annualRate * (daysAccrued / 365) * 100) / 100;
-  const accruedToday = Math.round(accruedGross * (1 - BELKA) * 100) / 100;
-  const dailyGainGross = Math.round(currentBalance * annualRate * (1 / 365) * 100) / 100;
-  const dailyGain = Math.round(dailyGainGross * (1 - BELKA) * 100) / 100;
+  const daysAccrued    = Math.max(0, Math.round((todayDate - periodStart) / 86400000));
 
-  const nextCapDate = new Date(periodStart);
-  nextCapDate.setMonth(nextCapDate.getMonth() + 1);
+  // Użyj bieżącej stawki (najnowszej w historii) do obliczeń od ostatniej kapitalizacji
+  const currentRate    = getRate(lastCapDate);
+  const accruedGross   = Math.round(currentBalance * currentRate * (daysAccrued / 365) * 100) / 100;
+  const accruedSinceCap = Math.round(accruedGross * (1 - BELKA) * 100) / 100; // netto, od ostatniej kap.
+  const accruedToday   = accruedSinceCap; // alias dla kompatybilności
+  const dailyGainGross = Math.round(currentBalance * currentRate * (1 / 365) * 100) / 100;
+  const dailyGain      = Math.round(dailyGainGross * (1 - BELKA) * 100) / 100;
 
   return {
     currentBalance,
-    accruedToday,
+    accruedToday,       // = accruedSinceCap (od ostatniej kapitalizacji, netto)
+    accruedSinceCap,
     accruedGross,
     dailyGain,
     dailyGainGross,
     totalInterestNet,
     totalInterestGross,
     lastCapDate,
-    nextCapDate: nextCapDate.toISOString().slice(0, 10),
+    nextCapDate,
     months,
     daysAccrued,
   };
@@ -696,6 +707,21 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
       }
     }
 
+    // Historia stawek — zachowuje przeszłość, zmiana dotyczy tylko przyszłych obliczeń
+    let rateHistory;
+    if (!existing) {
+      // Nowe konto: jedna stawka od daty otwarcia
+      rateHistory = [{ date: openDate, rate: r }];
+    } else {
+      const prevHistory = existing.rateHistory || [{ date: existing.openDate, rate: existing.rate }];
+      if (Math.abs(r - existing.rate) > 0.001) {
+        // Stawka zmieniona — dopisz nowy wpis od dziś, nie rusz historii
+        rateHistory = [...prevHistory, { date: today(), rate: r }];
+      } else {
+        rateHistory = prevHistory;
+      }
+    }
+
     const account = {
       id: existing?.id || Date.now(),
       isSavings: true,
@@ -705,8 +731,8 @@ export function SavingsFormModal({ existing, onClose, onSave }) {
       openDate,
       note,
       transactions,
+      rateHistory,
       category: "Konto oszczędnościowe",
-      // Zachowaj info o promocji tylko jeśli jest aktywna
       promoEndDate: computedRate?.isPromo ? computedRate.promoEndDate : null,
       rateAfterPromo: computedRate?.isPromo ? computedRate.rateAfterPromo : null,
     };
