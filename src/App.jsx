@@ -596,41 +596,20 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
 // ─── Podsumowanie Portfela (Live) ──────────────────────────────────────────────
 
 // Oblicz wartość konta oszczędnościowego na dowolną datę w przeszłości
+// Prosta, niezawodna metoda: bieżąca wartość minus odsetki za X dni wstecz
 function calcSavingsValueAtDate(account, targetDate) {
-  const { openDate, rate, transactions = [] } = account;
+  const { openDate, rate } = account;
   if (!openDate || rate == null) return null;
   const annualRate = rate / 100;
   const tDate = new Date(targetDate); tDate.setHours(0, 0, 0, 0);
   const openDateObj = new Date(openDate); openDateObj.setHours(0, 0, 0, 0);
-  if (tDate < openDateObj) return 0;
-  if (transactions.length === 0) {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const daysBack = Math.round((today - tDate) / 86400000);
-    const cv = account.value || 0;
-    return Math.round((cv - cv * annualRate * (daysBack / 365)) * 100) / 100;
-  }
-  const sorted = [...transactions].sort((a, b) => (a.date > b.date ? 1 : -1));
-  const tStr = tDate.toISOString().slice(0, 10);
-  let balance = 0;
-  for (const tx of sorted) { if (tx.date <= openDate) balance += tx.amount; }
-  let periodStart = new Date(openDateObj);
-  let safety = 0;
-  while (safety++ < 600) {
-    const periodEnd = new Date(periodStart);
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-    if (periodEnd > tDate) break;
-    const pStartStr = periodStart.toISOString().slice(0, 10);
-    const pEndStr = periodEnd.toISOString().slice(0, 10);
-    const txSum = sorted.filter(tx => tx.date > pStartStr && tx.date <= pEndStr).reduce((s, tx) => s + tx.amount, 0);
-    const days = Math.round((periodEnd - periodStart) / 86400000);
-    const interest = Math.round(balance * annualRate * (days / 365) * 100) / 100;
-    balance = Math.round((balance + interest + txSum) * 100) / 100;
-    periodStart = new Date(periodEnd);
-  }
-  const lastCapStr = periodStart.toISOString().slice(0, 10);
-  balance = Math.round((balance + sorted.filter(tx => tx.date > lastCapStr && tx.date <= tStr).reduce((s, tx) => s + tx.amount, 0)) * 100) / 100;
-  const daysAccrued = Math.max(0, Math.round((tDate - periodStart) / 86400000));
-  return Math.round((balance + balance * annualRate * (daysAccrued / 365)) * 100) / 100;
+  if (tDate < openDateObj) return null; // konto jeszcze nie istniało
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const daysBack = Math.max(0, Math.round((today - tDate) / 86400000));
+  const currentVal = account.value || 0;
+  // Odejmij narosłe odsetki za ostatnie daysBack dni
+  const interestForPeriod = currentVal * annualRate * (daysBack / 365);
+  return Math.round((currentVal - interestForPeriod) * 100) / 100;
 }
 
 function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
@@ -646,20 +625,30 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
   const totalPnl = totalPaid > 0 ? totalValue - totalPaid : null;
   const totalPnlPct = totalPaid > 0 ? (totalValue - totalPaid) / totalPaid * 100 : null;
 
-  // Oblicz historyczną wartość TYLKO dla obliczalnych kategorii
-  const calculableCategories = ["Obligacje", "Konto oszczędnościowe"];
-  const isCalculable = activeFilter && calculableCategories.includes(activeFilter);
-
+  // Oblicz historyczną wartość portfela — zlicza co może:
+  // Obligacje → precyzyjny calcBondCurrentValue
+  // Konto oszczędnościowe → odsetki wstecz
+  // Reszta (akcje, krypto, PPK itp.) → bieżąca wartość (diff=0, brak danych historycznych)
   function getHistVal(daysAgo) {
-    if (!isCalculable) return null;
     const t = new Date(); t.setDate(t.getDate() - daysAgo);
-    const targetAssets = assets.filter(a => a.category === activeFilter);
+    const targetAssets = activeFilter
+      ? assets.filter(a => a.category === activeFilter)
+      : assets;
     if (targetAssets.length === 0) return null;
     let total = 0;
     for (const a of targetAssets) {
-      if (a.isBond && a.purchaseDate && a.quantity) { total += calcBondCurrentValue(a, t).currentValue; continue; }
-      if (a.isSavings && a.openDate && a.rate != null) { const v = calcSavingsValueAtDate(a, t); if (v !== null) { total += v; continue; } }
-      return null;
+      // Obligacje — precyzyjne
+      if (a.isBond && a.purchaseDate && a.quantity) {
+        total += calcBondCurrentValue(a, t).currentValue;
+        continue;
+      }
+      // Konto oszczędnościowe — odsetki
+      if (a.isSavings && a.openDate && a.rate != null) {
+        const v = calcSavingsValueAtDate(a, t);
+        if (v !== null) { total += v; continue; }
+      }
+      // Wszystko inne — brak historycznych cen, zakładamy wartość = dziś
+      total += a.value || 0;
     }
     return total;
   }
@@ -673,8 +662,6 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
   const pct30d = v30d && v30d > 0 ? (diff30d / v30d) * 100 : null;
   const diff365d = v365d !== null ? totalValue - v365d : null;
   const pct365d = v365d && v365d > 0 ? (diff365d / v365d) * 100 : null;
-
-  const hasTimeTiles = diff1d !== null || diff30d !== null || diff365d !== null;
 
   // Formatowanie kwot — bez groszy gdy >= 1000 zł (kompaktowe kafelki)
   function fmtCompact(n) {
@@ -710,7 +697,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: hasTimeTiles ? 8 : 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
         <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Bieżąca Wartość</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>{fmt(totalValue)}</div>
@@ -730,8 +717,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
         </div>
       </div>
 
-      {hasTimeTiles && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {mBlock("Zysk dzienny", diff1d, pct1d)}
           {mBlock("Zysk miesięczny", diff30d, pct30d)}
           {mBlock("Zysk roczny", diff365d, pct365d)}
@@ -741,8 +727,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
               {pct365d !== null ? (pct365d >= 0 ? "+" : "") + pct365d.toFixed(2) + "%" : "—"}
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
