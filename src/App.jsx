@@ -657,12 +657,12 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
   const mBlock = (label, diff, pct) => (
     <div style={{ background: "#0f1621", border: "1px solid " + (diff !== null && diff !== 0 ? (diff > 0 ? "#00c89630" : "#f0506030") : "#1e2a38"), borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 3, flex: "1 1 120px", position: "relative", overflow: "hidden" }}>
       <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>{label}</div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: "auto", flexWrap: "wrap" }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: "auto", flexWrap: "nowrap" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
           {diff !== null ? fmtSignedDetailed(diff) : "—"}
         </div>
         {pct !== null && (
-          <div style={{ fontSize: 10, fontWeight: 500, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#5a6a7e", fontFamily: "'DM Mono', monospace" }}>
+          <div style={{ fontSize: 9, fontWeight: 600, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#5a6a7e", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
             ({pct > 0 ? "+" : ""}{pct.toFixed(2)}%)
           </div>
         )}
@@ -681,16 +681,16 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Bieżąca Wartość</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>{fmt(totalValue)}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>{fmt(totalValue)}</div>
         </div>
         <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Zysk Całkowity</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", marginTop: "auto" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: "auto", flexWrap: "nowrap" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
               {totalPnl !== null ? fmtSignedDetailed(totalPnl) : "—"}
             </div>
             {totalPnlPct !== null && (
-              <div style={{ fontSize: 11, fontWeight: 600, color: totalPnlPct >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: totalPnlPct >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
                 ({totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%)
               </div>
             )}
@@ -704,7 +704,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
         {mBlock("Zysk roczny", diff365d, pct365d)}
         <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 3, flex: "1 1 120px" }}>
           <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: pct365d !== null ? (pct365d >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: pct365d !== null ? (pct365d >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>
             {pct365d !== null ? (pct365d >= 0 ? "+" : "") + pct365d.toFixed(2) + "%" : "Zbieranie danych"}
           </div>
         </div>
