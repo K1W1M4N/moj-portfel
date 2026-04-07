@@ -57,13 +57,15 @@ function calcSingleBond(params, purchaseDate, today, rate1) {
   return val;
 }
 
-export function calcBondCurrentValue(bond) {
+export function calcBondCurrentValue(bond, customToday = null) {
   const { type, purchaseDate, quantity, rate } = bond;
   const params = BOND_TYPES[type];
   if (!params || !purchaseDate || !quantity) return { currentValue:(quantity||0)*100, earned:0, dailyGain:0, progress:0 };
 
-  const today = new Date(); today.setHours(0,0,0,0);
+  const today = customToday ? new Date(customToday) : new Date(); today.setHours(0,0,0,0);
   const purchase = new Date(purchaseDate); purchase.setHours(0,0,0,0);
+
+  if (today < purchase) return { currentValue:(quantity||0)*100, earned:0, dailyGain:0, progress:0 };
   const maturityDate = new Date(purchase);
   if (params.isShortTerm) {
     maturityDate.setMonth(maturityDate.getMonth() + params.months);

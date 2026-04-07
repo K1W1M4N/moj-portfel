@@ -608,8 +608,25 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
   const totalPnlPct = totalPaid > 0 ? (totalValue - totalPaid) / totalPaid * 100 : null;
 
   function getHistVal(daysAgo) {
-    if (!history || history.length === 0) return null;
     const t = new Date(); t.setDate(t.getDate() - daysAgo);
+
+    // Dynamiczny zysk dla Obligacji kiedy filtrowane
+    if (activeFilter === "Obligacje") {
+      const filtered = assets.filter(a => a.category === "Obligacje" && a.isBond);
+      if (filtered.length > 0) {
+        let historicalValue = 0;
+        let valid = false;
+        filtered.forEach(b => {
+          if (b.purchaseDate && b.quantity) {
+             historicalValue += calcBondCurrentValue(b, t).currentValue;
+             valid = true;
+          }
+        });
+        if (valid) return historicalValue;
+      }
+    }
+
+    if (!history || history.length === 0) return null;
     const targetStr = t.toISOString().slice(0, 10);
     const item = history.slice().reverse().find(h => h.date <= targetStr);
     if (!item) return null;
