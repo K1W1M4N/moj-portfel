@@ -1718,7 +1718,8 @@ export default function App() {
 
               {/* P4: Alerty weryfikacji stawek */}
               {assetsWithLivePrices.filter(a => a.isSavings).map(account => {
-                const bankName = (account.savingsBankName || "").toLowerCase().trim();
+                const bankName = (account.bankName || "").toLowerCase().trim();
+                if (!bankName) return null;
                 const matchingOffers = SAVINGS_RATES_DB.accounts.filter(o =>
                   o.bank.toLowerCase().trim().includes(bankName) || bankName.includes(o.bank.toLowerCase().trim())
                 );
@@ -1734,7 +1735,7 @@ export default function App() {
                   <div key={account.id + "-p4"} style={{ background: "#1a1400", border: "1px solid #4a3800", borderRadius: 10, padding: "12px 16px", marginBottom: 10, display: "flex", gap: 12, alignItems: "flex-start" }}>
                     <span style={{ fontSize: 16 }}>⚠️</span>
                     <div style={{ flex: 1, fontSize: 12, color: "#c8a030", lineHeight: 1.5 }}>
-                      <strong style={{ color: "#e8c060" }}>{account.savingsBankName}</strong>: Twoja stawka to <strong>{account.rate}%</strong>, ale aktualne dane wskazują na <strong>{closestRate}%</strong>. Potwierdź, że stawka jest aktualna.
+                      <strong style={{ color: "#e8c060" }}>{account.bankName}</strong>: Twoja stawka to <strong>{account.rate}%</strong>, ale aktualne dane wskazują na <strong>{closestRate}%</strong>. Potwierdź, że stawka jest aktualna.
                     </div>
                     <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                       <button onClick={() => { try { localStorage.setItem(storageKey, JSON.stringify({ at: Date.now() })); } catch {} setAssets(prev => [...prev]); }}
@@ -1774,7 +1775,7 @@ export default function App() {
                       {/* Nagłówek karty */}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                         <div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: "#e8edf3" }}>{account.savingsBankName}</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "#e8edf3" }}>{account.bankName}</div>
                           <div style={{ fontSize: 11, color: "#5a6a7e", marginTop: 1 }}>{account.name}</div>
                         </div>
                         <div style={{ textAlign: "right" }}>
