@@ -1445,6 +1445,7 @@ export default function App() {
   const [editingSavings, setEditingSavings] = useState(null);
   const [offersPage, setOffersPage] = useState(1);
   const [expandedOffer, setExpandedOffer] = useState(null);
+  const [showRefreshInfo, setShowRefreshInfo] = useState(false);
 
   const { prices, lastUpdated } = useCryptoPrices(assets);
   const { stockPrices, stockLastUpdated, refetchStocks } = useStockPrices(assets);
@@ -1738,12 +1739,23 @@ export default function App() {
                         return `aktualizacja: ${d.toLocaleDateString("pl-PL", { month: "long", year: "numeric" })}`;
                       })()}
                     </div>
-                    <a href="https://github.com/K1W1M4N/moj-portfel/actions/workflows/update-savings-rates.yml"
-                      target="_blank" rel="noopener noreferrer"
-                      title="Uruchom ręczną aktualizację ofert na GitHub Actions"
-                      style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: "#1e2a38", color: "#8a9bb0", border: "1px solid #2a3a50", textDecoration: "none", whiteSpace: "nowrap", fontFamily: "'Sora',sans-serif" }}>
-                      ↻ odśwież
-                    </a>
+                    <div style={{ position: "relative" }}>
+                      <button onClick={() => setShowRefreshInfo(v => !v)}
+                        style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: showRefreshInfo ? "#2a3a50" : "#1e2a38", color: "#8a9bb0", border: "1px solid #2a3a50", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'Sora',sans-serif" }}>
+                        ↻ odśwież
+                      </button>
+                      {showRefreshInfo && (
+                        <div style={{ position: "absolute", right: 0, top: "calc(100% + 8px)", width: 260, background: "#1a2535", border: "1px solid #2a3a50", borderRadius: 10, padding: "14px 16px", zIndex: 200, boxShadow: "0 8px 24px rgba(0,0,0,.5)" }}>
+                          <div style={{ fontSize: 12, color: "#e8edf3", fontWeight: 600, marginBottom: 8 }}>Automatyczne aktualizacje</div>
+                          <div style={{ fontSize: 11, color: "#8a9bb0", lineHeight: 1.6, marginBottom: 10 }}>
+                            Oferty są odświeżane <span style={{ color: "#00c896" }}>co poniedziałek</span> ze źródeł Moneteo, Bankier i Comperia. Jeśli pojawią się nowe stawki, strona aktualizuje się automatycznie.
+                          </div>
+                          <div style={{ fontSize: 10, color: "#4a5a6e", borderTop: "1px solid #2a3a50", paddingTop: 8 }}>
+                            Ostatnia aktualizacja: {new Date(SAVINGS_RATES_DB.lastUpdated + "-01").toLocaleDateString("pl-PL", { month: "long", year: "numeric" })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1805,6 +1817,12 @@ export default function App() {
                             wymaga ROR
                           </div>
                         )}
+                        {/* New badge */}
+                        {offer.isNew && (
+                          <div style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, background: "#0d3a28", color: "#00c896", border: "1px solid #1a5a40", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap", fontWeight: 700, letterSpacing: ".04em" }}>
+                            Nowa
+                          </div>
+                        )}
                         {/* Expiry badge */}
                         {(() => { const b = expiryBadge(offer); return b ? (
                           <div style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: b.bg, color: b.color, fontFamily: "'DM Mono',monospace", whiteSpace: "nowrap", fontWeight: 700 }}>
@@ -1830,7 +1848,14 @@ export default function App() {
                         {/* Header */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                           <div>
-                            <div style={{ fontSize: 18, fontWeight: 700, color: "#e8edf3" }}>{o.bank}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{ fontSize: 18, fontWeight: 700, color: "#e8edf3" }}>{o.bank}</div>
+                              {o.isNew && (
+                                <div style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: "#0d3a28", color: "#00c896", border: "1px solid #1a5a40", fontWeight: 700, letterSpacing: ".04em" }}>
+                                  Nowa
+                                </div>
+                              )}
+                            </div>
                             <div style={{ fontSize: 12, color: "#6b7f96", marginTop: 4 }}>{o.name}</div>
                           </div>
                           <button onClick={() => setExpandedOffer(null)}

@@ -527,15 +527,38 @@ def merge_accounts(all_accounts):
     return list(merged.values())
 
 
+def load_existing_keys(output_path):
+    """Zwraca zbiór kluczy (bank|name) z aktualnego pliku JS — do wykrywania nowych ofert."""
+    existing = set()
+    if not output_path.exists():
+        return existing
+    text = output_path.read_text(encoding='utf-8')
+    banks = re.findall(r'bank:\s*"([^"]+)"', text)
+    names = re.findall(r'name:\s*"([^"]+)"', text)
+    for b, n in zip(banks, names):
+        existing.add(f"{b.lower()}|{n[:25].lower()}")
+    return existing
+
+
 def generate_js_file(accounts, output_path):
     today = datetime.now().strftime("%Y-%m")
     updated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # Wykryj które oferty są nowe (nie było ich w poprzednim pliku)
+    existing_keys = load_existing_keys(output_path)
 
     accounts_sorted = sorted(
         accounts,
         key=lambda x: (x.get('ratePromo') or x.get('rateStandard') or 0),
         reverse=True
     )
+
+    for acc in accounts_sorted:
+        key = f"{acc.get('bank','').lower()}|{acc.get('name','')[:25].lower()}"
+        if key not in existing_keys:
+            acc['isNew'] = True
+        elif not acc.get('isNew'):
+            acc['isNew'] = False
 
     def js_val(v):
         if v is None:
@@ -564,7 +587,7 @@ def generate_js_file(accounts, output_path):
         lines.append('    {')
         for field in ['bank', 'name', 'rateStandard', 'ratePromo', 'promoLimit',
                       'promoDays', 'promoEndDate', 'promoConditions', 'promoConditionsList',
-                      'requiresROR', 'url']:
+                      'requiresROR', 'isNew', 'url']:
             lines.append(f'      {field}: {js_val(acc.get(field))},')
         lines.append('    },')
 
