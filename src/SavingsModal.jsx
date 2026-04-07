@@ -40,6 +40,8 @@ const daysSince = (dateStr) => {
 };
 
 // ─── Silnik obliczeń ──────────────────────────────────────────────────────────
+const BELKA = 0.19; // podatek od zysków kapitałowych
+
 function computeSavings(account) {
   const { openDate, rate, transactions = [] } = account;
   if (!openDate || rate == null) return null;
@@ -58,7 +60,8 @@ function computeSavings(account) {
     }
   }
 
-  let totalInterest = 0;
+  let totalInterestGross = 0;
+  let totalInterestNet = 0;
   const months = [];
 
   let periodStart = new Date(openDateObj);
@@ -81,21 +84,25 @@ function computeSavings(account) {
     const txSum = txInPeriod.reduce((s, tx) => s + tx.amount, 0);
 
     const days = Math.round((periodEnd - periodStart) / 86400000);
-    const interest = Math.round(openBal * annualRate * (days / 365) * 100) / 100;
+    const interestGross = Math.round(openBal * annualRate * (days / 365) * 100) / 100;
+    const interestNet = Math.round(interestGross * (1 - BELKA) * 100) / 100;
 
-    const closeBal = Math.round((openBal + interest + txSum) * 100) / 100;
+    // Saldo po kapitalizacji uwzględnia podatek Belki (bank wypłaca netto)
+    const closeBal = Math.round((openBal + interestNet + txSum) * 100) / 100;
 
     months.push({
       label: periodEnd.toLocaleDateString("pl-PL", { month: "long", year: "numeric" }),
       date: periodEndStr,
       openBalance: openBal,
-      interest,
+      interestGross,
+      interestNet,
       txSum,
       closeBalance: closeBal,
       days,
     });
 
-    totalInterest += interest;
+    totalInterestGross += interestGross;
+    totalInterestNet += interestNet;
     balance = closeBal;
 
     periodStart = new Date(periodEnd);
@@ -109,8 +116,10 @@ function computeSavings(account) {
   const txAfterCapSum = txAfterCap.reduce((s, tx) => s + tx.amount, 0);
   const currentBalance = Math.round((balance + txAfterCapSum) * 100) / 100;
   const daysAccrued = Math.max(0, Math.round((todayDate - periodStart) / 86400000));
-  const accruedToday = Math.round(currentBalance * annualRate * (daysAccrued / 365) * 100) / 100;
-  const dailyGain = Math.round(currentBalance * annualRate * (1 / 365) * 100) / 100;
+  const accruedGross = Math.round(currentBalance * annualRate * (daysAccrued / 365) * 100) / 100;
+  const accruedToday = Math.round(accruedGross * (1 - BELKA) * 100) / 100;
+  const dailyGainGross = Math.round(currentBalance * annualRate * (1 / 365) * 100) / 100;
+  const dailyGain = Math.round(dailyGainGross * (1 - BELKA) * 100) / 100;
 
   const nextCapDate = new Date(periodStart);
   nextCapDate.setMonth(nextCapDate.getMonth() + 1);
@@ -118,8 +127,11 @@ function computeSavings(account) {
   return {
     currentBalance,
     accruedToday,
+    accruedGross,
     dailyGain,
-    totalInterest,
+    dailyGainGross,
+    totalInterestNet,
+    totalInterestGross,
     lastCapDate,
     nextCapDate: nextCapDate.toISOString().slice(0, 10),
     months,
@@ -131,8 +143,9 @@ function projectBalance(currentBalance, rate, months) {
   const annualRate = rate / 100;
   let bal = currentBalance;
   for (let i = 0; i < months; i++) {
-    const interest = Math.round(bal * annualRate * (30.44 / 365) * 100) / 100;
-    bal = Math.round((bal + interest) * 100) / 100;
+    const interestGross = Math.round(bal * annualRate * (30.44 / 365) * 100) / 100;
+    const interestNet = Math.round(interestGross * (1 - BELKA) * 100) / 100;
+    bal = Math.round((bal + interestNet) * 100) / 100;
   }
   return bal;
 }
@@ -167,8 +180,11 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm, onMove 
   const {
     currentBalance,
     accruedToday,
+    accruedGross,
     dailyGain,
-    totalInterest,
+    dailyGainGross,
+    totalInterestNet,
+    totalInterestGross,
     lastCapDate,
     nextCapDate,
     months,
@@ -290,9 +306,24 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm, onMove 
       {/* Kluczowe liczby */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
         <StatCard label="Aktualne saldo" value={fmt2(currentBalance)} big accent={C.green} />
-        <StatCard label={`Narosłe odsetki (${daysAccrued} dni)`} value={"+" + fmt2(accruedToday)} accent={C.green} />
-        <StatCard label="Dzienny przyrost" value={"+" + fmt2(dailyGain)} accent={C.orange} />
-        <StatCard label="Odsetki łącznie" value={"+" + fmt2(totalInterest)} accent={C.accent2} />
+        <StatCard
+          label={`Narosłe odsetki netto (${daysAccrued} dni)`}
+          value={"+" + fmt2(accruedToday)}
+          sub={"brutto: +" + fmt2(accruedGross)}
+          accent={C.green}
+        />
+        <StatCard
+          label="Dzienny przyrost netto"
+          value={"+" + fmt2(dailyGain)}
+          sub={"brutto: +" + fmt2(dailyGainGross)}
+          accent={C.orange}
+        />
+        <StatCard
+          label="Odsetki netto łącznie"
+          value={"+" + fmt2(totalInterestNet)}
+          sub={"brutto: +" + fmt2(totalInterestGross)}
+          accent={C.accent2}
+        />
       </div>
 
       {/* Info o kapitalizacji */}
@@ -355,7 +386,7 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm, onMove 
           </div>
         </div>
         <div style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>
-          * Zakłada stałe oprocentowanie {account.rate}%
+          * Zakłada stałe oprocentowanie {account.rate}%, odsetki po potrąceniu podatku Belki (19%)
         </div>
       </div>
 
@@ -383,7 +414,7 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm, onMove 
             <div style={{ marginTop: 8, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "1.2fr 1fr 1fr 1fr",
+                gridTemplateColumns: "1.2fr 1fr 1fr 1fr 1fr",
                 padding: "8px 14px",
                 background: "#0f1823",
                 fontSize: 11,
@@ -393,13 +424,14 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm, onMove 
               }}>
                 <span>Miesiąc</span>
                 <span style={{ textAlign: "right" }}>Przed</span>
-                <span style={{ textAlign: "right" }}>Odsetki</span>
+                <span style={{ textAlign: "right" }}>Brutto</span>
+                <span style={{ textAlign: "right" }}>Netto</span>
                 <span style={{ textAlign: "right" }}>Po</span>
               </div>
               {[...months].reverse().map((m, i) => (
                 <div key={i} style={{
                   display: "grid",
-                  gridTemplateColumns: "1.2fr 1fr 1fr 1fr",
+                  gridTemplateColumns: "1.2fr 1fr 1fr 1fr 1fr",
                   padding: "10px 14px",
                   borderTop: `1px solid ${C.border}`,
                   fontSize: 13,
@@ -407,7 +439,8 @@ function SavingsDetailPanel({ account, onEdit, onDelete, onOpenEditForm, onMove 
                 }}>
                   <span style={{ color: C.muted }}>{m.label}</span>
                   <span style={{ textAlign: "right", fontFamily: "'DM Mono', monospace", fontSize: 12 }}>{fmt0(m.openBalance)}</span>
-                  <span style={{ textAlign: "right", color: C.green, fontFamily: "'DM Mono', monospace", fontSize: 12 }}>+{fmt2(m.interest)}</span>
+                  <span style={{ textAlign: "right", color: "#4a5a6e", fontFamily: "'DM Mono', monospace", fontSize: 12 }}>+{fmt2(m.interestGross)}</span>
+                  <span style={{ textAlign: "right", color: C.green, fontFamily: "'DM Mono', monospace", fontSize: 12 }}>+{fmt2(m.interestNet)}</span>
                   <span style={{ textAlign: "right", fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600 }}>{fmt0(m.closeBalance)}</span>
                 </div>
               ))}
@@ -1029,7 +1062,7 @@ const menuBtnStyle = {
   fontFamily: "'Sora', sans-serif",
 };
 
-function StatCard({ label, value, accent, big }) {
+function StatCard({ label, value, sub, accent, big }) {
   return (
     <div style={{ background: "#0f1823", borderRadius: 10, padding: "12px 14px", border: `1px solid #1e2d3d` }}>
       <div style={{ fontSize: 11, color: "#6b7f96", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -1038,6 +1071,11 @@ function StatCard({ label, value, accent, big }) {
       <div style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: big ? 20 : 16, color: accent || "#e8edf3" }}>
         {value}
       </div>
+      {sub && (
+        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#4a5a6e", marginTop: 3 }}>
+          {sub}
+        </div>
+      )}
     </div>
   );
 }

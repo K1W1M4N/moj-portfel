@@ -2,9 +2,9 @@ name: Update Savings Rates
 
 on:
   schedule:
-    # Uruchamiaj 1. i 15. dnia miesiąca o 9:00 UTC (10:00/11:00 PL)
-    - cron: '0 9 1,15 * *'
-  workflow_dispatch: # Pozwala na ręczne uruchomienie
+    # Co poniedziałek o 9:00 UTC (11:00 PL)
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
 
 jobs:
   update-rates:

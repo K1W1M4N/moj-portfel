@@ -607,9 +607,10 @@ function calcSavingsValueAtDate(account, targetDate) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const daysBack = Math.max(0, Math.round((today - tDate) / 86400000));
   const currentVal = account.value || 0;
-  // Odejmij narosłe odsetki za ostatnie daysBack dni
-  const interestForPeriod = currentVal * annualRate * (daysBack / 365);
-  return Math.round((currentVal - interestForPeriod) * 100) / 100;
+  // Odejmij narosłe odsetki netto (po Belce 19%) za ostatnie daysBack dni
+  const interestGross = currentVal * annualRate * (daysBack / 365);
+  const interestNet = interestGross * 0.81;
+  return Math.round((currentVal - interestNet) * 100) / 100;
 }
 
 function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
