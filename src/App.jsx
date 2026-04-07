@@ -1700,8 +1700,8 @@ export default function App() {
                     style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 14, padding: "16px", cursor: "pointer", transition: "all .15s" }}>
                     <div style={{ fontSize: 15, fontWeight: 600, color: "#00c896", marginBottom: 4, fontFamily: "'DM Mono',monospace" }}>{account.savingsBankName}</div>
                     <div style={{ fontSize: 12, color: "#8a9bb0", display: "flex", justifyContent: "space-between" }}>
-                      <span>Saldo: {new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:0}).format(account.savingsBalance)}</span>
-                      <span style={{ color: "#e8f0f8" }}>{account.savingsRate}%</span>
+                      <span>Saldo: {isNaN(account.savingsBalance) || account.savingsBalance == null ? "—" : new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:0}).format(account.savingsBalance)}</span>
+                      <span style={{ color: "#e8f0f8" }}>{account.savingsRate != null && !isNaN(account.savingsRate) ? `${account.savingsRate}%` : "—"}</span>
                     </div>
                   </div>
                 ))}
@@ -1723,7 +1723,7 @@ export default function App() {
                   return isStale ? (
                     <div style={{ background: "#2a1a00", border: "1px solid #5a3a00", borderRadius: 8, padding: "8px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#f0a030" }}>
                       <span>⚠</span>
-                      <span>Dane mogą być nieaktualne (ostatnia aktualizacja: {SAVINGS_RATES_DB.lastUpdated}). Zawsze weryfikuj na stronie banku.</span>
+                      <span>Dane mogą być nieaktualne (ostatnia aktualizacja: {new Date(SAVINGS_RATES_DB.lastUpdated + "-01").toLocaleDateString("pl-PL", { month: "long", year: "numeric" })}). Zawsze weryfikuj na stronie banku.</span>
                     </div>
                   ) : null;
                 })()}
@@ -1731,8 +1731,19 @@ export default function App() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#e8edf3", letterSpacing: ".05em" }}>
                     Najlepsze oferty kont oszczędnościowych
                   </div>
-                  <div style={{ fontSize: 11, color: "#4a5a6e", fontFamily: "'DM Mono',monospace" }}>
-                    aktualizacja: {SAVINGS_RATES_DB.lastUpdated}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ fontSize: 11, color: "#4a5a6e", fontFamily: "'DM Mono',monospace" }}>
+                      {(() => {
+                        const d = new Date(SAVINGS_RATES_DB.lastUpdated + "-01");
+                        return `aktualizacja: ${d.toLocaleDateString("pl-PL", { month: "long", year: "numeric" })}`;
+                      })()}
+                    </div>
+                    <a href="https://github.com/K1W1M4N/moj-portfel/actions/workflows/update-savings-rates.yml"
+                      target="_blank" rel="noopener noreferrer"
+                      title="Uruchom ręczną aktualizację ofert na GitHub Actions"
+                      style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: "#1e2a38", color: "#8a9bb0", border: "1px solid #2a3a50", textDecoration: "none", whiteSpace: "nowrap", fontFamily: "'Sora',sans-serif" }}>
+                      ↻ odśwież
+                    </a>
                   </div>
                 </div>
 
