@@ -39,25 +39,49 @@ HEADERS = {
 }
 
 BANK_URLS = {
-    "BOŚ Bank": "https://www.bosbank.pl/konto-oszczednosciowe",
-    "BNP Paribas": "https://www.bnpparibas.pl/konto-lokacyjne",
-    "Nest Bank": "https://www.nestbank.pl/konta/konto-oszczednosciowe",
-    "VeloBank": "https://www.velobank.pl/konta/konto-oszczednosciowe",
-    "ING Bank Śląski": "https://www.ing.pl/indywidualni/oszczedzanie/konto-oszczednosciowe",
-    "mBank": "https://www.mbank.pl/indywidualny/oszczednosci/moje-cele/",
-    "Alior Bank": "https://www.aliorbank.pl/indywidualni/oszczednosci/konto-oszczednosciowe.html",
-    "Bank Pekao SA": "https://www.pekao.com.pl/konto-oszczednosciowe.html",
-    "Bank Millennium": "https://www.bankmillennium.pl/konta/konto-oszczednosciowe-profit",
+    # Zweryfikowane 2026-04-08
+    "BOŚ Bank": "https://www.bosbank.pl/klient-indywidualny/oszczednosci/konta-oszczednosciowe/konto-oszczednosciowe-cyfrowy-zysk",
+    "BNP Paribas": "https://www.bnpparibas.pl/klienci-indywidualni/oszczednosci-i-inwestycje/konto-lokacyjne",
+    "Nest Bank": "https://nestbank.pl/nest-konto-oszczednosciowe/",
+    "VeloBank": "https://www.velobank.pl/bankowosc-premium/oszczednosci/konto-oszczednosciowe.html",
+    "ING Bank Śląski": "https://www.ing.pl/indywidualni/inwestycje-i-oszczednosci/otwarte-konto-oszczednosciowe-bonus",
+    "mBank": "https://www.mbank.pl/indywidualny/inwestycje-i-oszczednosci/regularne-odkladanie/ekonto-oszczednosciowe/",
+    "Alior Bank": "https://www.aliorbank.pl/klienci-indywidualni/oszczednosci/konto-oszczednosciowe.html",
+    "Bank Pekao SA": "https://www.pekao.com.pl/klient-indywidualny/oszczedzam-i-inwestuje/programy-oszczednosciowe/konto-oszczednosciowe.html",
+    "Bank Millennium": "https://www.bankmillennium.pl/klienci-indywidualni/produkty-oszczednosciowe/rachunki-oszczednosciowe/konto-oszczednosciowe-profit",
     "Toyota Bank": "https://www.toyotabank.pl/konto-oszczednosciowe",
-    "UniCredit": "https://www.unicredit.pl/pl/klienci-indywidualni/oszczednosci/konto-oszczednosciowe.html",
-    "Citi Handlowy": "https://www.citibank.pl/pl/konto-oszczednosciowe.html",
-    "Santander Bank Polska": "https://www.santander.pl/klient-indywidualny/konta/konto-oszczednosciowe",
-    "Renault Bank": "https://www.renaultbank.pl/oszczednosci/konto-oszczednosciowe",
-    "Credit Agricole": "https://www.credit-agricole.pl/klienci-indywidualni/konta/konto-oszczednosciowe",
-    "PKO BP": "https://www.pkobp.pl/klienci-indywidualni/konta/konto-oszczednosciowe/",
+    "UniCredit": "https://www.unicredit.pl/indywidualni/oszczednosci/konto-oszczednosciowe",
+    "Citi Handlowy": "https://www.citibank.pl/konta-osobiste/produkty-oszczednosciowe/konto-superoszczednosciowe/",
+    "Santander Bank Polska": "https://www.santander.pl/select/oszczednosci-i-inwestycje/konto-oszczednosciowe-select",
+    "Renault Bank": "https://www.raisin.com/pl-pl/banki/renault-bank/",
+    "Credit Agricole": "https://www.credit-agricole.pl/klienci-indywidualni/oszczednosci/rachunek-oszczedzam",
+    "PKO BP": "https://www.pkobp.pl/klient-indywidualny/konta/konto-oszczednosciowe",
     "Volkswagen Bank": "https://www.vwbank.pl/konto-oszczednosciowe",
     "Bank Pocztowy": "https://www.pocztowy.pl/konta/konto-oszczednosciowe/",
     "Raiffeisen Digital Bank": "https://www.raiffeisen.pl/",
+}
+
+# Domeny banków — używane do wyszukiwania poprawnego URL gdy stary jest 404
+BANK_DOMAINS = {
+    "BOŚ Bank": "bosbank.pl",
+    "BNP Paribas": "bnpparibas.pl",
+    "Nest Bank": "nestbank.pl",
+    "VeloBank": "velobank.pl",
+    "ING Bank Śląski": "ing.pl",
+    "mBank": "mbank.pl",
+    "Alior Bank": "aliorbank.pl",
+    "Bank Pekao SA": "pekao.com.pl",
+    "Bank Millennium": "bankmillennium.pl",
+    "Toyota Bank": "toyotabank.pl",
+    "UniCredit": "unicredit.pl",
+    "Citi Handlowy": "citibank.pl",
+    "Santander Bank Polska": "santander.pl",
+    "Renault Bank": "raisin.com",
+    "Credit Agricole": "credit-agricole.pl",
+    "PKO BP": "pkobp.pl",
+    "Volkswagen Bank": "vwbank.pl",
+    "Bank Pocztowy": "pocztowy.pl",
+    "Raiffeisen Digital Bank": "raiffeisen.pl",
 }
 
 
@@ -167,6 +191,85 @@ def fetch_page(url):
     except Exception as e:
         print(f"   ⚠️  {url}: {e}")
     return None
+
+
+def check_url(url):
+    """Sprawdza czy URL zwraca 200. Zwraca True/False."""
+    if not url:
+        return False
+    try:
+        r = requests.head(url, headers=HEADERS, timeout=10, allow_redirects=True)
+        if r.status_code == 200:
+            return True
+        # Niektóre serwery nie obsługują HEAD, próbuj GET
+        if r.status_code in (405, 403):
+            r2 = requests.get(url, headers=HEADERS, timeout=10, stream=True)
+            r2.close()
+            return r2.status_code == 200
+        return False
+    except Exception:
+        return False
+
+
+def find_url_via_google(bank_name, product_name=None):
+    """
+    Szuka poprawnego URL oferty przez Google Custom Search API lub DuckDuckGo HTML.
+    Fallback: zwraca stronę główną banku z BANK_DOMAINS.
+    """
+    domain = BANK_DOMAINS.get(bank_name, "")
+    query_parts = [bank_name, "konto oszczędnościowe"]
+    if product_name and product_name != f"Konto Oszczędnościowe {bank_name}":
+        query_parts.append(product_name)
+    if domain:
+        query_parts.append(f"site:{domain}")
+    query = " ".join(query_parts)
+
+    # Próba przez DuckDuckGo HTML (nie wymaga API key)
+    try:
+        ddg_url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
+        r = requests.get(ddg_url, headers=HEADERS, timeout=15)
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, 'lxml')
+            for a in soup.select('a.result__url, a.result__a'):
+                href = a.get('href', '')
+                # DuckDuckGo opakowuje URL-e w redirect
+                if 'uddg=' in href:
+                    import urllib.parse
+                    params = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
+                    href = params.get('uddg', [''])[0]
+                if domain and domain in href and href.startswith('http'):
+                    if check_url(href):
+                        return href
+    except Exception as e:
+        print(f"   ⚠️  DuckDuckGo search error: {e}")
+
+    # Ostatni fallback: strona główna banku
+    if domain:
+        return f"https://www.{domain}"
+    return ""
+
+
+def verify_and_fix_url(url, bank_name, product_name=None):
+    """
+    Sprawdza URL — jeśli nie działa, próbuje znaleźć poprawny.
+    Zwraca (url, was_fixed) gdzie was_fixed=True gdy URL był poprawiony.
+    """
+    if not url:
+        found = find_url_via_google(bank_name, product_name)
+        return found, bool(found)
+
+    if check_url(url):
+        return url, False
+
+    print(f"   🔗 404 dla {bank_name}: {url} — szukam nowego...")
+    fixed = find_url_via_google(bank_name, product_name)
+    if fixed and fixed != url:
+        print(f"   ✅ Znaleziono: {fixed}")
+        return fixed, True
+
+    # Nie udało się — zwróć stary (lepszy niż pusty)
+    print(f"   ⚠️  Nie znaleziono poprawnego URL dla {bank_name}, zostawiam stary")
+    return url, False
 
 
 def extract_offers_from_soup(soup, source_name):
@@ -397,55 +500,55 @@ def get_hardcoded_rates():
          "promoEndDate": "2026-04-29",
          "promoConditions": "Oferta dla nowych klientów, bez konta osobistego",
          "promoConditionsList": ["Tylko dla nowych klientów BOŚ Banku", "Nie wymaga posiadania konta osobistego", "Limit środków objętych promocją: 15 000 zł", "Oferta ważna do 29.04.2026"],
-         "requiresROR": False, "url": "https://www.bosbank.pl/konto-oszczednosciowe"},
+         "requiresROR": False, "url": "https://www.bosbank.pl/klient-indywidualny/oszczednosci/konta-oszczednosciowe/konto-oszczednosciowe-cyfrowy-zysk"},
         {"bank": "BNP Paribas", "name": "Konto Lokacyjne",
          "rateStandard": 0.5, "ratePromo": 7.0, "promoLimit": 50000, "promoDays": None,
          "promoEndDate": "2026-04-30",
          "promoConditions": "Nowi klienci, konto osobiste, 4 transakcje + wpływy 1000 zł",
          "promoConditionsList": ["Tylko dla nowych klientów BNP Paribas", "Wymagane konto osobiste", "Min. 4 transakcje kartą/BLIK miesięcznie", "Wpływ wynagrodzenia min. 1 000 zł/mies.", "Limit: 50 000 zł", "Oferta ważna do 30.04.2026"],
-         "requiresROR": True, "url": "https://www.bnpparibas.pl/konto-lokacyjne"},
+         "requiresROR": True, "url": "https://www.bnpparibas.pl/klienci-indywidualni/oszczednosci-i-inwestycje/konto-lokacyjne"},
         {"bank": "Nest Bank", "name": "Nest Konto Oszczędnościowe",
          "rateStandard": 2.0, "ratePromo": 6.6, "promoLimit": 25000, "promoDays": 90,
          "promoEndDate": None,
          "promoConditions": "Nowi klienci, wpływ 2000 zł lub 10 transakcji",
          "promoConditionsList": ["Tylko dla nowych klientów Nest Banku", "Wymagane konto osobiste Nest Konto", "Wpływ min. 2 000 zł/mies. LUB min. 10 transakcji kartą", "Okres promocji: 90 dni", "Limit: 25 000 zł"],
-         "requiresROR": True, "url": "https://www.nestbank.pl/konta/konto-oszczednosciowe"},
+         "requiresROR": True, "url": "https://nestbank.pl/nest-konto-oszczednosciowe/"},
         {"bank": "VeloBank", "name": "Elastyczne Konto Oszczędnościowe",
          "rateStandard": 1.0, "ratePromo": 6.0, "promoLimit": 50000, "promoDays": 92,
          "promoEndDate": None,
          "promoConditions": "Nowi klienci, 5 transakcji/mies.",
          "promoConditionsList": ["Tylko dla nowych klientów VeloBanku", "Wymagane konto osobiste VeloKonto", "Min. 5 transakcji kartą/BLIK miesięcznie", "Okres promocji: 92 dni", "Limit: 50 000 zł"],
-         "requiresROR": True, "url": "https://www.velobank.pl/konta/konto-oszczednosciowe"},
+         "requiresROR": True, "url": "https://www.velobank.pl/bankowosc-premium/oszczednosci/konto-oszczednosciowe.html"},
         {"bank": "ING Bank Śląski", "name": "Otwarte Konto Oszczędnościowe",
          "rateStandard": 0.8, "ratePromo": 5.5, "promoLimit": 400000, "promoDays": 90,
          "promoEndDate": None,
          "promoConditions": "Bonus na start, 3 logowania + 15 transakcji",
          "promoConditionsList": ["Oferta dla nowych klientów ING (Bonus na start)", "Wymagane konto osobiste ING Direct", "Min. 3 logowania do bankowości internetowej/mies.", "Min. 15 transakcji kartą/BLIK miesięcznie", "Okres promocji: 90 dni", "Limit: 400 000 zł"],
-         "requiresROR": True, "url": "https://www.ing.pl/indywidualni/oszczedzanie/konto-oszczednosciowe"},
+         "requiresROR": True, "url": "https://www.ing.pl/indywidualni/inwestycje-i-oszczednosci/otwarte-konto-oszczednosciowe-bonus"},
         {"bank": "mBank", "name": "Moje Cele",
          "rateStandard": 0.5, "ratePromo": 5.3, "promoLimit": 50000, "promoDays": 90,
          "promoEndDate": None,
          "promoConditions": "Nowi klienci mKonto Intensive",
          "promoConditionsList": ["Tylko dla nowych klientów mBanku", "Wymagane konto mKonto Intensive", "Okres promocji: 90 dni", "Limit: 50 000 zł"],
-         "requiresROR": True, "url": "https://www.mbank.pl/indywidualny/oszczednosci/moje-cele/"},
+         "requiresROR": True, "url": "https://www.mbank.pl/indywidualny/inwestycje-i-oszczednosci/regularne-odkladanie/ekonto-oszczednosciowe/"},
         {"bank": "Alior Bank", "name": "Konto Oszczędnościowe na Start",
          "rateStandard": 1.0, "ratePromo": 5.2, "promoLimit": 30000, "promoDays": 120,
          "promoEndDate": None,
          "promoConditions": "Nowi klienci, transakcje 500 zł/mies.",
          "promoConditionsList": ["Tylko dla nowych klientów Alior Banku", "Wymagane konto osobiste", "Transakcje kartą na min. 500 zł/mies.", "Okres promocji: 120 dni", "Limit: 30 000 zł"],
-         "requiresROR": True, "url": "https://www.aliorbank.pl/indywidualni/oszczednosci/konto-oszczednosciowe.html"},
+         "requiresROR": True, "url": "https://www.aliorbank.pl/klienci-indywidualni/oszczednosci/konto-oszczednosciowe-na-start.html"},
         {"bank": "Bank Pekao SA", "name": "Konto Oszczędnościowe",
          "rateStandard": 0.5, "ratePromo": 5.0, "promoLimit": 100000, "promoDays": 92,
          "promoEndDate": None,
          "promoConditions": "Nowi klienci lub niskie saldo",
          "promoConditionsList": ["Dla nowych klientów lub klientów z niskim saldem", "Wymagane konto osobiste Pekao", "Okres promocji: 92 dni", "Limit: 100 000 zł"],
-         "requiresROR": True, "url": "https://www.pekao.com.pl/konto-oszczednosciowe.html"},
+         "requiresROR": True, "url": "https://www.pekao.com.pl/klient-indywidualny/oszczedzam-i-inwestuje/programy-oszczednosciowe/konto-oszczednosciowe.html"},
         {"bank": "Bank Millennium", "name": "Konto Oszczędnościowe Profit",
          "rateStandard": 0.75, "ratePromo": 5.0, "promoLimit": 200000, "promoDays": 91,
          "promoEndDate": None,
          "promoConditions": "Nowe środki, 5 transakcji/mies.",
          "promoConditionsList": ["Dotyczy nowych środków (ponad dotychczasowe saldo)", "Wymagane konto osobiste Millennium 360°", "Min. 5 transakcji kartą/BLIK miesięcznie", "Okres promocji: 91 dni", "Limit: 200 000 zł"],
-         "requiresROR": True, "url": "https://www.bankmillennium.pl/konta/konto-oszczednosciowe-profit"},
+         "requiresROR": True, "url": "https://www.bankmillennium.pl/klienci-indywidualni/produkty-oszczednosciowe/rachunki-oszczednosciowe/konto-oszczednosciowe-profit"},
         {"bank": "Toyota Bank", "name": "Konto Oszczędnościowe",
          "rateStandard": 5.0, "ratePromo": None, "promoLimit": None, "promoDays": None,
          "promoEndDate": None,
@@ -457,53 +560,53 @@ def get_hardcoded_rates():
          "promoEndDate": None,
          "promoConditions": None,
          "promoConditionsList": ["Stała stawka 4,5% bez okresu promocyjnego", "Brak wymogu konta osobistego"],
-         "requiresROR": False, "url": "https://www.unicredit.pl/pl/klienci-indywidualni/oszczednosci/konto-oszczednosciowe.html"},
+         "requiresROR": False, "url": "https://www.unicredit.pl/indywidualni/oszczednosci/konto-oszczednosciowe"},
         {"bank": "ING Bank Śląski", "name": "Smart Saver",
          "rateStandard": 4.3, "ratePromo": None, "promoLimit": None, "promoDays": None,
          "promoEndDate": None,
          "promoConditions": "Bez warunków",
          "promoConditionsList": ["Stała stawka 4,3% bez dodatkowych warunków", "Brak wymogu konta osobistego"],
-         "requiresROR": False, "url": "https://www.ing.pl/indywidualni/oszczedzanie/smart-saver"},
+         "requiresROR": False, "url": "https://www.ing.pl/indywidualni/inwestycje-i-oszczednosci/smart-saver"},
         {"bank": "Citi Handlowy", "name": "Konto Oszczędnościowe",
          "rateStandard": 0.8, "ratePromo": 4.8, "promoLimit": None, "promoDays": 180,
          "promoEndDate": None,
          "promoConditions": "Citigold, min. 400 tys. zł, 3 transakcje 500 zł/mies.",
          "promoConditionsList": ["Wymaga statusu Citigold (aktywa min. 400 000 zł)", "Min. 3 transakcje po min. 500 zł/mies.", "Okres promocji: 180 dni"],
-         "requiresROR": True, "url": "https://www.citibank.pl/pl/konto-oszczednosciowe.html"},
+         "requiresROR": True, "url": "https://www.citibank.pl/konta-osobiste/produkty-oszczednosciowe/konto-superoszczednosciowe/"},
         {"bank": "Alior Bank", "name": "Konto Mega Oszczędnościowe",
          "rateStandard": 1.0, "ratePromo": 4.8, "promoLimit": 200000, "promoDays": 90,
          "promoEndDate": None,
          "promoConditions": "Nowe środki, transakcje 500 zł/mies.",
          "promoConditionsList": ["Dotyczy nowych środków", "Transakcje kartą na min. 500 zł/mies.", "Okres promocji: 90 dni", "Limit: 200 000 zł"],
-         "requiresROR": True, "url": "https://www.aliorbank.pl/indywidualni/oszczednosci/konto-mega-oszczednosciowe.html"},
+         "requiresROR": True, "url": "https://www.aliorbank.pl/klienci-indywidualni/oszczednosci/konto-oszczednosciowe.html"},
         {"bank": "Santander Bank Polska", "name": "Konto Select Oszczędnościowe",
          "rateStandard": 1.0, "ratePromo": 4.0, "promoLimit": None, "promoDays": None,
          "promoEndDate": None,
          "promoConditions": "Nowe środki",
          "promoConditionsList": ["Dotyczy nowych środków", "Wymagane konto osobiste Santander Select"],
-         "requiresROR": True, "url": "https://www.santander.pl/klient-indywidualny/konta/konto-oszczednosciowe"},
+         "requiresROR": True, "url": "https://www.santander.pl/select/oszczednosci-i-inwestycje/konto-oszczednosciowe-select"},
         {"bank": "Renault Bank", "name": "Konto Oszczędnościowe",
          "rateStandard": 4.0, "ratePromo": None, "promoLimit": None, "promoDays": None,
          "promoEndDate": None,
          "promoConditions": None,
          "promoConditionsList": ["Stała stawka 4% bez okresu promocyjnego", "Brak wymogu konta osobistego"],
-         "requiresROR": False, "url": "https://www.renaultbank.pl/oszczednosci/konto-oszczednosciowe"},
+         "requiresROR": False, "url": "https://www.raisin.com/pl-pl/banki/renault-bank/"},
         {"bank": "Credit Agricole", "name": "Konto Oszczędnościowe",
          "rateStandard": 0.5, "ratePromo": 3.5, "promoLimit": 100000, "promoDays": 90,
          "promoEndDate": None,
          "promoConditions": "Nowi klienci",
          "promoConditionsList": ["Tylko dla nowych klientów Credit Agricole", "Wymagane konto osobiste CA", "Okres promocji: 90 dni", "Limit: 100 000 zł"],
-         "requiresROR": True, "url": "https://www.credit-agricole.pl/klienci-indywidualni/konta/konto-oszczednosciowe"},
+         "requiresROR": True, "url": "https://www.credit-agricole.pl/klienci-indywidualni/oszczednosci/rachunek-oszczedzam"},
         {"bank": "PKO BP", "name": "Konto Oszczędnościowe",
          "rateStandard": 0.5, "ratePromo": None, "promoLimit": None, "promoDays": None,
          "promoEndDate": None, "promoConditions": None,
          "promoConditionsList": ["Wymagane konto osobiste PKO BP", "Stawka standardowa 0,5%"],
-         "requiresROR": True, "url": "https://www.pkobp.pl/klienci-indywidualni/konta/konto-oszczednosciowe/"},
+         "requiresROR": True, "url": "https://www.pkobp.pl/klient-indywidualny/konta/konto-oszczednosciowe"},
         {"bank": "mBank", "name": "eKonto Oszczędnościowe",
          "rateStandard": 0.5, "ratePromo": None, "promoLimit": None, "promoDays": None,
          "promoEndDate": None, "promoConditions": None,
          "promoConditionsList": ["Wymagane konto osobiste mKonto", "Stawka standardowa 0,5%"],
-         "requiresROR": True, "url": "https://www.mbank.pl/indywidualny/oszczednosci/ekonto-oszczednosciowe/"},
+         "requiresROR": True, "url": "https://www.mbank.pl/indywidualny/inwestycje-i-oszczednosci/regularne-odkladanie/ekonto-oszczednosciowe/"},
     ]
 
 
@@ -560,6 +663,21 @@ def generate_js_file(accounts, output_path):
     NEW_DAYS = 14  # oferta jest "nowa" przez 14 dni od dodania
 
     existing_data = load_existing_data(output_path)
+
+    # ── Weryfikacja URL-i ──────────────────────────────────────────────────────
+    print("\n🔗 Weryfikacja linków do ofert...")
+    fixed_count = 0
+    for acc in accounts:
+        bank = acc.get('bank', '')
+        product = acc.get('name')
+        url = acc.get('url') or BANK_URLS.get(bank, '')
+        verified_url, was_fixed = verify_and_fix_url(url, bank, product)
+        acc['url'] = verified_url
+        if was_fixed:
+            fixed_count += 1
+            # Zaktualizuj też BANK_URLS na przyszłość w tej sesji
+            BANK_URLS[bank] = verified_url
+    print(f"   → Poprawiono {fixed_count} URL-i\n")
 
     accounts_sorted = sorted(
         accounts,
