@@ -656,9 +656,6 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
 
   const mBlock = (label, diff, pct) => (
     <div style={{ background: "#0f1621", border: "1px solid " + (diff !== null && diff !== 0 ? (diff > 0 ? "#00c89630" : "#f0506030") : "#1e2a38"), borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 3, flex: "1 1 120px", position: "relative", overflow: "hidden" }}>
-      {diff !== null && diff !== 0 && (
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: diff > 0 ? "#00c896" : "#f05060", opacity: 0.8 }} />
-      )}
       <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>{label}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: "auto" }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>
@@ -687,7 +684,6 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
           <div style={{ fontSize: 22, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", textShadow: "0 0 16px rgba(232, 240, 248, 0.1)" }}>{fmt(totalValue)}</div>
         </div>
         <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 12, padding: "14px 18px", flex: "1 1 180px", position: "relative", overflow: "hidden" }}>
-          {totalPnl !== null && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: totalPnl >= 0 ? "linear-gradient(90deg, #00c896, #00d4f0)" : "linear-gradient(90deg, #f05060, #f24060)" }} />}
           <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Zysk Całkowity</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginTop: "auto" }}>
             <div style={{ fontSize: 20, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
