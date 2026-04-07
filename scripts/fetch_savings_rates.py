@@ -527,25 +527,39 @@ def merge_accounts(all_accounts):
     return list(merged.values())
 
 
-def load_existing_keys(output_path):
-    """Zwraca zbiór kluczy (bank|name) z aktualnego pliku JS — do wykrywania nowych ofert."""
-    existing = set()
+def load_existing_data(output_path):
+    """
+    Czyta istniejący plik JS i zwraca słownik {klucz: {addedDate, isNew}}.
+    Pozwala zachować historię dodania ofert między uruchomieniami.
+    """
+    existing = {}
     if not output_path.exists():
         return existing
     text = output_path.read_text(encoding='utf-8')
-    banks = re.findall(r'bank:\s*"([^"]+)"', text)
-    names = re.findall(r'name:\s*"([^"]+)"', text)
-    for b, n in zip(banks, names):
-        existing.add(f"{b.lower()}|{n[:25].lower()}")
+
+    # Znajdź bloki ofert i wyciągnij bank, name, addedDate, isNew
+    blocks = re.findall(r'\{([^{}]+)\}', text, re.DOTALL)
+    for block in blocks:
+        bank_m = re.search(r'bank:\s*"([^"]+)"', block)
+        name_m = re.search(r'name:\s*"([^"]+)"', block)
+        added_m = re.search(r'addedDate:\s*"([^"]+)"', block)
+        isnew_m = re.search(r'isNew:\s*(true|false)', block)
+        if bank_m and name_m:
+            key = f"{bank_m.group(1).lower()}|{name_m.group(1)[:25].lower()}"
+            existing[key] = {
+                'addedDate': added_m.group(1) if added_m else None,
+                'isNew': isnew_m.group(1) == 'true' if isnew_m else False,
+            }
     return existing
 
 
 def generate_js_file(accounts, output_path):
-    today = datetime.now().strftime("%Y-%m")
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_ym = datetime.now().strftime("%Y-%m")
     updated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    NEW_DAYS = 14  # oferta jest "nowa" przez 14 dni od dodania
 
-    # Wykryj które oferty są nowe (nie było ich w poprzednim pliku)
-    existing_keys = load_existing_keys(output_path)
+    existing_data = load_existing_data(output_path)
 
     accounts_sorted = sorted(
         accounts,
@@ -555,10 +569,21 @@ def generate_js_file(accounts, output_path):
 
     for acc in accounts_sorted:
         key = f"{acc.get('bank','').lower()}|{acc.get('name','')[:25].lower()}"
-        if key not in existing_keys:
+        if key not in existing_data:
+            # Zupełnie nowa oferta
+            acc['addedDate'] = today_str
             acc['isNew'] = True
-        elif not acc.get('isNew'):
-            acc['isNew'] = False
+        else:
+            prev = existing_data[key]
+            added = prev.get('addedDate') or today_str
+            acc['addedDate'] = added
+            # isNew = True jeśli dodana mniej niż NEW_DAYS dni temu
+            try:
+                delta = (datetime.strptime(today_str, "%Y-%m-%d") -
+                         datetime.strptime(added, "%Y-%m-%d")).days
+                acc['isNew'] = delta < NEW_DAYS
+            except Exception:
+                acc['isNew'] = False
 
     def js_val(v):
         if v is None:
@@ -579,7 +604,7 @@ def generate_js_file(accounts, output_path):
         '// Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków',
         '',
         'export const SAVINGS_RATES_DB = {',
-        f'  lastUpdated: "{today}",',
+        f'  lastUpdated: "{today_ym}",',
         '  accounts: [',
     ]
 
@@ -587,7 +612,7 @@ def generate_js_file(accounts, output_path):
         lines.append('    {')
         for field in ['bank', 'name', 'rateStandard', 'ratePromo', 'promoLimit',
                       'promoDays', 'promoEndDate', 'promoConditions', 'promoConditionsList',
-                      'requiresROR', 'isNew', 'url']:
+                      'requiresROR', 'isNew', 'addedDate', 'url']:
             lines.append(f'      {field}: {js_val(acc.get(field))},')
         lines.append('    },')
 
