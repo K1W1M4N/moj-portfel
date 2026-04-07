@@ -380,7 +380,7 @@ function getAssetCostBasis(a) {
   if (a.isStock)  return a.stockPaidPLN || a.value || 0;
   if (a.isCrypto || a.cryptoId) return a.cryptoPaid || a.value || 0;
   if (a.isBond) return (a.quantity || 0) * 100;
-  if (a.isSavings) return a.savingsBalance || a.value || 0;
+  if (a.isSavings) { const txs = a.transactions || []; return txs.length > 0 ? txs.reduce((s, tx) => s + tx.amount, 0) : (a.value || 0); }
   if (a.isCurrency) return a.value || 0;
   if (a.isCommodity) return a.commodityPaid || a.value || 0;
   if (a.purchaseAmount > 0) return a.purchaseAmount;
@@ -603,6 +603,12 @@ function calcSavingsValueAtDate(account, targetDate) {
   const tDate = new Date(targetDate); tDate.setHours(0, 0, 0, 0);
   const openDateObj = new Date(openDate); openDateObj.setHours(0, 0, 0, 0);
   if (tDate < openDateObj) return 0;
+  if (transactions.length === 0) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const daysBack = Math.round((today - tDate) / 86400000);
+    const cv = account.value || 0;
+    return Math.round((cv - cv * annualRate * (daysBack / 365)) * 100) / 100;
+  }
   const sorted = [...transactions].sort((a, b) => (a.date > b.date ? 1 : -1));
   const tStr = tDate.toISOString().slice(0, 10);
   let balance = 0;
@@ -640,29 +646,22 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
   const totalPnl = totalPaid > 0 ? totalValue - totalPaid : null;
   const totalPnlPct = totalPaid > 0 ? (totalValue - totalPaid) / totalPaid * 100 : null;
 
-  // Oblicz wartość historyczną retroaktywnie.
-  // Obligacje → calcBondCurrentValue(bond, pastDate) — precyzyjne
-  // Konta oszczędnościowe → calcSavingsValueAtDate — precyzyjne z kapitalizacją
-  // Akcje/Krypto/Surowce/Waluty → brak danych historycznych → null → "—"
+  // Oblicz historyczną wartość TYLKO dla obliczalnych kategorii
+  const calculableCategories = ["Obligacje", "Konto oszczędnościowe"];
+  const isCalculable = activeFilter && calculableCategories.includes(activeFilter);
+
   function getHistVal(daysAgo) {
+    if (!isCalculable) return null;
     const t = new Date(); t.setDate(t.getDate() - daysAgo);
-    const targetAssets = activeFilter ? assets.filter(a => a.category === activeFilter) : assets;
+    const targetAssets = assets.filter(a => a.category === activeFilter);
     if (targetAssets.length === 0) return null;
     let total = 0;
-    let allCalculable = true;
     for (const a of targetAssets) {
-      if (a.isBond && a.purchaseDate && a.quantity) {
-        total += calcBondCurrentValue(a, t).currentValue;
-        continue;
-      }
-      if (a.isSavings && a.openDate && a.rate != null) {
-        const v = calcSavingsValueAtDate(a, t);
-        if (v !== null) { total += v; continue; }
-      }
-      // Akcje, krypto, surowce, waluty, PPK, inne — brak historycznych cen
-      allCalculable = false;
+      if (a.isBond && a.purchaseDate && a.quantity) { total += calcBondCurrentValue(a, t).currentValue; continue; }
+      if (a.isSavings && a.openDate && a.rate != null) { const v = calcSavingsValueAtDate(a, t); if (v !== null) { total += v; continue; } }
+      return null;
     }
-    return allCalculable ? total : null;
+    return total;
   }
 
   const v1d = getHistVal(1);
@@ -674,6 +673,8 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
   const pct30d = v30d && v30d > 0 ? (diff30d / v30d) * 100 : null;
   const diff365d = v365d !== null ? totalValue - v365d : null;
   const pct365d = v365d && v365d > 0 ? (diff365d / v365d) * 100 : null;
+
+  const hasTimeTiles = diff1d !== null || diff30d !== null || diff365d !== null;
 
   // Formatowanie kwot — bez groszy gdy >= 1000 zł (kompaktowe kafelki)
   function fmtCompact(n) {
@@ -709,7 +710,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: hasTimeTiles ? 8 : 0 }}>
         <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Bieżąca Wartość</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>{fmt(totalValue)}</div>
@@ -729,17 +730,19 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {mBlock("Zysk dzienny", diff1d, pct1d)}
-        {mBlock("Zysk miesięczny", diff30d, pct30d)}
-        {mBlock("Zysk roczny", diff365d, pct365d)}
-        <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-          <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: pct365d !== null ? (pct365d >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>
-            {pct365d !== null ? (pct365d >= 0 ? "+" : "") + pct365d.toFixed(2) + "%" : "—"}
+      {hasTimeTiles && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {mBlock("Zysk dzienny", diff1d, pct1d)}
+          {mBlock("Zysk miesięczny", diff30d, pct30d)}
+          {mBlock("Zysk roczny", diff365d, pct365d)}
+          <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+            <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: pct365d !== null ? (pct365d >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>
+              {pct365d !== null ? (pct365d >= 0 ? "+" : "") + pct365d.toFixed(2) + "%" : "—"}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
