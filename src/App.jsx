@@ -377,10 +377,14 @@ function MenuDropdown({ onNavigate }) {
 
 // ─── Wykres kołowy ────────────────────────────────────────────────────────────
 function getAssetCostBasis(a) {
-  if (a.isStock)  return a.stockPaidPLN || 0;
-  if (a.cryptoPaid > 0) return a.cryptoPaid;
+  if (a.isStock)  return a.stockPaidPLN || a.value || 0;
+  if (a.isCrypto || a.cryptoId) return a.cryptoPaid || a.value || 0;
+  if (a.isBond) return (a.quantity || 0) * 100;
+  if (a.isSavings) return a.savingsBalance || a.value || 0;
+  if (a.isCurrency) return a.value || 0;
+  if (a.isCommodity) return a.commodityPaid || a.value || 0;
   if (a.purchaseAmount > 0) return a.purchaseAmount;
-  return 0;
+  return a.value || 0;
 }
 
 function fmtSigned(n) {
@@ -626,12 +630,6 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
   const diff365d = v365d !== null ? totalValue - v365d : null;
   const pct365d = v365d && v365d > 0 ? (diff365d / v365d) * 100 : null;
 
-  let avgAnnual = null;
-  if (history && history.length > 0 && totalPaid > 0 && totalPnlPct !== null) {
-    const days = Math.max(1, (Date.now() - new Date(history[0].date).valueOf()) / 86400000);
-    avgAnnual = totalPnlPct * (365 / days);
-  }
-
   function fmtSignedDetailed(n) {
     if (n === null || isNaN(n)) return "—";
     return (n >= 0 ? "+" : "") + new Intl.NumberFormat("pl-PL", {
@@ -640,60 +638,60 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
   }
 
   const mBlock = (label, label2, diff, pct) => (
-    <div style={{ background: "#0f1621", border: "1px solid " + (diff !== null && diff !== 0 ? (diff > 0 ? "#00c89630" : "#f0506030") : "#1e2a38"), borderRadius: 12, padding: "14px 18px", display: "flex", flexDirection: "column", gap: 6, flex: "1 1 140px", position: "relative", overflow: "hidden" }}>
+    <div style={{ background: "#0f1621", border: "1px solid " + (diff !== null && diff !== 0 ? (diff > 0 ? "#00c89630" : "#f0506030") : "#1e2a38"), borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 3, flex: "1 1 120px", position: "relative", overflow: "hidden" }}>
       {diff !== null && diff !== 0 && (
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: diff > 0 ? "#00c896" : "#f05060", opacity: 0.8 }} />
       )}
-      <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>{label}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>
+      <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>{label}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>
           {diff !== null ? fmtSignedDetailed(diff) : "—"}
         </div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#5a6a7e", fontFamily: "'DM Mono', monospace" }}>
+        <div style={{ fontSize: 11, fontWeight: 500, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#5a6a7e", fontFamily: "'DM Mono', monospace" }}>
           {pct !== null ? (pct > 0 ? "+" : "") + pct.toFixed(2) + "%" : "—"}
         </div>
       </div>
-      <div style={{ fontSize: 10, color: "#3a4a5e", marginTop: "auto", paddingTop: 4 }}>{label2}</div>
+      <div style={{ fontSize: 9, color: "#3a4a5e", marginTop: "auto", paddingTop: 3 }}>{label2}</div>
     </div>
   );
 
   return (
-    <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px dashed #1e2a38" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#e8f0f8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+    <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px dashed #1e2a38" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#e8f0f8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
           Podsumowanie: <span style={{ color: activeFilter ? catColor(categories, activeFilter) : "#00c896" }}>{activeFilter || "Cały Portfel"}</span>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
-        <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 14, padding: "18px 22px", flex: "1 1 200px" }}>
-          <div style={{ fontSize: 12, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Bieżąca Wartość</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", textShadow: "0 0 16px rgba(232, 240, 248, 0.1)" }}>{fmt(totalValue)}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+        <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 12, padding: "14px 18px", flex: "1 1 180px" }}>
+          <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Bieżąca Wartość</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", textShadow: "0 0 16px rgba(232, 240, 248, 0.1)" }}>{fmt(totalValue)}</div>
         </div>
-        <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 14, padding: "18px 22px", flex: "1 1 200px", position: "relative", overflow: "hidden" }}>
+        <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 12, padding: "14px 18px", flex: "1 1 180px", position: "relative", overflow: "hidden" }}>
           {totalPnl !== null && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: totalPnl >= 0 ? "linear-gradient(90deg, #00c896, #00d4f0)" : "linear-gradient(90deg, #f05060, #f24060)" }} />}
-          <div style={{ fontSize: 12, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Zysk Całkowity</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
+          <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Zysk Całkowity</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
               {totalPnl !== null ? fmtSignedDetailed(totalPnl) : "—"}
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: totalPnlPct >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: totalPnlPct >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
               {totalPnlPct !== null ? (totalPnlPct >= 0 ? "+" : "") + totalPnlPct.toFixed(2) + "%" : "—"}
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         {mBlock("Zysk dzienny", "Zmiana 1-dniowa", diff1d, pct1d)}
         {mBlock("Zysk miesięczny", "Zmiana 30-dniowa", diff30d, pct30d)}
         {mBlock("Zysk roczny", "Zmiana 365-dniowa", diff365d, pct365d)}
-        <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 12, padding: "14px 18px", display: "flex", flexDirection: "column", gap: 6, flex: "1 1 140px" }}>
-          <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: avgAnnual !== null ? (avgAnnual >= 0 ? "#00c896" : "#f05060") : "#8a9bb0", fontFamily: "'DM Mono', monospace", marginTop: "auto" }}>
-            {avgAnnual !== null ? (avgAnnual >= 0 ? "+" : "") + avgAnnual.toFixed(2) + "%" : "—"}
+        <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 3, flex: "1 1 120px" }}>
+          <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto" }}>
+            {pct365d !== null ? ((totalValue > 0 ? pct365d : 0) >= 0 ? "+" : "") + (pct365d).toFixed(2) + "%" : "Zbieranie danych"}
           </div>
-          <div style={{ fontSize: 10, color: "#3a4a5e", paddingTop: 4 }}>Stopa zwrotu proc.</div>
+          <div style={{ fontSize: 9, color: "#3a4a5e", paddingTop: 3 }}>Zbyt krótka historia</div>
         </div>
       </div>
     </div>
