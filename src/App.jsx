@@ -705,10 +705,12 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
         {mBlock("Zysk roczny", "Zmiana 365-dniowa", diff365d, pct365d)}
         <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 3, flex: "1 1 120px" }}>
           <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto" }}>
-            {pct365d !== null ? ((totalValue > 0 ? pct365d : 0) >= 0 ? "+" : "") + (pct365d).toFixed(2) + "%" : "Zbieranie danych"}
+          <div style={{ fontSize: 13, fontWeight: 700, color: pct365d !== null ? (pct365d >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto" }}>
+            {pct365d !== null ? (pct365d >= 0 ? "+" : "") + pct365d.toFixed(2) + "%" : "Zbieranie danych"}
           </div>
-          <div style={{ fontSize: 9, color: "#3a4a5e", paddingTop: 3 }}>Zbyt krótka historia</div>
+          <div style={{ fontSize: 9, color: "#3a4a5e", paddingTop: 3 }}>
+            {pct365d !== null ? "Stopa zwrotu proc." : "Zbyt krótka historia"}
+          </div>
         </div>
       </div>
     </div>
