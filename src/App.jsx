@@ -584,51 +584,117 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
         </div>
       </div>
 
-      {/* Separator */}
-      <div style={{ width: 1, background: "#1e2a38", alignSelf: "stretch", flexShrink: 0 }} />
 
-      {/* Prawa kolumna: Zysk / Strata */}
-      <div style={{ flex: "1 1 200px", minWidth: 200 }}>
-        <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span>Zysk / Strata</span>
-          {activeFilter && (
-            <button onClick={() => onFilterChange(null)}
-              style={{ background: "transparent", border: "none", color: "#5a6a7e", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}
-              title="Wyczyść filtr">×</button>
-          )}
+    </div>
+  );
+}
+
+// ─── Podsumowanie Portfela (Live) ──────────────────────────────────────────────
+function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
+  const cats = activeFilter ? [activeFilter] : categories.map(c => c.name);
+  let totalValue = 0, totalPaid = 0;
+
+  cats.forEach(c => {
+    const catAssets = assets.filter(a => a.category === c);
+    totalValue += catAssets.reduce((s, a) => s + a.value, 0);
+    totalPaid += catAssets.reduce((s, a) => s + getAssetCostBasis(a), 0);
+  });
+
+  const totalPnl = totalPaid > 0 ? totalValue - totalPaid : null;
+  const totalPnlPct = totalPaid > 0 ? (totalValue - totalPaid) / totalPaid * 100 : null;
+
+  function getHistVal(daysAgo) {
+    if (!history || history.length === 0) return null;
+    const t = new Date(); t.setDate(t.getDate() - daysAgo);
+    const targetStr = t.toISOString().slice(0, 10);
+    const item = history.slice().reverse().find(h => h.date <= targetStr);
+    if (!item) return null;
+    if (activeFilter) return item.byCategory?.[activeFilter] || 0;
+    return item.total || 0;
+  }
+
+  const v1d = getHistVal(1);
+  const v30d = getHistVal(30);
+  const v365d = getHistVal(365);
+
+  const diff1d = v1d !== null ? totalValue - v1d : null;
+  const pct1d = v1d && v1d > 0 ? (diff1d / v1d) * 100 : null;
+
+  const diff30d = v30d !== null ? totalValue - v30d : null;
+  const pct30d = v30d && v30d > 0 ? (diff30d / v30d) * 100 : null;
+
+  const diff365d = v365d !== null ? totalValue - v365d : null;
+  const pct365d = v365d && v365d > 0 ? (diff365d / v365d) * 100 : null;
+
+  let avgAnnual = null;
+  if (history && history.length > 0 && totalPaid > 0 && totalPnlPct !== null) {
+    const days = Math.max(1, (Date.now() - new Date(history[0].date).valueOf()) / 86400000);
+    avgAnnual = totalPnlPct * (365 / days);
+  }
+
+  function fmtSignedDetailed(n) {
+    if (n === null || isNaN(n)) return "—";
+    return (n >= 0 ? "+" : "") + new Intl.NumberFormat("pl-PL", {
+      style: "currency", currency: "PLN", minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).format(n);
+  }
+
+  const mBlock = (label, label2, diff, pct) => (
+    <div style={{ background: "#0f1621", border: "1px solid " + (diff !== null && diff !== 0 ? (diff > 0 ? "#00c89630" : "#f0506030") : "#1e2a38"), borderRadius: 12, padding: "14px 18px", display: "flex", flexDirection: "column", gap: 6, flex: "1 1 140px", position: "relative", overflow: "hidden" }}>
+      {diff !== null && diff !== 0 && (
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: diff > 0 ? "#00c896" : "#f05060", opacity: 0.8 }} />
+      )}
+      <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>{label}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>
+          {diff !== null ? fmtSignedDetailed(diff) : "—"}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          {shownPnl.map(g => (
-            <div key={g.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: g.color, flexShrink: 0 }} />
-              {!activeFilter && <span style={{ fontSize: 12, color: "#8a9bb0", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>}
-              {activeFilter && <span style={{ fontSize: 12, color: g.color, flex: 1 }}>{g.name}</span>}
-              {g.pnl !== null ? (
-                <>
-                  <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: g.pnl >= 0 ? "#00c896" : "#f05060", whiteSpace: "nowrap" }}>
-                    {fmtSigned(g.pnl)}
-                  </span>
-                  <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: g.pnl >= 0 ? "#00c896" : "#f05060", minWidth: 52, textAlign: "right" }}>
-                    {g.pnlPct >= 0 ? "+" : ""}{g.pnlPct.toFixed(1)}%
-                  </span>
-                </>
-              ) : (
-                <span style={{ fontSize: 11, color: "#3a4a5e" }}>—</span>
-              )}
+        <div style={{ fontSize: 12, fontWeight: 500, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#5a6a7e", fontFamily: "'DM Mono', monospace" }}>
+          {pct !== null ? (pct > 0 ? "+" : "") + pct.toFixed(2) + "%" : "—"}
+        </div>
+      </div>
+      <div style={{ fontSize: 10, color: "#3a4a5e", marginTop: "auto", paddingTop: 4 }}>{label2}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px dashed #1e2a38" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#e8f0f8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          Podsumowanie: <span style={{ color: activeFilter ? catColor(categories, activeFilter) : "#00c896" }}>{activeFilter || "Cały Portfel"}</span>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+        <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 14, padding: "18px 22px", flex: "1 1 200px" }}>
+          <div style={{ fontSize: 12, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Bieżąca Wartość</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", textShadow: "0 0 16px rgba(232, 240, 248, 0.1)" }}>{fmt(totalValue)}</div>
+        </div>
+        <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 14, padding: "18px 22px", flex: "1 1 200px", position: "relative", overflow: "hidden" }}>
+          {totalPnl !== null && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: totalPnl >= 0 ? "linear-gradient(90deg, #00c896, #00d4f0)" : "linear-gradient(90deg, #f05060, #f24060)" }} />}
+          <div style={{ fontSize: 12, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Zysk Całkowity</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
+              {totalPnl !== null ? fmtSignedDetailed(totalPnl) : "—"}
             </div>
-          ))}
-        </div>
-        {totalPnl !== null && !activeFilter && (
-          <div style={{ borderTop: "1px solid #1e2a38", marginTop: 10, paddingTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, color: "#5a6a7e", flex: 1 }}>Łącznie</span>
-            <span style={{ fontSize: 13, fontFamily: "'DM Mono', monospace", fontWeight: 600, color: totalPnl >= 0 ? "#00c896" : "#f05060", whiteSpace: "nowrap" }}>
-              {fmtSigned(totalPnl)}
-            </span>
-            <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: totalPnl >= 0 ? "#00c896" : "#f05060", minWidth: 52, textAlign: "right" }}>
-              {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(1)}%
-            </span>
+            <div style={{ fontSize: 14, fontWeight: 600, color: totalPnlPct >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
+              {totalPnlPct !== null ? (totalPnlPct >= 0 ? "+" : "") + totalPnlPct.toFixed(2) + "%" : "—"}
+            </div>
           </div>
-        )}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+        {mBlock("Zysk dzienny", "Zmiana 1-dniowa", diff1d, pct1d)}
+        {mBlock("Zysk miesięczny", "Zmiana 30-dniowa", diff30d, pct30d)}
+        {mBlock("Zysk roczny", "Zmiana 365-dniowa", diff365d, pct365d)}
+        <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 12, padding: "14px 18px", display: "flex", flexDirection: "column", gap: 6, flex: "1 1 140px" }}>
+          <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: avgAnnual !== null ? (avgAnnual >= 0 ? "#00c896" : "#f05060") : "#8a9bb0", fontFamily: "'DM Mono', monospace", marginTop: "auto" }}>
+            {avgAnnual !== null ? (avgAnnual >= 0 ? "+" : "") + avgAnnual.toFixed(2) + "%" : "—"}
+          </div>
+          <div style={{ fontSize: 10, color: "#3a4a5e", paddingTop: 4 }}>Stopa zwrotu proc.</div>
+        </div>
       </div>
     </div>
   );
@@ -1890,14 +1956,22 @@ export default function App() {
                 </div>
               )}
               {assetsWithLivePrices.length > 0 ? (
-                <PieChart
-                  assets={assetsWithLivePrices}
-                  categories={categories}
-                  activeFilter={activeFilter}
-                  onFilterChange={handleFilterChange}
-                  hovered={hovered}
-                  setHovered={setHovered}
-                />
+                <>
+                  <PieChart
+                    assets={assetsWithLivePrices}
+                    categories={categories}
+                    activeFilter={activeFilter}
+                    onFilterChange={handleFilterChange}
+                    hovered={hovered}
+                    setHovered={setHovered}
+                  />
+                  <PortfolioSummaryPanel
+                    assets={assetsWithLivePrices}
+                    activeFilter={activeFilter}
+                    categories={categories}
+                    history={history}
+                  />
+                </>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "24px 0" }}>
                   <div style={{ width: 120, height: 120, borderRadius: "50%", border: "2px dashed #2a3a50", display: "flex", alignItems: "center", justifyContent: "center", color: "#4a5a6e", fontSize: 11, fontFamily: "'DM Mono', monospace" }}>BRAK DANYCH</div>

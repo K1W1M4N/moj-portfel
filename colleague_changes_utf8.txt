@@ -1,0 +1,171 @@
+﻿commit b48717fb98a52a5469c25c4acb15595121c6eff0
+Author: KRG1222 <karol.gutowski12@gmail.com>
+Date:   Sun Mar 29 11:29:45 2026 +0200
+
+    Update StockModal.jsx
+
+diff --git a/src/StockModal.jsx b/src/StockModal.jsx
+index 377885b..1a8fa04 100644
+--- a/src/StockModal.jsx
++++ b/src/StockModal.jsx
+@@ -50,12 +50,16 @@ function loadCachedPrices() { try { const r = localStorage.getItem(STOCK_CACHE_K
+ function saveCachedPrices(p) { try { localStorage.setItem(STOCK_CACHE_KEY, JSON.stringify(p)); } catch {} }
+ 
+ // ÔöÇÔöÇÔöÇ Helpers do transz ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-export function calcStockFromLots(lots) {
+-  if (!lots || lots.length === 0) return { totalQty: 0, avgPrice: 0, totalCost: 0 };
++// Lot format: { quantity, paidPLN, date?, note? }
++// paidPLN = ┼é─ůczna kwota zap┼éacona w PLN za t─Ö transz─Ö
++export function calcStockFromLots(lots, fx) {
++  if (!lots || lots.length === 0) return { totalQty: 0, avgPrice: 0, totalCostPLN: 0 };
+   const totalQty = lots.reduce((s, l) => s + (parseFloat(l.quantity) || 0), 0);
+-  const totalCost = lots.reduce((s, l) => s + (parseFloat(l.quantity) || 0) * (parseFloat(l.price) || 0), 0);
+-  const avgPrice = totalQty > 0 ? totalCost / totalQty : 0;
+-  return { totalQty, avgPrice, totalCost };
++  const totalCostPLN = lots.reduce((s, l) => s + (parseFloat(l.paidPLN) || 0), 0);
++  // ┼Ürednia cena w walucie oryginalnej (do wy┼Ťwietlania)
++  const effectiveFx = fx || 1;
++  const avgPrice = totalQty > 0 ? (totalCostPLN / effectiveFx) / totalQty : 0;
++  return { totalQty, avgPrice, totalCostPLN };
+ }
+ 
+ // ÔöÇÔöÇÔöÇ Hook: live ceny ÔÇö przez /api/stock-price proxy ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+@@ -197,7 +201,7 @@ function Sparkline({ symbol, exchange, width = 220, height = 50 }) {
+ }
+ 
+ // ÔöÇÔöÇÔöÇ Panel szczeg├│┼é├│w akcji/ETF (wzorowany na BondDetailPanel) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose, onMove }) {
++export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose }) {
+   const [menuOpen, setMenuOpen] = useState(false);
+ 
+   const priceData = stockPrices[stock.stockSymbol];
+@@ -246,13 +250,6 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
+                     onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                     ÔťĆ´ŞĆ Edytuj
+                   </button>
+-                  {onMove && (
+-                    <button onClick={() => { setMenuOpen(false); onMove(stock); }}
+-                      style={{ display: "block", width: "100%", padding: "9px 14px", background: "transparent", border: "none", color: "#e8f0f8", fontSize: 13, cursor: "pointer", textAlign: "left", borderRadius: 6, fontFamily: "'Sora',sans-serif" }}
+-                      onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+-                      ­čĺ╝ Przenie┼Ť
+-                    </button>
+-                  )}
+                   <button onClick={() => { setMenuOpen(false); onDelete(stock.id); onClose(); }}
+                     style={{ display: "block", width: "100%", padding: "9px 14px", background: "transparent", border: "none", color: "#f05060", fontSize: 13, cursor: "pointer", textAlign: "left", borderRadius: 6, fontFamily: "'Sora',sans-serif" }}
+                     onMouseEnter={e => e.currentTarget.style.background = "#f0506018"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+@@ -314,8 +311,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
+             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+               {lots.map((lot, i) => {
+                 const lq = parseFloat(lot.quantity) || 0;
+-                const lp = parseFloat(lot.price) || 0;
+-                const lCost = lq * lp * fx;
++                const lCost = parseFloat(lot.paidPLN) || 0;
+                 const lVal = currentPriceOrig ? lq * currentPriceOrig * fx : lCost;
+                 const lPnl = lVal - lCost;
+                 const lPct = lCost > 0 ? (lPnl / lCost) * 100 : 0;
+@@ -324,7 +320,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
+                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+                       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                         <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#e8e040", flexShrink: 0 }} />
+-                        <span style={{ fontSize: 12, color: "#e8f0f8", fontFamily: "'DM Mono',monospace" }}>{lq} szt. ├Ś {fmtCur(lp, currency)}</span>
++                        <span style={{ fontSize: 12, color: "#e8f0f8", fontFamily: "'DM Mono',monospace" }}>{lq} szt. ┬Ě {fmtPLN2(lCost)}</span>
+                       </div>
+                       {currentPriceOrig && (
+                         <span style={{ fontSize: 11, fontFamily: "'DM Mono',monospace", color: lPnl >= 0 ? "#00c896" : "#f05060", flexShrink: 0 }}>
+@@ -454,14 +450,14 @@ function LotForm({ lot, index, currency, onUpdate, onRemove, canRemove }) {
+     <div style={{ padding: "8px 10px", background: "#0f1520", borderRadius: 8, border: "1px solid #1e2a38" }}>
+       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" + (canRemove ? " auto" : ""), gap: 8, alignItems: "end" }}>
+         <div>
+-          <label style={{ ...labelSt, fontSize: 10 }}>Ilo┼Ť─ç</label>
+-          <input style={{ ...baseInp, padding: "7px 10px", fontSize: 12 }} type="number" step="any" placeholder="10"
++          <label style={{ ...labelSt, fontSize: 10 }}>Ilo┼Ť─ç sztuk</label>
++          <input style={{ ...baseInp, padding: "7px 10px", fontSize: 12 }} type="number" step="any" placeholder="np. 0.4071"
+             value={lot.quantity} onChange={e => onUpdate(index, { ...lot, quantity: e.target.value })} onFocus={focusInp} onBlur={blurInp} />
+         </div>
+         <div>
+-          <label style={{ ...labelSt, fontSize: 10 }}>Cena ({currency})</label>
+-          <input style={{ ...baseInp, padding: "7px 10px", fontSize: 12 }} type="number" step="any" placeholder="58.30"
+-            value={lot.price} onChange={e => onUpdate(index, { ...lot, price: e.target.value })} onFocus={focusInp} onBlur={blurInp} />
++          <label style={{ ...labelSt, fontSize: 10 }}>Zap┼éacono (PLN)</label>
++          <input style={{ ...baseInp, padding: "7px 10px", fontSize: 12 }} type="number" step="any" placeholder="np. 100"
++            value={lot.paidPLN} onChange={e => onUpdate(index, { ...lot, paidPLN: e.target.value })} onFocus={focusInp} onBlur={blurInp} />
+         </div>
+         {canRemove && (
+           <button onClick={() => onRemove(index)}
+@@ -495,7 +491,7 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
+   const [mode, setMode] = useState(initialLots.length > 0 ? "lots" : "simple");
+   const [quantity, setQuantity] = useState(stock?.stockQuantity?.toString() || "");
+   const [avgPrice, setAvgPrice] = useState(stock?.stockAvgPrice?.toString() || "");
+-  const [lots, setLots] = useState(initialLots.length > 0 ? initialLots : [{ quantity: "", price: "", date: "", note: "" }]);
++  const [lots, setLots] = useState(initialLots.length > 0 ? initialLots : [{ quantity: "", paidPLN: "", date: "", note: "" }]);
+   const [note, setNote] = useState(stock?.note || "");
+   const [currentPrice, setCurrentPrice] = useState(null);
+   const [fxRate, setFxRate] = useState(null);
+@@ -534,31 +530,30 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
+   const currency = selected?.currency || "PLN";
+   const fx = fxRate || 1;
+ 
+-  let totalQty, totalAvgPrice, totalCostOrig;
++  let totalQty, totalAvgPrice, paidPLN;
+   if (mode === "lots") {
+-    const calc = calcStockFromLots(lots);
+-    totalQty = calc.totalQty; totalAvgPrice = calc.avgPrice; totalCostOrig = calc.totalCost;
++    const calc = calcStockFromLots(lots, fx);
++    totalQty = calc.totalQty; totalAvgPrice = calc.avgPrice; paidPLN = calc.totalCostPLN;
+   } else {
+     totalQty = parseFloat(String(quantity).replace(",", ".")) || 0;
+     totalAvgPrice = parseFloat(String(avgPrice).replace(",", ".")) || 0;
+-    totalCostOrig = totalQty * totalAvgPrice;
++    paidPLN = totalQty * totalAvgPrice * fx;
+   }
+ 
+-  const paidPLN = totalCostOrig * fx;
+   const currentValuePLN = currentPrice && totalQty > 0 ? totalQty * currentPrice * fx : null;
+   const pnlPLN = currentValuePLN !== null && paidPLN > 0 ? currentValuePLN - paidPLN : null;
+   const pnlPct = pnlPLN !== null && paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : null;
+ 
+-  const canSave = selected && totalQty > 0 && totalAvgPrice > 0;
++  const canSave = selected && totalQty > 0 && (mode === "lots" ? paidPLN > 0 : totalAvgPrice > 0);
+ 
+-  function addLot() { setLots(l => [...l, { quantity: "", price: "", date: "", note: "" }]); }
++  function addLot() { setLots(l => [...l, { quantity: "", paidPLN: "", date: "", note: "" }]); }
+   function updateLot(i, lot) { setLots(l => l.map((x, j) => j === i ? lot : x)); }
+   function removeLot(i) { setLots(l => l.filter((_, j) => j !== i)); }
+ 
+   function submit() {
+     if (!canSave) return;
+     const value = currentValuePLN ?? paidPLN;
+-    const cleanLots = mode === "lots" ? lots.filter(l => parseFloat(l.quantity) > 0 && parseFloat(l.price) > 0) : [];
++    const cleanLots = mode === "lots" ? lots.filter(l => parseFloat(l.quantity) > 0 && parseFloat(l.paidPLN) > 0) : [];
+     onSave({
+       id: stock?.id || Date.now(), name: selected.name || selected.symbol, category: "Akcje / ETF", value, note, isStock: true,
+       stockSymbol: selected.symbol, stockName: selected.name, stockExchange: selected.exchange, stockCurrency: currency,
+@@ -646,14 +641,14 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
+           </div>
+         )}
+ 
+-        {selected && totalQty > 0 && totalAvgPrice > 0 && (
++        {selected && totalQty > 0 && paidPLN > 0 && (
+           <div style={{ background: "#0f1a27", border: "1px solid #1a3a20", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
+             <div style={{ fontSize: 11, color: "#5a7a9e", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Podsumowanie</div>
+             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+               <div>
+                 <div style={{ fontSize: 11, color: "#5a7a9e" }}>Zap┼éacono ┼é─ůcznie</div>
+-                <div style={{ fontSize: 15, fontWeight: 600, color: "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>{fmtPLN(paidPLN)}</div>
+-                <div style={{ fontSize: 11, color: "#4a5a6e" }}>{totalQty} ├Ś {fmtCur(totalAvgPrice, currency)}</div>
++                <div style={{ fontSize: 15, fontWeight: 600, color: "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>{fmtPLN2(paidPLN)}</div>
++                <div style={{ fontSize: 11, color: "#4a5a6e" }}>{totalQty} szt.</div>
+               </div>
+               {currentValuePLN !== null && (
+                 <div>
+@@ -695,8 +690,9 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
+ }
+ 
+ // ÔöÇÔöÇÔöÇ Wiersz akcji/ETF ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+-export function StockRow({ stock, stockPrices, color, onClick }) {
++export function StockRow({ stock, stockPrices, onClick }) {
+   const [hov, setHov] = useState(false);
++  const color = "#e8e040";
+   const priceData = stockPrices[stock.stockSymbol];
+   const currentValuePLN = priceData ? stock.stockQuantity * priceData.pricePLN : stock.value;
+   const paidPLN = stock.stockPaidPLN || stock.value;
