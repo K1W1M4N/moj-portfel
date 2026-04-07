@@ -1657,6 +1657,21 @@ export default function App() {
 
         {/* ── Widok kont oszczędnościowych ── */}
         {currentView === "savings" && (() => {
+          const today = new Date(); today.setHours(0,0,0,0);
+          const daysUntil = (dateStr) => {
+            if (!dateStr) return null;
+            const d = new Date(dateStr); d.setHours(0,0,0,0);
+            return Math.round((d - today) / 86400000);
+          };
+          const expiryBadge = (offer) => {
+            const days = daysUntil(offer.promoEndDate);
+            if (days === null) return null;
+            if (days < 0)  return { label: "wygasła", color: "#e05555", bg: "#2a0a0a" };
+            if (days === 0) return { label: "ostatni dzień!", color: "#e05555", bg: "#2a0a0a" };
+            if (days <= 7)  return { label: `${days}d`, color: "#e05555", bg: "#2a0a0a" };
+            if (days <= 30) return { label: `${days}d`, color: "#f0a030", bg: "#2a1800" };
+            return { label: `${days}d`, color: "#6b7f96", bg: "#1e2a38" };
+          };
           const sortedOffers = [...SAVINGS_RATES_DB.accounts].sort((a, b) => {
             const rateA = a.ratePromo ?? a.rateStandard;
             const rateB = b.ratePromo ?? b.rateStandard;
@@ -1779,6 +1794,12 @@ export default function App() {
                             wymaga ROR
                           </div>
                         )}
+                        {/* Expiry badge */}
+                        {(() => { const b = expiryBadge(offer); return b ? (
+                          <div style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: b.bg, color: b.color, fontFamily: "'DM Mono',monospace", whiteSpace: "nowrap", fontWeight: 700 }}>
+                            ⏰ {b.label}
+                          </div>
+                        ) : null; })()}
                         <div style={{ fontSize: 10, color: "#3a4a5e" }}>›</div>
                       </div>
                     );
@@ -1842,6 +1863,31 @@ export default function App() {
                             </div>
                           )}
                         </div>
+
+                        {/* Data wygaśnięcia */}
+                        {o.promoEndDate && (() => {
+                          const b = expiryBadge(o);
+                          const days = daysUntil(o.promoEndDate);
+                          const [y, mo, d] = o.promoEndDate.split('-');
+                          const label = `${d}.${mo}.${y}`;
+                          return (
+                            <div style={{ background: b ? b.bg : "#1e2a38", border: `1px solid ${b ? b.color + "44" : "#2a3a50"}`, borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div style={{ fontSize: 12, color: "#8a9bb0" }}>
+                                {days < 0 ? "Kampania zakończona" : "Kampania ważna do"}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: b ? b.color : "#e8edf3", fontFamily: "'DM Mono',monospace" }}>
+                                  {label}
+                                </div>
+                                {b && days >= 0 && (
+                                  <div style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: b.bg, color: b.color, fontWeight: 700, fontFamily: "'DM Mono',monospace" }}>
+                                    {days === 0 ? "ostatni dzień!" : `za ${days} dni`}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Warunki */}
                         {o.promoConditionsList && o.promoConditionsList.length > 0 && (
