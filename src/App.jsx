@@ -654,21 +654,22 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
     }).format(n);
   }
 
-  const mBlock = (label, label2, diff, pct) => (
+  const mBlock = (label, diff, pct) => (
     <div style={{ background: "#0f1621", border: "1px solid " + (diff !== null && diff !== 0 ? (diff > 0 ? "#00c89630" : "#f0506030") : "#1e2a38"), borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 3, flex: "1 1 120px", position: "relative", overflow: "hidden" }}>
       {diff !== null && diff !== 0 && (
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: diff > 0 ? "#00c896" : "#f05060", opacity: 0.8 }} />
       )}
       <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>{label}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: "auto" }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>
           {diff !== null ? fmtSignedDetailed(diff) : "—"}
         </div>
-        <div style={{ fontSize: 11, fontWeight: 500, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#5a6a7e", fontFamily: "'DM Mono', monospace" }}>
-          {pct !== null ? (pct > 0 ? "+" : "") + pct.toFixed(2) + "%" : "—"}
-        </div>
+        {pct !== null && (
+          <div style={{ fontSize: 11, fontWeight: 500, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#5a6a7e", fontFamily: "'DM Mono', monospace" }}>
+            ({pct > 0 ? "+" : ""}{pct.toFixed(2)}%)
+          </div>
+        )}
       </div>
-      <div style={{ fontSize: 9, color: "#3a4a5e", marginTop: "auto", paddingTop: 3 }}>{label2}</div>
     </div>
   );
 
@@ -688,28 +689,27 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
         <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 12, padding: "14px 18px", flex: "1 1 180px", position: "relative", overflow: "hidden" }}>
           {totalPnl !== null && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: totalPnl >= 0 ? "linear-gradient(90deg, #00c896, #00d4f0)" : "linear-gradient(90deg, #f05060, #f24060)" }} />}
           <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Zysk Całkowity</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginTop: "auto" }}>
             <div style={{ fontSize: 20, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
               {totalPnl !== null ? fmtSignedDetailed(totalPnl) : "—"}
             </div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: totalPnlPct >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
-              {totalPnlPct !== null ? (totalPnlPct >= 0 ? "+" : "") + totalPnlPct.toFixed(2) + "%" : "—"}
-            </div>
+            {totalPnlPct !== null && (
+              <div style={{ fontSize: 12, fontWeight: 600, color: totalPnlPct >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace" }}>
+                ({totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%)
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-        {mBlock("Zysk dzienny", "Zmiana 1-dniowa", diff1d, pct1d)}
-        {mBlock("Zysk miesięczny", "Zmiana 30-dniowa", diff30d, pct30d)}
-        {mBlock("Zysk roczny", "Zmiana 365-dniowa", diff365d, pct365d)}
+        {mBlock("Zysk dzienny", diff1d, pct1d)}
+        {mBlock("Zysk miesięczny", diff30d, pct30d)}
+        {mBlock("Zysk roczny", diff365d, pct365d)}
         <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 3, flex: "1 1 120px" }}>
           <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: pct365d !== null ? (pct365d >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: pct365d !== null ? (pct365d >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto" }}>
             {pct365d !== null ? (pct365d >= 0 ? "+" : "") + pct365d.toFixed(2) + "%" : "Zbieranie danych"}
-          </div>
-          <div style={{ fontSize: 9, color: "#3a4a5e", paddingTop: 3 }}>
-            {pct365d !== null ? "Stopa zwrotu proc." : "Zbyt krótka historia"}
           </div>
         </div>
       </div>
