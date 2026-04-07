@@ -594,6 +594,39 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
 }
 
 // ─── Podsumowanie Portfela (Live) ──────────────────────────────────────────────
+
+// Oblicz wartość konta oszczędnościowego na dowolną datę w przeszłości
+function calcSavingsValueAtDate(account, targetDate) {
+  const { openDate, rate, transactions = [] } = account;
+  if (!openDate || rate == null) return null;
+  const annualRate = rate / 100;
+  const tDate = new Date(targetDate); tDate.setHours(0, 0, 0, 0);
+  const openDateObj = new Date(openDate); openDateObj.setHours(0, 0, 0, 0);
+  if (tDate < openDateObj) return 0;
+  const sorted = [...transactions].sort((a, b) => (a.date > b.date ? 1 : -1));
+  const tStr = tDate.toISOString().slice(0, 10);
+  let balance = 0;
+  for (const tx of sorted) { if (tx.date <= openDate) balance += tx.amount; }
+  let periodStart = new Date(openDateObj);
+  let safety = 0;
+  while (safety++ < 600) {
+    const periodEnd = new Date(periodStart);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    if (periodEnd > tDate) break;
+    const pStartStr = periodStart.toISOString().slice(0, 10);
+    const pEndStr = periodEnd.toISOString().slice(0, 10);
+    const txSum = sorted.filter(tx => tx.date > pStartStr && tx.date <= pEndStr).reduce((s, tx) => s + tx.amount, 0);
+    const days = Math.round((periodEnd - periodStart) / 86400000);
+    const interest = Math.round(balance * annualRate * (days / 365) * 100) / 100;
+    balance = Math.round((balance + interest + txSum) * 100) / 100;
+    periodStart = new Date(periodEnd);
+  }
+  const lastCapStr = periodStart.toISOString().slice(0, 10);
+  balance = Math.round((balance + sorted.filter(tx => tx.date > lastCapStr && tx.date <= tStr).reduce((s, tx) => s + tx.amount, 0)) * 100) / 100;
+  const daysAccrued = Math.max(0, Math.round((tDate - periodStart) / 86400000));
+  return Math.round((balance + balance * annualRate * (daysAccrued / 365)) * 100) / 100;
+}
+
 function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
   const cats = activeFilter ? [activeFilter] : categories.map(c => c.name);
   let totalValue = 0, totalPaid = 0;
@@ -607,74 +640,48 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
   const totalPnl = totalPaid > 0 ? totalValue - totalPaid : null;
   const totalPnlPct = totalPaid > 0 ? (totalValue - totalPaid) / totalPaid * 100 : null;
 
-  // Oblicz wartość historyczną retroaktywnie na podstawie aktualnie posiadanych aktywów
-  // Zamiast polegać na snapshotach (które puchną/kurczą się przy dodawaniu/usuwaniu aktywów)
-  // liczymy wstecz matematycznie dla każdego aktywa z osobna
+  // Oblicz wartość historyczną retroaktywnie.
+  // Obligacje → calcBondCurrentValue(bond, pastDate) — precyzyjne
+  // Konta oszczędnościowe → calcSavingsValueAtDate — precyzyjne z kapitalizacją
+  // Akcje/Krypto/Surowce/Waluty → brak danych historycznych → null → "—"
   function getHistVal(daysAgo) {
     const t = new Date(); t.setDate(t.getDate() - daysAgo);
-    const targetAssets = activeFilter
-      ? assets.filter(a => a.category === activeFilter)
-      : assets;
-
+    const targetAssets = activeFilter ? assets.filter(a => a.category === activeFilter) : assets;
     if (targetAssets.length === 0) return null;
-
-    let historicalTotal = 0;
-    let hasAnyData = false;
-
-    targetAssets.forEach(a => {
-      // Obligacje — precyzyjna kalkulacja wsteczna
+    let total = 0;
+    let allCalculable = true;
+    for (const a of targetAssets) {
       if (a.isBond && a.purchaseDate && a.quantity) {
-        historicalTotal += calcBondCurrentValue(a, t).currentValue;
-        hasAnyData = true;
-        return;
+        total += calcBondCurrentValue(a, t).currentValue;
+        continue;
       }
-
-      // Konto oszczędnościowe — wpłacony kapitał (bez odsetek) na dany moment
-      if (a.isSavings) {
-        // Suma wpłat do tego dnia
-        const txs = a.transactions || [];
-        const tStr = t.toISOString().slice(0, 10);
-        let deposited = 0;
-        txs.forEach(tx => { if (tx.date <= tStr) deposited += tx.amount; });
-        // Jeśli konto nie istniało jeszcze (brak wpłat) = traktuj jak obecną wartość koszt-bazową
-        historicalTotal += deposited > 0 ? deposited : (a.savingsBalance || a.value || 0);
-        hasAnyData = true;
-        return;
+      if (a.isSavings && a.openDate && a.rate != null) {
+        const v = calcSavingsValueAtDate(a, t);
+        if (v !== null) { total += v; continue; }
       }
-
-      // Akcje / Krypto / Surowce — użyj ceny zakupu jako wartość historyczną
-      // (nie mamy historycznych cen rynkowych)
-      if (a.isStock || a.isCrypto || a.cryptoId || a.isCommodity) {
-        historicalTotal += getAssetCostBasis(a);
-        hasAnyData = true;
-        return;
-      }
-
-      // Waluty i inne aktywa statyczne — wartość się nie zmienia
-      historicalTotal += a.value || 0;
-      hasAnyData = true;
-    });
-
-    return hasAnyData ? historicalTotal : null;
+      // Akcje, krypto, surowce, waluty, PPK, inne — brak historycznych cen
+      allCalculable = false;
+    }
+    return allCalculable ? total : null;
   }
 
   const v1d = getHistVal(1);
   const v30d = getHistVal(30);
   const v365d = getHistVal(365);
-
   const diff1d = v1d !== null ? totalValue - v1d : null;
   const pct1d = v1d && v1d > 0 ? (diff1d / v1d) * 100 : null;
-
   const diff30d = v30d !== null ? totalValue - v30d : null;
   const pct30d = v30d && v30d > 0 ? (diff30d / v30d) * 100 : null;
-
   const diff365d = v365d !== null ? totalValue - v365d : null;
   const pct365d = v365d && v365d > 0 ? (diff365d / v365d) * 100 : null;
 
-  function fmtSignedDetailed(n) {
+  // Formatowanie kwot — bez groszy gdy >= 1000 zł (kompaktowe kafelki)
+  function fmtCompact(n) {
     if (n === null || isNaN(n)) return "—";
+    const abs = Math.abs(n);
+    const d = abs >= 1000 ? 0 : 2;
     return (n >= 0 ? "+" : "") + new Intl.NumberFormat("pl-PL", {
-      style: "currency", currency: "PLN", minimumFractionDigits: 2, maximumFractionDigits: 2,
+      style: "currency", currency: "PLN", minimumFractionDigits: d, maximumFractionDigits: d,
     }).format(n);
   }
 
@@ -682,8 +689,8 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
     <div style={{ background: "#0f1621", border: "1px solid " + (diff !== null && diff !== 0 ? (diff > 0 ? "#00c89630" : "#f0506030") : "#1e2a38"), borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, flex: "1 1 120px", minWidth: 0 }}>
       <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>{label}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginTop: "auto" }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {diff !== null ? fmtSignedDetailed(diff) : "—"}
+        <div style={{ fontSize: 12, fontWeight: 700, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
+          {diff !== null ? fmtCompact(diff) : "—"}
         </div>
         {pct !== null && (
           <div style={{ fontSize: 9, fontWeight: 600, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#5a6a7e", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap", flexShrink: 0 }}>
@@ -710,8 +717,8 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
         <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Zysk Całkowity</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: "auto" }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {totalPnl !== null ? fmtSignedDetailed(totalPnl) : "—"}
+            <div style={{ fontSize: 12, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
+              {totalPnl !== null ? fmtCompact(totalPnl) : "—"}
             </div>
             {totalPnlPct !== null && (
               <div style={{ fontSize: 9, fontWeight: 600, color: totalPnlPct >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap", flexShrink: 0 }}>
@@ -729,7 +736,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
         <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
           <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
           <div style={{ fontSize: 12, fontWeight: 700, color: pct365d !== null ? (pct365d >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>
-            {pct365d !== null ? (pct365d >= 0 ? "+" : "") + pct365d.toFixed(2) + "%" : "Zbieranie danych"}
+            {pct365d !== null ? (pct365d >= 0 ? "+" : "") + pct365d.toFixed(2) + "%" : "—"}
           </div>
         </div>
       </div>
