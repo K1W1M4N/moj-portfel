@@ -1,7 +1,7 @@
 import { Component, useState, useRef, useEffect, useCallback } from "react";
 import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./BondModal";
 import { StockModal, StockRow, StockDetailPanel, useStockPrices, isMarketHours } from "./StockModal";
-import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue } from "./SavingsModal";
+import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue, computeSavings } from "./SavingsModal";
 import { CommodityModal, CommodityRow, CommodityDetailPanel, useCommodityPrices, calcCommodityValue } from "./CommodityModal";
 import { CurrencyModal, CurrencyRow, SUPPORTED_CURRENCIES } from "./CurrencyModal";
 import { fetchFxRate } from "./fxUtils";
@@ -1466,7 +1466,8 @@ export default function App() {
       return { ...a, value: calcBondCurrentValue(a).currentValue };
     }
     if (a.isSavings) {
-      return { ...a, value: getSavingsValue(a) };
+      const _calc = computeSavings(a) || {};
+      return { ...a, value: (_calc.currentBalance || 0) + (_calc.accruedToday || 0), _calc };
     }
     if (a.isStock && a.stockSymbol) {
       if (stockPrices[a.stockSymbol]) return { ...a, value: a.stockQuantity * stockPrices[a.stockSymbol].pricePLN };
@@ -1694,18 +1695,134 @@ export default function App() {
                 </button>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-                {assetsWithLivePrices.filter(a => a.isSavings).map(account => (
-                  <div key={account.id}
-                    onClick={() => setSelectedSavings(account)}
-                    style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 14, padding: "16px", cursor: "pointer", transition: "all .15s" }}>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: "#00c896", marginBottom: 4, fontFamily: "'DM Mono',monospace" }}>{account.savingsBankName}</div>
-                    <div style={{ fontSize: 12, color: "#8a9bb0", display: "flex", justifyContent: "space-between" }}>
-                      <span>Saldo: {isNaN(account.savingsBalance) || account.savingsBalance == null ? "—" : new Intl.NumberFormat("pl-PL",{style:"currency",currency:"PLN",maximumFractionDigits:0}).format(account.savingsBalance)}</span>
-                      <span style={{ color: "#e8f0f8" }}>{account.savingsRate != null && !isNaN(account.savingsRate) ? `${account.savingsRate}%` : "—"}</span>
+              {/* P2: Nagłówek sekcji z sumami */}
+              {(() => {
+                const savAccs = assetsWithLivePrices.filter(a => a.isSavings);
+                if (savAccs.length === 0) return null;
+                const totalBalance = savAccs.reduce((s, a) => s + ((a._calc?.currentBalance || 0) + (a._calc?.accruedToday || 0)), 0);
+                const totalDailyGain = savAccs.reduce((s, a) => s + (a._calc?.dailyGain || 0), 0);
+                const fmtPLN = v => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+                return (
+                  <div style={{ background: "#0d1520", border: "1px solid #1e2a38", borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", gap: 24, flexWrap: "wrap" }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: "#5a6a7e", marginBottom: 2 }}>Łączne saldo</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "#e8edf3", fontFamily: "'DM Mono',monospace" }}>{fmtPLN(totalBalance)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: "#5a6a7e", marginBottom: 2 }}>Dzienny przyrost (netto)</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "#00c896", fontFamily: "'DM Mono',monospace" }}>+{fmtPLN(totalDailyGain)}</div>
                     </div>
                   </div>
-                ))}
+                );
+              })()}
+
+              {/* P4: Alerty weryfikacji stawek */}
+              {assetsWithLivePrices.filter(a => a.isSavings).map(account => {
+                const bankName = (account.savingsBankName || "").toLowerCase().trim();
+                const matchingOffers = SAVINGS_RATES_DB.accounts.filter(o =>
+                  o.bank.toLowerCase().trim().includes(bankName) || bankName.includes(o.bank.toLowerCase().trim())
+                );
+                if (matchingOffers.length === 0) return null;
+                const allRates = matchingOffers.flatMap(o => [o.rateStandard, o.ratePromo].filter(r => r != null));
+                const closestRate = allRates.reduce((best, r) => Math.abs(r - account.rate) < Math.abs(best - account.rate) ? r : best, allRates[0]);
+                const diff = Math.abs(closestRate - account.rate);
+                if (diff <= 0.1) return null;
+                const storageKey = `sv-verify-${account.id}-${closestRate}`;
+                const dismissed = (() => { try { const d = localStorage.getItem(storageKey); if (!d) return false; return (Date.now() - JSON.parse(d).at) < 30 * 86400 * 1000; } catch { return false; } })();
+                if (dismissed) return null;
+                return (
+                  <div key={account.id + "-p4"} style={{ background: "#1a1400", border: "1px solid #4a3800", borderRadius: 10, padding: "12px 16px", marginBottom: 10, display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 16 }}>⚠️</span>
+                    <div style={{ flex: 1, fontSize: 12, color: "#c8a030", lineHeight: 1.5 }}>
+                      <strong style={{ color: "#e8c060" }}>{account.savingsBankName}</strong>: Twoja stawka to <strong>{account.rate}%</strong>, ale aktualne dane wskazują na <strong>{closestRate}%</strong>. Potwierdź, że stawka jest aktualna.
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => { try { localStorage.setItem(storageKey, JSON.stringify({ at: Date.now() })); } catch {} setAssets(prev => [...prev]); }}
+                        style={{ fontSize: 10, padding: "4px 8px", borderRadius: 6, background: "#1e2a38", color: "#8a9bb0", border: "1px solid #2a3a50", cursor: "pointer", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap" }}>
+                        Stawka aktualna
+                      </button>
+                      <button onClick={() => setSelectedSavings(account)}
+                        style={{ fontSize: 10, padding: "4px 8px", borderRadius: 6, background: "#2a1e00", color: "#e8c060", border: "1px solid #4a3800", cursor: "pointer", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap" }}>
+                        Zaktualizuj
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Karty kont */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                {assetsWithLivePrices.filter(a => a.isSavings).map(account => {
+                  const calc = account._calc || {};
+                  const balance = (calc.currentBalance || 0) + (calc.accruedToday || 0);
+                  const dailyGain = calc.dailyGain || 0;
+                  const nextCapDate = calc.nextCapDate;
+                  const accrued = calc.accruedToday || 0;
+                  const fmtPLN = v => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+                  const fmtPLN0 = v => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 }).format(v);
+                  // P3: Najlepsza oferta w DB
+                  const allDbRates = SAVINGS_RATES_DB.accounts.map(o => o.ratePromo ?? o.rateStandard);
+                  const bestDbRate = Math.max(...allDbRates);
+                  const bestDbOffer = SAVINGS_RATES_DB.accounts.find(o => (o.ratePromo ?? o.rateStandard) === bestDbRate);
+                  const showBetterOffer = bestDbRate > (account.rate || 0) + 0.5;
+                  return (
+                    <div key={account.id}
+                      onClick={() => setSelectedSavings(account)}
+                      style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 14, padding: "16px", cursor: "pointer", transition: "border-color .15s" }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = "#2a4060"}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = "#1e2a38"}>
+                      {/* Nagłówek karty */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "#e8edf3" }}>{account.savingsBankName}</div>
+                          <div style={{ fontSize: 11, color: "#5a6a7e", marginTop: 1 }}>{account.name}</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 18, fontWeight: 700, color: "#00c896", fontFamily: "'DM Mono',monospace", lineHeight: 1 }}>{account.rate != null ? `${account.rate}%` : "—"}</div>
+                          <div style={{ fontSize: 9, color: "#4a5a6e", marginTop: 2 }}>rocznie</div>
+                        </div>
+                      </div>
+                      {/* Saldo */}
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, color: "#5a6a7e", marginBottom: 2 }}>Saldo + narosłe odsetki</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: "#e8edf3", fontFamily: "'DM Mono',monospace" }}>
+                          {calc.currentBalance != null ? fmtPLN0(balance) : "—"}
+                        </div>
+                      </div>
+                      {/* Statystyki */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        <div style={{ background: "#0d131c", borderRadius: 8, padding: "8px 10px" }}>
+                          <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 2 }}>Dzienny przyrost</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#00c896", fontFamily: "'DM Mono',monospace" }}>
+                            {dailyGain > 0 ? `+${fmtPLN(dailyGain)}` : "—"}
+                          </div>
+                        </div>
+                        <div style={{ background: "#0d131c", borderRadius: 8, padding: "8px 10px" }}>
+                          <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 2 }}>Narosłe dziś</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#6bcfae", fontFamily: "'DM Mono',monospace" }}>
+                            {accrued > 0 ? `+${fmtPLN(accrued)}` : "—"}
+                          </div>
+                        </div>
+                        <div style={{ background: "#0d131c", borderRadius: 8, padding: "8px 10px", gridColumn: "1/-1" }}>
+                          <div style={{ fontSize: 10, color: "#4a5a6e", marginBottom: 2 }}>Następna kapitalizacja</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "#e8edf3", fontFamily: "'DM Mono',monospace" }}>
+                            {nextCapDate ? new Date(nextCapDate).toLocaleDateString("pl-PL", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                          </div>
+                        </div>
+                      </div>
+                      {/* P3: Badge lepsza oferta */}
+                      {showBetterOffer && bestDbOffer && (
+                        <div style={{ marginTop: 10, padding: "7px 10px", borderRadius: 8, background: "#0a1e14", border: "1px solid #1a4030", display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 12 }}>💡</span>
+                          <div style={{ fontSize: 11, color: "#00c896" }}>
+                            Dostępna lepsza oferta: <strong>{bestDbRate.toFixed(1)}%</strong>
+                            <span style={{ color: "#5a6a7e" }}> ({bestDbOffer.bank})</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 {assetsWithLivePrices.filter(a => a.isSavings).length === 0 && (
                   <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "40px 0", color: "#5a6a7e", fontSize: 13, background: "#161d28", borderRadius: 12, border: "2px dashed #2a3a50" }}>
                     Brak zapisanych kont oszczędnościowych. Kliknij "Dodaj konto" aby rozpocząć.

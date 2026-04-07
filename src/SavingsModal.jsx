@@ -42,7 +42,7 @@ const daysSince = (dateStr) => {
 // ─── Silnik obliczeń ──────────────────────────────────────────────────────────
 const BELKA = 0.19; // podatek od zysków kapitałowych
 
-function computeSavings(account) {
+export function computeSavings(account) {
   const { openDate, rate, transactions = [] } = account;
   if (!openDate || rate == null) return null;
 
