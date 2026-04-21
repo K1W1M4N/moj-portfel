@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Claude Code (personal settings only)
+.claude/settings.local.json

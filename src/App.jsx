@@ -9,6 +9,10 @@ import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
 import { SAVINGS_RATES_DB } from "./savingsRates";
 import { MarketView } from "./MarketView";
+import { useAuth } from "./auth/AuthProvider";
+import LoginScreen from "./auth/LoginScreen";
+import AccountMenu from "./auth/AccountMenu";
+import { useCloudSync } from "./useCloudSync";
 
 const CRYPTO_LIST = [
   { label: "Bitcoin (BTC)",    id: "bitcoin" },
@@ -1495,6 +1499,16 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem("pt-active-portfolio", activePortfolioId); } catch {} }, [activePortfolioId]);
   useEffect(() => { try { localStorage.setItem("pt-assets", JSON.stringify(allAssets)); } catch {} }, [allAssets]);
   useEffect(() => { try { localStorage.setItem("pt-categories", JSON.stringify(categories)); } catch {} }, [categories]);
+  useEffect(() => { try { localStorage.setItem("pt-history", JSON.stringify(history)); } catch {} }, [history]);
+
+  const { user, loading: authLoading } = useAuth();
+  const { status: syncStatus, error: syncError } = useCloudSync({
+    portfolios, setPortfolios,
+    activePortfolioId, setActivePortfolioId,
+    allAssets, setAllAssets,
+    categories, setCategories,
+    history, setHistory,
+  });
 
   function handleStart() {
     try { localStorage.setItem("pt-welcomed", "1"); } catch {}
@@ -1627,6 +1641,37 @@ export default function App() {
     }
   `;
 
+  if (authLoading || (user && syncStatus === "loading")) return (
+    <>
+      <style>{globalStyles}</style>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7f96", fontFamily: "'DM Mono',monospace", fontSize: 12, letterSpacing: ".15em" }}>
+        ŁADOWANIE...
+      </div>
+    </>
+  );
+
+  if (!user) return (
+    <>
+      <style>{globalStyles}</style>
+      <LoginScreen />
+    </>
+  );
+
+  if (syncStatus === "error") return (
+    <>
+      <style>{globalStyles}</style>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ maxWidth: 400, textAlign: "center", color: "#e05555", fontSize: 13 }}>
+          <div style={{ fontSize: 12, letterSpacing: ".15em", color: "#4a5a6e", fontFamily: "'DM Mono',monospace", marginBottom: 12 }}>BŁĄD SYNCHRONIZACJI</div>
+          <div style={{ color: "#e8edf3", marginBottom: 16 }}>{syncError || "Nie udało się załadować portfela."}</div>
+          <button onClick={() => window.location.reload()} style={{ padding: "9px 16px", borderRadius: 8, background: "#00c896", color: "#000", fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "'Sora',sans-serif", fontSize: 12 }}>
+            Spróbuj ponownie
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
   if (!welcomed) return (
     <>
       <style>{globalStyles}</style>
@@ -1650,7 +1695,8 @@ export default function App() {
               </button>
             ) : "PORTFOLIO TRACKER"}
           </div>
-          <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10 }}>
+            <AccountMenu />
             <MenuDropdown onNavigate={id => {
               setCurrentView(id);
             }} />
