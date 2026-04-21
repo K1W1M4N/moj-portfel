@@ -35,9 +35,15 @@ function readLocalSnapshot() {
 function hasLocalData(snapshot) {
   return (
     (Array.isArray(snapshot.allAssets) && snapshot.allAssets.length > 0) ||
-    (Array.isArray(snapshot.portfolios) && snapshot.portfolios.length > 0) ||
     (Array.isArray(snapshot.history) && snapshot.history.length > 0)
   );
+}
+
+function cloudHasData(cloud) {
+  if (!cloud) return false;
+  const hasAssets = Array.isArray(cloud.allAssets) && cloud.allAssets.length > 0;
+  const hasHistory = Array.isArray(cloud.history) && cloud.history.length > 0;
+  return hasAssets || hasHistory;
 }
 
 /**
@@ -89,8 +95,8 @@ export function useCloudSync({
         if (cancelled) return;
         if (error) throw error;
 
-        if (data && data.data) {
-          const cloud = data.data;
+        const cloud = data?.data ?? null;
+        if (cloudHasData(cloud)) {
           if (Array.isArray(cloud.portfolios)) setPortfolios(cloud.portfolios);
           if (typeof cloud.activePortfolioId === "string") setActivePortfolioId(cloud.activePortfolioId);
           if (Array.isArray(cloud.allAssets)) setAllAssets(cloud.allAssets);
@@ -107,14 +113,14 @@ export function useCloudSync({
               categories: local.categories ?? [],
               history: local.history ?? [],
             };
-            const { error: insertError } = await supabase
+            const { error: upsertError } = await supabase
               .from("portfolios")
-              .insert({ user_id: user.id, data: payload });
+              .upsert({ user_id: user.id, data: payload }, { onConflict: "user_id" });
             if (cancelled) return;
-            if (insertError) throw insertError;
+            if (upsertError) throw upsertError;
             lastSavedJsonRef.current = JSON.stringify(payload);
           } else {
-            lastSavedJsonRef.current = null;
+            lastSavedJsonRef.current = cloud ? JSON.stringify(cloud) : null;
           }
         }
 
