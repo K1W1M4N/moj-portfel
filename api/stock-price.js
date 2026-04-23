@@ -55,13 +55,14 @@ async function fetchYahoo(symbol, exchange) {
   }
 }
 
-// ─── Stooq CSV ────────────────────────────────────────────────────────────────
+// ─── Stooq live quote (endpoint /q/l/ — bez API key) ──────────────────────────
 async function fetchStooq(symbol, exchange) {
   const map = EXCHANGE_MAP[exchange] || { stooqSuffix: "", currency: "PLN" };
   const stooqSymbol = (symbol + map.stooqSuffix).toLowerCase();
 
   try {
-    const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSymbol)}&i=d`;
+    // /q/l/ zwraca live quote: Symbol,Date,Time,Open,High,Low,Close,Volume
+    const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol)}&f=sd2t2ohlcv&h&e=csv`;
     const res = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; PortfolioTracker/1.0)" },
       signal: AbortSignal.timeout(8000),
@@ -69,19 +70,15 @@ async function fetchStooq(symbol, exchange) {
 
     if (!res.ok) return null;
     const text = await res.text();
+    if (text.includes("<html") || text.includes("apikey")) return null;
 
-    // CSV: Date,Open,High,Low,Close,Volume
     const lines = text.trim().split("\n");
     if (lines.length < 2) return null;
 
-    // Sprawdź czy to nie CAPTCHA / błąd
-    if (text.includes("<html") || text.includes("No data")) return null;
+    const parts = lines[1].split(",");
+    if (parts.length < 7) return null;
 
-    const lastLine = lines[lines.length - 1];
-    const parts = lastLine.split(",");
-    if (parts.length < 5) return null;
-
-    const close = parseFloat(parts[4]);
+    const close = parseFloat(parts[6]);
     if (isNaN(close) || close <= 0) return null;
 
     return {

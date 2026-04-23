@@ -448,11 +448,23 @@ function exchangeLabel(exchange) {
   return map[exchange] || exchange;
 }
 
+const MANUAL_EXCHANGES = [
+  { code: "XWAR", label: "GPW Warszawa", currency: "PLN" },
+  { code: "XETR", label: "Frankfurt (XETRA)", currency: "EUR" },
+  { code: "XAMS", label: "Amsterdam", currency: "EUR" },
+  { code: "XPAR", label: "Paryż", currency: "EUR" },
+  { code: "XLON", label: "Londyn", currency: "GBP" },
+  { code: "XNAS", label: "NASDAQ", currency: "USD" },
+  { code: "XNYS", label: "NYSE", currency: "USD" },
+];
+
 function SymbolSearch({ initialValue, onSelect }) {
   const [query, setQuery] = useState(initialValue || "");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualForm, setManualForm] = useState({ symbol: "", name: "", exchange: "XWAR", currency: "PLN" });
   const timerRef = useRef(null);
   const wrapRef = useRef(null);
 
@@ -491,12 +503,41 @@ function SymbolSearch({ initialValue, onSelect }) {
     setQuery(`${item.symbol} — ${item.name}`);
     setOpen(false);
     setResults([]);
+    setManualMode(false);
     onSelect({
       symbol: item.symbol,
       name: item.name,
       exchange: item.exchange,
       currency: item.currency,
       type: item.type,
+    });
+  }
+
+  function openManualMode() {
+    const prefill = query.trim().toUpperCase().replace(/\.[A-Z]+$/, "");
+    setManualForm(f => ({ ...f, symbol: prefill }));
+    setManualMode(true);
+  }
+
+  function handleManualExchange(code) {
+    const ex = MANUAL_EXCHANGES.find(e => e.code === code);
+    setManualForm(f => ({ ...f, exchange: code, currency: ex?.currency || f.currency }));
+  }
+
+  function submitManual() {
+    const symbol = manualForm.symbol.trim().toUpperCase();
+    const name = manualForm.name.trim() || symbol;
+    if (!symbol) return;
+    setQuery(`${symbol} — ${name}`);
+    setOpen(false);
+    setResults([]);
+    setManualMode(false);
+    onSelect({
+      symbol,
+      name,
+      exchange: manualForm.exchange,
+      currency: manualForm.currency,
+      type: "Common Stock",
     });
   }
 
@@ -518,9 +559,64 @@ function SymbolSearch({ initialValue, onSelect }) {
           zIndex: 300, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
         }}>
           {loading && <div style={{ padding: "12px 14px", fontSize: 12, color: "#5a6a7e" }}>Szukam...</div>}
-          {!loading && results.length === 0 && query.length >= 2 && (
-            <div style={{ padding: "12px 14px", fontSize: 12, color: "#5a6a7e" }}>
-              Brak wyników. Spróbuj wpisać sam ticker bez końcówki (np. "IUSQ" zamiast "IUSQ.DE")
+          {!loading && !manualMode && results.length === 0 && query.length >= 2 && (
+            <div style={{ padding: "12px 14px" }}>
+              <div style={{ fontSize: 12, color: "#5a6a7e", marginBottom: 10 }}>
+                Brak wyników. Jeśli znasz ticker i giełdę, dodaj spółkę ręcznie.
+              </div>
+              <button type="button" onClick={openManualMode}
+                style={{
+                  width: "100%", padding: "8px 12px", fontSize: 12, fontWeight: 600,
+                  background: "#1e2a38", color: "#e8e040", border: "1px solid #2a3a50",
+                  borderRadius: 8, cursor: "pointer", fontFamily: "'Sora', sans-serif",
+                }}>
+                ➕ Dodaj ręcznie {query ? `„${query}"` : ""}
+              </button>
+            </div>
+          )}
+          {manualMode && (
+            <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontSize: 11, color: "#8a9bb0", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>
+                Dodaj ręcznie
+              </div>
+              <input style={baseInp} placeholder="Ticker (np. MDT)" value={manualForm.symbol}
+                onChange={e => setManualForm(f => ({ ...f, symbol: e.target.value }))}
+                onFocus={focusInp} onBlur={blurInp} autoComplete="off" />
+              <input style={baseInp} placeholder="Nazwa spółki (np. MedTech Solutions)" value={manualForm.name}
+                onChange={e => setManualForm(f => ({ ...f, name: e.target.value }))}
+                onFocus={focusInp} onBlur={blurInp} autoComplete="off" />
+              <div style={{ display: "flex", gap: 8 }}>
+                <select style={{ ...baseInp, flex: 2 }} value={manualForm.exchange}
+                  onChange={e => handleManualExchange(e.target.value)}>
+                  {MANUAL_EXCHANGES.map(ex => (
+                    <option key={ex.code} value={ex.code}>{ex.label}</option>
+                  ))}
+                </select>
+                <input style={{ ...baseInp, flex: 1 }} placeholder="PLN" value={manualForm.currency}
+                  onChange={e => setManualForm(f => ({ ...f, currency: e.target.value.toUpperCase() }))}
+                  onFocus={focusInp} onBlur={blurInp} maxLength={4} />
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <button type="button" onClick={() => setManualMode(false)}
+                  style={{
+                    flex: 1, padding: "8px 12px", fontSize: 12, background: "#1a2535",
+                    color: "#8a9bb0", border: "1px solid #243040", borderRadius: 8,
+                    cursor: "pointer", fontFamily: "'Sora', sans-serif",
+                  }}>
+                  Anuluj
+                </button>
+                <button type="button" onClick={submitManual} disabled={!manualForm.symbol.trim()}
+                  style={{
+                    flex: 2, padding: "8px 12px", fontSize: 12, fontWeight: 700,
+                    background: manualForm.symbol.trim() ? "#e8e040" : "#243040",
+                    color: manualForm.symbol.trim() ? "#0a1020" : "#5a6a7e",
+                    border: "none", borderRadius: 8,
+                    cursor: manualForm.symbol.trim() ? "pointer" : "not-allowed",
+                    fontFamily: "'Sora', sans-serif",
+                  }}>
+                  Dodaj
+                </button>
+              </div>
             </div>
           )}
           {results.map((item, i) => (
