@@ -439,21 +439,7 @@ export function useStockPrices(assets) {
   return { stockPrices, stockLastUpdated, refetchStocks: fetchAll };
 }
 
-// ─── Wyszukiwarka symboli (przez Twelve Data symbol_search — nie jest ograniczona limitem cen) ──
-const EXCHANGE_PRIORITY = ["WSE", "XETR", "XWAR", "XAMS", "XPAR", "XLON", "XNAS", "XNYS"];
-const TWELVE_DATA_KEY = "a681abc9ebc045a39c938d8b058567d9";
-
-function sortByExchange(results) {
-  return [...results].sort((a, b) => {
-    const ai = EXCHANGE_PRIORITY.indexOf(a.exchange);
-    const bi = EXCHANGE_PRIORITY.indexOf(b.exchange);
-    if (ai === -1 && bi === -1) return 0;
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  });
-}
-
+// ─── Wyszukiwarka symboli (przez /api/symbol-search — Yahoo + Twelve Data) ───
 function exchangeLabel(exchange) {
   const map = {
     XETR: "Frankfurt (XETRA)", WSE: "GPW Warszawa", XWAR: "GPW Warszawa",
@@ -491,14 +477,9 @@ function SymbolSearch({ initialValue, onSelect }) {
     setLoading(true);
     timerRef.current = setTimeout(async () => {
       try {
-        // Auto-strip końcówki giełdy (np. IUSQ.DE → IUSQ, CDR.WA → CDR)
-        const cleanQ = q.replace(/\.[A-Z]+$/, "").trim();
-        const res = await fetch(
-          `https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(cleanQ)}&outputsize=30&apikey=${TWELVE_DATA_KEY}`
-        );
+        const res = await fetch(`/api/symbol-search?q=${encodeURIComponent(q)}`);
         const data = await res.json();
-        const filtered = (data.data || []).filter(r => ["Common Stock", "ETF"].includes(r.instrument_type));
-        setResults(sortByExchange(filtered).slice(0, 6));
+        setResults((data.results || []).slice(0, 8));
       } catch {
         setResults([]);
       }
@@ -507,15 +488,15 @@ function SymbolSearch({ initialValue, onSelect }) {
   }
 
   function handleSelect(item) {
-    setQuery(`${item.symbol} — ${item.instrument_name}`);
+    setQuery(`${item.symbol} — ${item.name}`);
     setOpen(false);
     setResults([]);
     onSelect({
       symbol: item.symbol,
-      name: item.instrument_name,
+      name: item.name,
       exchange: item.exchange,
       currency: item.currency,
-      type: item.instrument_type,
+      type: item.type,
     });
   }
 
@@ -558,7 +539,7 @@ function SymbolSearch({ initialValue, onSelect }) {
                   <span style={{ fontSize: 13, fontWeight: 700, color: "#e8e040", fontFamily: "'DM Mono', monospace" }}>
                     {item.symbol}
                   </span>
-                  <span style={{ fontSize: 12, color: "#e8f0f8", marginLeft: 8 }}>{item.instrument_name}</span>
+                  <span style={{ fontSize: 12, color: "#e8f0f8", marginLeft: 8 }}>{item.name}</span>
                 </div>
                 <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
                   <span style={{ fontSize: 10, color: "#5a6a7e", background: "#1e2a38", padding: "2px 6px", borderRadius: 4 }}>
@@ -569,7 +550,7 @@ function SymbolSearch({ initialValue, onSelect }) {
                   </span>
                 </div>
               </div>
-              <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 2 }}>{item.instrument_type}</div>
+              <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 2 }}>{item.type}</div>
             </div>
           ))}
         </div>

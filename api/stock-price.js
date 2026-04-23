@@ -5,9 +5,9 @@ const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY || "a681abc9ebc045a39c93
 
 // ─── Mapowanie giełd ──────────────────────────────────────────────────────────
 const EXCHANGE_MAP = {
-  GPW:    { yahooSuffix: ".WA",  stooqSuffix: "",    currency: "PLN" },
-  WSE:    { yahooSuffix: ".WA",  stooqSuffix: "",    currency: "PLN" },
-  XWAR:   { yahooSuffix: ".WA",  stooqSuffix: "",    currency: "PLN" },
+  GPW:    { yahooSuffix: ".WA",  stooqSuffix: ".pl", currency: "PLN" },
+  WSE:    { yahooSuffix: ".WA",  stooqSuffix: ".pl", currency: "PLN" },
+  XWAR:   { yahooSuffix: ".WA",  stooqSuffix: ".pl", currency: "PLN" },
   XETR:   { yahooSuffix: ".DE",  stooqSuffix: ".de", currency: "EUR" },
   XLON:   { yahooSuffix: ".L",   stooqSuffix: ".uk", currency: "GBP" },
   LSE:    { yahooSuffix: ".L",   stooqSuffix: ".uk", currency: "GBP" },
@@ -119,23 +119,24 @@ async function fetchTwelveData(symbol) {
 
 // ─── Provider Chain ───────────────────────────────────────────────────────────
 async function fetchPrice(symbol, exchange) {
-  // GPW → Stooq first (najlepsze pokrycie), potem Yahoo, potem TD
+  // GPW → Stooq first (najlepsze pokrycie), potem Yahoo. Bez TD: /price nie przyjmuje giełdy, więc dla MDT zwróciłby Medtronic (USD) zamiast sygnalizować brak.
   if (isGPW(exchange)) {
     const stooq = await fetchStooq(symbol, exchange);
     if (stooq) return stooq;
 
     const yahoo = await fetchYahoo(symbol, exchange);
     if (yahoo) return yahoo;
-  } else {
-    // Zagraniczne → Yahoo first, Stooq fallback, TD last resort
-    const yahoo = await fetchYahoo(symbol, exchange);
-    if (yahoo) return yahoo;
 
-    const stooq = await fetchStooq(symbol, exchange);
-    if (stooq) return stooq;
+    return null;
   }
 
-  // Last resort: Twelve Data
+  // Zagraniczne → Yahoo first, Stooq fallback, TD last resort
+  const yahoo = await fetchYahoo(symbol, exchange);
+  if (yahoo) return yahoo;
+
+  const stooq = await fetchStooq(symbol, exchange);
+  if (stooq) return stooq;
+
   const td = await fetchTwelveData(symbol);
   if (td) return td;
 
