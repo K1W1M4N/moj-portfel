@@ -92,6 +92,40 @@ async function fetchStooq(symbol, exchange) {
   }
 }
 
+// ─── Biznesradar.pl (scraping — pełne pokrycie GPW + NewConnect) ─────────────
+async function fetchBiznesradar(symbol, exchange) {
+  if (!isGPW(exchange)) return null;
+  try {
+    const url = `https://www.biznesradar.pl/notowania/${encodeURIComponent(symbol.toUpperCase())}`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PortfolioTracker/1.0)" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    // Pierwszy <span class="q_ch_act"> w profile-header = aktualny kurs
+    const priceMatch = html.match(/<span class="q_ch_act">([^<]+)<\/span>/);
+    if (!priceMatch) return null;
+
+    const priceStr = priceMatch[1].replace(/\s/g, "").replace(",", ".");
+    const price = parseFloat(priceStr);
+    if (isNaN(price) || price <= 0) return null;
+
+    const tMatch = html.match(/<time class="q_ch_date" datetime="([^"]+)"/);
+    const timestamp = tMatch ? new Date(tMatch[1]).toISOString() : new Date().toISOString();
+
+    return {
+      price,
+      currency: "PLN",
+      provider: "biznesradar",
+      timestamp,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 // ─── Twelve Data (fallback) ───────────────────────────────────────────────────
 async function fetchTwelveData(symbol) {
   try {
@@ -116,13 +150,17 @@ async function fetchTwelveData(symbol) {
 
 // ─── Provider Chain ───────────────────────────────────────────────────────────
 async function fetchPrice(symbol, exchange) {
-  // GPW → Stooq first (najlepsze pokrycie), potem Yahoo. Bez TD: /price nie przyjmuje giełdy, więc dla MDT zwróciłby Medtronic (USD) zamiast sygnalizować brak.
+  // GPW → Stooq (szybkie CSV) → Yahoo → Biznesradar (scraping, ale pełne pokrycie NC).
+  // Bez TD: /price nie przyjmuje giełdy, więc dla MDT zwróciłby Medtronic (USD) zamiast sygnalizować brak.
   if (isGPW(exchange)) {
     const stooq = await fetchStooq(symbol, exchange);
     if (stooq) return stooq;
 
     const yahoo = await fetchYahoo(symbol, exchange);
     if (yahoo) return yahoo;
+
+    const br = await fetchBiznesradar(symbol, exchange);
+    if (br) return br;
 
     return null;
   }

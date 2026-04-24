@@ -560,18 +560,8 @@ function SymbolSearch({ initialValue, onSelect }) {
         }}>
           {loading && <div style={{ padding: "12px 14px", fontSize: 12, color: "#5a6a7e" }}>Szukam...</div>}
           {!loading && !manualMode && results.length === 0 && query.length >= 2 && (
-            <div style={{ padding: "12px 14px" }}>
-              <div style={{ fontSize: 12, color: "#5a6a7e", marginBottom: 10 }}>
-                Brak wyników. Jeśli znasz ticker i giełdę, dodaj spółkę ręcznie.
-              </div>
-              <button type="button" onClick={openManualMode}
-                style={{
-                  width: "100%", padding: "8px 12px", fontSize: 12, fontWeight: 600,
-                  background: "#1e2a38", color: "#e8e040", border: "1px solid #2a3a50",
-                  borderRadius: 8, cursor: "pointer", fontFamily: "'Sora', sans-serif",
-                }}>
-                ➕ Dodaj ręcznie {query ? `„${query}"` : ""}
-              </button>
+            <div style={{ padding: "12px 14px", fontSize: 12, color: "#5a6a7e" }}>
+              Brak wyników. Jeśli znasz ticker i giełdę, dodaj spółkę ręcznie.
             </div>
           )}
           {manualMode && (
@@ -649,6 +639,26 @@ function SymbolSearch({ initialValue, onSelect }) {
               <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 2 }}>{item.type}</div>
             </div>
           ))}
+          {!loading && !manualMode && query.length >= 2 && (
+            <div style={{
+              padding: "8px 14px",
+              borderTop: results.length > 0 ? "1px solid #1e2a38" : "none",
+              background: "#111821",
+            }}>
+              <button type="button" onClick={openManualMode}
+                style={{
+                  width: "100%", padding: "6px 10px", fontSize: 11, fontWeight: 600,
+                  background: "transparent", color: "#8a9bb0",
+                  border: "1px dashed #2a3a50", borderRadius: 6,
+                  cursor: "pointer", fontFamily: "'Sora', sans-serif",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = "#e8e040"; e.currentTarget.style.borderColor = "#3a4a60"; }}
+                onMouseLeave={e => { e.currentTarget.style.color = "#8a9bb0"; e.currentTarget.style.borderColor = "#2a3a50"; }}
+              >
+                ➕ Nie widzisz swojej spółki? Dodaj ręcznie
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
