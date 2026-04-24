@@ -5,6 +5,9 @@ import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue, computeSav
 import { CommodityModal, CommodityRow, CommodityDetailPanel, useCommodityPrices, calcCommodityValue } from "./CommodityModal";
 import { CurrencyModal, CurrencyRow, SUPPORTED_CURRENCIES } from "./CurrencyModal";
 import { fetchFxRate } from "./fxUtils";
+import { PNL_MODES, getPnlMode, setPnlMode, usePnlMode } from "./preferences";
+import { calcPaidPLN } from "./portfolioCalc";
+import { SettingsView } from "./SettingsView";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
 import { SAVINGS_RATES_DB } from "./savingsRates";
@@ -316,10 +319,11 @@ function MenuDropdown({ onNavigate }) {
   }, []);
 
   const items = [
-    { id: "savings", label: "Konta Oszcz.", desc: "Zarządzaj kontami" },
-    { id: "bonds",   label: "Obligacje", desc: "Aktualne stawki" },
-    { id: "history", label: "Historia", desc: "Wartość portfela w czasie" },
-    { id: "market",  label: "Rynek", desc: "Liderzy wzrostów i newsy" },
+    { id: "savings",  label: "Konta Oszcz.", desc: "Zarządzaj kontami" },
+    { id: "bonds",    label: "Obligacje", desc: "Aktualne stawki" },
+    { id: "history",  label: "Historia", desc: "Wartość portfela w czasie" },
+    { id: "market",   label: "Rynek", desc: "Liderzy wzrostów i newsy" },
+    { id: "settings", label: "Ustawienia", desc: "Tryb wyceny, preferencje" },
   ];
 
   return (
@@ -380,8 +384,13 @@ function MenuDropdown({ onNavigate }) {
 }
 
 // ─── Wykres kołowy ────────────────────────────────────────────────────────────
-function getAssetCostBasis(a) {
-  if (a.isStock)  return a.stockPaidPLN || a.value || 0;
+// Uwzglednia tryb P&L (snapshot/xtb) — dla akcji przekazujemy aktualny fx
+// z stockPrices zeby w trybie XTB koszt zakupu walut obcych byl przeliczany biezaco.
+function getAssetCostBasis(a, pnlMode = "snapshot", stockPrices = {}) {
+  if (a.isStock) {
+    const fx = stockPrices[a.stockSymbol]?.fx;
+    return calcPaidPLN(a, pnlMode, fx);
+  }
   if (a.isCrypto || a.cryptoId) return a.cryptoPaid || a.value || 0;
   if (a.isBond) return (a.quantity || 0) * 100;
   if (a.isSavings) { const txs = a.transactions || []; return txs.length > 0 ? txs.reduce((s, tx) => s + tx.amount, 0) : (a.value || 0); }
@@ -397,7 +406,7 @@ function fmtSigned(n) {
   }).format(n);
 }
 
-function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, setHovered }) {
+function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, setHovered, pnlMode, stockPrices }) {
   const canvasRef = useRef(null);
   const sliceMapRef = useRef([]);
 
@@ -543,7 +552,7 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
 
   const groupedPnl = grouped.map(g => {
     const catAssets = assets.filter(a => a.category === g.name);
-    const paid = catAssets.reduce((s, a) => s + getAssetCostBasis(a), 0);
+    const paid = catAssets.reduce((s, a) => s + getAssetCostBasis(a, pnlMode, stockPrices), 0);
     const pnl    = paid > 0 ? g.value - paid : null;
     const pnlPct = paid > 0 ? (g.value - paid) / paid * 100 : null;
     return { ...g, paid, pnl, pnlPct };
@@ -617,14 +626,14 @@ function calcSavingsValueAtDate(account, targetDate) {
   return Math.round((currentVal - interestNet) * 100) / 100;
 }
 
-function PortfolioSummaryPanel({ assets, activeFilter, categories, history }) {
+function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlMode, stockPrices }) {
   const cats = activeFilter ? [activeFilter] : categories.map(c => c.name);
   let totalValue = 0, totalPaid = 0;
 
   cats.forEach(c => {
     const catAssets = assets.filter(a => a.category === c);
     totalValue += catAssets.reduce((s, a) => s + a.value, 0);
-    totalPaid += catAssets.reduce((s, a) => s + getAssetCostBasis(a), 0);
+    totalPaid += catAssets.reduce((s, a) => s + getAssetCostBasis(a, pnlMode, stockPrices), 0);
   });
 
   const totalPnl = totalPaid > 0 ? totalValue - totalPaid : null;
@@ -1455,6 +1464,7 @@ export default function App() {
   const { stockPrices, stockLastUpdated, refetchStocks } = useStockPrices(assets);
   const { commodityPrices, commodityLastUpdated } = useCommodityPrices(assets);
   const { rates, lastUpdated: currencyLastUpdated } = useCurrencyRates(assets);
+  const pnlMode = usePnlMode();
 
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("pt-history") || "[]"); } catch { return []; }
@@ -2176,6 +2186,9 @@ export default function App() {
         {/* ── Widok obligacji ── */}
         {currentView === "bonds" && <ErrorBoundary key="bonds-view"><BondRatesView /></ErrorBoundary>}
 
+        {/* ── Widok ustawień ── */}
+        {currentView === "settings" && <SettingsView />}
+
         {/* ── Widok portfolio ── */}
         {currentView === "portfolio" && (
           <>
@@ -2247,12 +2260,16 @@ export default function App() {
                     onFilterChange={handleFilterChange}
                     hovered={hovered}
                     setHovered={setHovered}
+                    pnlMode={pnlMode}
+                    stockPrices={stockPrices}
                   />
                   <PortfolioSummaryPanel
                     assets={assetsWithLivePrices}
                     activeFilter={activeFilter}
                     categories={categories}
                     history={history}
+                    pnlMode={pnlMode}
+                    stockPrices={stockPrices}
                   />
                 </>
               ) : (

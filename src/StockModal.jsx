@@ -1,6 +1,8 @@
 // src/StockModal.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
 import { fetchFxRate, fetchFxRates } from "./fxUtils";
+import { usePnlMode } from "./preferences";
+import { calcPaidPLN } from "./portfolioCalc";
 
 // ─── Proxy URL — omija CORS i limity Twelve Data ─────────────────────────────
 const PROXY_BASE = "/api/stock-price";
@@ -911,12 +913,9 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
     ? stock.stockQuantity * priceData.pricePLN
     : isBroker ? stock.stockBrokerValue : stock.value;
 
-  // Koszt zakupu — obsługa wszystkich trybów zapisu
-  let paidPLN = stock.stockPaidPLN || 0;
-  if (!paidPLN && stock.stockTranches?.length) {
-    paidPLN = stock.stockTranches.reduce((s, t) => s + (t.totalPLN || 0), 0);
-  }
-  if (!paidPLN) paidPLN = stock.value;
+  // Koszt zakupu — centralny util, uwzglednia tryb P&L z ustawien (snapshot/xtb)
+  const pnlMode = usePnlMode();
+  const paidPLN = calcPaidPLN(stock, pnlMode, priceData?.fx);
 
   const pnlPLN = currentValuePLN - paidPLN;
   const pnlPct = paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : 0;
@@ -1293,18 +1292,25 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
       };
     } else if (mode === "transze") {
       const { parsed, totalQty, totalPaid, currentValuePLN } = calcTranches();
+      // Avg price w walucie nominalnej — potrzebne dla trybu XTB w Ustawieniach.
+      // Dla transz nie mamy per-transza fx, wiec uzywamy biezacego fx jako przyblizenia.
+      // Tryb XTB jest mimo to sensowniejszy niz brak liczby.
+      const avgOrig = totalQty > 0 && fx > 0 ? (totalPaid / totalQty) / fx : 0;
       asset = { ...asset,
         value: currentValuePLN ?? totalPaid,
         stockQuantity: totalQty,
+        stockAvgPrice: avgOrig,
         stockPaidPLN: totalPaid,
         stockTranches: parsed,
       };
     } else if (mode === "broker") {
       const { val, pnl, invested } = calcBroker();
       const qty = parseFloat(String(brokerQty).replace(",", ".")) || 0;
+      const avgOrig = qty > 0 && fx > 0 ? (invested / qty) / fx : 0;
       asset = { ...asset,
         value: val,
         stockQuantity: qty,
+        stockAvgPrice: avgOrig,
         stockPaidPLN: invested,
         stockBrokerValue: val,
         stockBrokerPnl: pnl,
@@ -1721,12 +1727,9 @@ export function StockRow({ stock, stockPrices, onClick }) {
     ? stock.stockQuantity * priceData.pricePLN
     : isBroker ? stock.stockBrokerValue : stock.value;
 
-  // Koszt zakupu — obsługa wszystkich trybów
-  let paidPLN = stock.stockPaidPLN || 0;
-  if (!paidPLN && stock.stockTranches?.length) {
-    paidPLN = stock.stockTranches.reduce((s, t) => s + (t.totalPLN || 0), 0);
-  }
-  if (!paidPLN) paidPLN = stock.value;
+  // Koszt zakupu — centralny util, uwzglednia tryb P&L (snapshot/xtb)
+  const pnlMode = usePnlMode();
+  const paidPLN = calcPaidPLN(stock, pnlMode, priceData?.fx);
 
   const pnlPLN = currentValuePLN - paidPLN;
   const pnlPct = paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : 0;
