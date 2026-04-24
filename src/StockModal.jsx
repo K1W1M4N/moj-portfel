@@ -1,5 +1,6 @@
 // src/StockModal.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
+import { fetchFxRate, fetchFxRates } from "./fxUtils";
 
 // ─── Proxy URL — omija CORS i limity Twelve Data ─────────────────────────────
 const PROXY_BASE = "/api/stock-price";
@@ -23,31 +24,8 @@ const fmtPLN  = n => new Intl.NumberFormat("pl-PL", { style: "currency", currenc
 const fmtPLN2 = n => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 2 }).format(n);
 const fmtCur  = (n, cur) => n.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + " " + (cur || "");
 
-// ─── Cache kursów NBP ─────────────────────────────────────────────────────────
-const fxCache = {};
-
-export async function fetchFxRate(currency) {
-  if (!currency || currency === "PLN") return 1;
-  if (fxCache[currency]) return fxCache[currency];
-  const fallback = { USD: 3.95, EUR: 4.27, GBP: 5.0, CHF: 4.4, GBX: 0.049 };
-  try {
-    const res = await fetch(`https://api.nbp.pl/api/exchangerates/rates/a/${currency}/last/1/?format=json`);
-    if (!res.ok) throw new Error("NBP A error");
-    const data = await res.json();
-    const rate = data.rates?.[0]?.mid;
-    if (rate) { fxCache[currency] = rate; return rate; }
-  } catch {
-    try {
-      const res2 = await fetch(`https://api.nbp.pl/api/exchangerates/rates/b/${currency}/last/1/?format=json`);
-      if (res2.ok) {
-        const data2 = await res2.json();
-        const rate2 = data2.rates?.[0]?.mid;
-        if (rate2) { fxCache[currency] = rate2; return rate2; }
-      }
-    } catch {}
-  }
-  return fallback[currency] || 4.0;
-}
+// Re-export dla backward compatibility (gdyby ktos importowal z StockModal)
+export { fetchFxRate };
 
 // ─── Fetch przez proxy — timeout 8s, 1 retry po 3s przy timeout ──────────────
 async function fetchViaProxy(symbols, exchanges = []) {
@@ -375,10 +353,9 @@ export function useStockPrices(assets) {
     try {
       const data = await fetchViaProxy(symbols, exchanges);
 
-      // Kursy walut z NBP — jeden request na walutę
+      // Kursy walut — jeden batch request do /api/fx-rate (Yahoo → NBP fallback, cache 10 min)
       const currencies = [...new Set(unique.map(a => a.stockCurrency).filter(c => c && c !== "PLN"))];
-      const fxRates = { PLN: 1 };
-      await Promise.all(currencies.map(async cur => { fxRates[cur] = await fetchFxRate(cur); }));
+      const fxRates = await fetchFxRates(currencies);
 
       const newPrices = {};
 
@@ -1755,6 +1732,13 @@ export function StockRow({ stock, stockPrices, onClick }) {
   const pnlPct = paidPLN > 0 ? (pnlPLN / paidPLN) * 100 : 0;
   const hasLivePrice = !!priceData;
 
+  // Srednia cena zakupu — w walucie nominalnej aktywa (dzieli zakup w PLN przez kurs z dnia)
+  // Dla porownania z aktualna cena pokazywana jako "@ X CCY" (live).
+  const avgBuyPerUnit = stock.stockQuantity > 0 ? paidPLN / stock.stockQuantity : 0;
+  const fx = priceData?.fx || 1;
+  const avgBuyOrig = fx > 0 ? avgBuyPerUnit / fx : avgBuyPerUnit;
+  const showAvgBuy = hasLivePrice && avgBuyOrig > 0 && stock.stockQuantity > 0;
+
   return (
     <div onClick={onClick}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
@@ -1779,11 +1763,16 @@ export function StockRow({ stock, stockPrices, onClick }) {
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
-          <div style={{ fontSize: 11, color: "#4a5a6e", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 11, color: "#4a5a6e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
             {stock.stockQuantity > 0 && `${Number(stock.stockQuantity).toFixed(4)} szt.`}
             {priceData && (
               <span style={{ marginLeft: 4, color: "#5a6a7e" }}>
                 @ {priceData.stale ? "~" : ""}{priceData.priceOrig.toFixed(2)} {stock.stockCurrency}
+              </span>
+            )}
+            {showAvgBuy && (
+              <span style={{ marginLeft: 4, color: "#3a4a5e", fontSize: 10 }}>
+                · zak. {avgBuyOrig.toFixed(2)}
               </span>
             )}
             {!hasLivePrice && (

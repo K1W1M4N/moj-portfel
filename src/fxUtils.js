@@ -1,35 +1,76 @@
-// src/fxUtils.js
-const fxCache = {};
+// src/fxUtils.js — Kursy walut przez /api/fx-rate (Yahoo primary, NBP fallback).
+// Cache in-memory z TTL 10 min. Wpisy starsze => refetch.
+
+const TTL_MS = 10 * 60 * 1000; // 10 min
+const fxCache = {}; // { [currency]: { rate, ts, source } }
+
+const FALLBACK = { USD: 4.0, EUR: 4.3, GBP: 5.0, CHF: 4.5 };
+
+function isFresh(entry) {
+  return entry && (Date.now() - entry.ts) < TTL_MS;
+}
 
 /**
- * Pobiera kurs średni waluty z NBP (tabela A lub B)
- * @param {string} currency - Symbol waluty (np. "USD", "EUR")
- * @returns {Promise<number>} - Kurs w PLN
+ * Pobiera kurs waluty względem PLN. Yahoo (intraday) → NBP (fixing) → hardcoded.
+ * @param {string} currency - "USD", "EUR", ...
+ * @returns {Promise<number>}
  */
 export async function fetchFxRate(currency) {
   if (!currency || currency === "PLN") return 1;
-  if (fxCache[currency]) return fxCache[currency];
-  
-  const fallback = { USD: 4.00, EUR: 4.30, GBP: 5.00, CHF: 4.50 };
-  
+  const cur = currency.toUpperCase();
+
+  if (isFresh(fxCache[cur])) return fxCache[cur].rate;
+
   try {
-    // Tabela A (większość walut)
-    const res = await fetch(`https://api.nbp.pl/api/exchangerates/rates/a/${currency}/last/1/?format=json`);
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-    const rate = data.rates?.[0]?.mid;
-    if (rate) { fxCache[currency] = rate; return rate; }
-  } catch {
+    const res = await fetch(`/api/fx-rate?currency=${encodeURIComponent(cur)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.rate && !isNaN(parseFloat(data.rate))) {
+        const rate = parseFloat(data.rate);
+        fxCache[cur] = { rate, ts: Date.now(), source: data.source || "api" };
+        return rate;
+      }
+    }
+  } catch {}
+
+  // Ostatnia deska ratunku — fallback hardcoded
+  const rate = FALLBACK[cur] || 4.0;
+  fxCache[cur] = { rate, ts: Date.now(), source: "fallback" };
+  return rate;
+}
+
+/**
+ * Batch fetch wielu walut jednym requestem. Zwraca { USD: 3.63, EUR: 4.25, ... }
+ */
+export async function fetchFxRates(currencies) {
+  const unique = [...new Set(currencies.filter(c => c && c !== "PLN").map(c => c.toUpperCase()))];
+  if (unique.length === 0) return { PLN: 1 };
+
+  // Użyj cache dla swieżych, fetch dla nieświeżych
+  const stale = unique.filter(c => !isFresh(fxCache[c]));
+
+  if (stale.length > 0) {
     try {
-      // Tabela B (rzadsze waluty)
-      const res2 = await fetch(`https://api.nbp.pl/api/exchangerates/rates/b/${currency}/last/1/?format=json`);
-      if (res2.ok) {
-        const d = await res2.json();
-        const r = d.rates?.[0]?.mid;
-        if (r) { fxCache[currency] = r; return r; }
+      const res = await fetch(`/api/fx-rate?currencies=${encodeURIComponent(stale.join(","))}`);
+      if (res.ok) {
+        const data = await res.json();
+        const now = Date.now();
+        for (const [cur, rate] of Object.entries(data.rates || {})) {
+          if (rate && !isNaN(parseFloat(rate))) {
+            fxCache[cur] = { rate: parseFloat(rate), ts: now, source: data.sources?.[cur] || "api" };
+          }
+        }
       }
     } catch {}
   }
-  
-  return fallback[currency] || 4.0;
+
+  const result = { PLN: 1 };
+  for (const cur of unique) {
+    result[cur] = fxCache[cur]?.rate || FALLBACK[cur] || 4.0;
+  }
+  return result;
+}
+
+export function getFxCacheEntry(currency) {
+  return fxCache[currency?.toUpperCase()];
 }
