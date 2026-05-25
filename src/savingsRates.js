@@ -1,6 +1,6 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-05-18 12:25
+// Ostatnia aktualizacja: 2026-05-25 12:24
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
@@ -19,7 +19,7 @@ export const SAVINGS_RATES_DB = {
       requiresROR: false,
       isNew: false,
       addedDate: "2026-04-07",
-      url: "https://www.bosbank.pl/klient-indywidualny/oszczednosci/konta-oszczednosciowe/konto-oszczednosciowe-cyfrowy-zysk",
+      url: "https://www.bosbank.pl",
     },
     {
       bank: "BNP Paribas",
