@@ -1,10 +1,10 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-05-25 12:24
+// Ostatnia aktualizacja: 2026-06-01 14:56
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
-  lastUpdated: "2026-05",
+  lastUpdated: "2026-06",
   accounts: [
     {
       bank: "BOŚ Bank",
