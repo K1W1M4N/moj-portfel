@@ -1,6 +1,6 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-06-22 14:32
+// Ostatnia aktualizacja: 2026-06-29 13:02
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
