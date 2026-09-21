@@ -1,6 +1,6 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-09-14 15:35
+// Ostatnia aktualizacja: 2026-09-21 15:35
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
@@ -41,9 +41,9 @@ export const SAVINGS_RATES_DB = {
       name: "Ranking Kont Oszczędnościowych – Wrzesień 2026 r.",
       rateStandard: 0.97,
       ratePromo: 7.0,
-      promoLimit: 50000,
+      promoLimit: 100000,
       promoDays: 6,
-      promoEndDate: "2026-09-11",
+      promoEndDate: "2026-09-18",
       promoConditions: null,
       promoConditionsList: [],
       requiresROR: true,
@@ -334,7 +334,7 @@ export const SAVINGS_RATES_DB = {
       requiresROR: true,
       isNew: false,
       addedDate: "2026-04-13",
-      url: "https://www.pkobp.pl",
+      url: "https://www.pkobp.pl/klient-indywidualny/konta/konto-oszczednosciowe",
     },
     {
       bank: "mBank",
