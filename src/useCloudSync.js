@@ -74,7 +74,7 @@ export function useCloudSync({
   useEffect(() => {
     if (authLoading) return;
 
-    if (!user) {
+    if (!supabase || !user) {
       hydratedRef.current = false;
       lastSavedJsonRef.current = null;
       setStatus("idle");
@@ -141,7 +141,7 @@ export function useCloudSync({
 
   // Debounced save after state changes
   useEffect(() => {
-    if (!user || !hydratedRef.current) return;
+    if (!supabase || !user || !hydratedRef.current) return;
     const payload = { portfolios, activePortfolioId, allAssets, categories, history };
     const json = JSON.stringify(payload);
     if (json === lastSavedJsonRef.current) return;

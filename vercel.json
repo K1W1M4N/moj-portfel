@@ -3,5 +3,26 @@
     "api/stock-price.js": { "maxDuration": 15 },
     "api/stock-chart.js": { "maxDuration": 15 },
     "api/news-summary.js": { "maxDuration": 30 }
-  }
+  },
+  "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    }
+  ]
 }
+
