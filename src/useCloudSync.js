@@ -128,9 +128,12 @@ export function useCloudSync({
         setStatus("ready");
       } catch (err) {
         if (cancelled) return;
-        console.error("[useCloudSync] hydrate error", err);
-        setError(err.message || "Nie udało się pobrać danych.");
-        setStatus("error");
+        console.warn("[useCloudSync] Brak połączenia z chmurą (dane przechowywane lokalnie):", err);
+        // W razie braku połączenia lub błędu Supabase: aplikacja NIE zatrzymuje pracy,
+        // przestawiamy się w stan "offline" i pozwalamy użytkownikowi kontynuować pracę lokalną.
+        hydratedRef.current = true;
+        setError(null);
+        setStatus("offline");
       }
     }
 
@@ -154,9 +157,10 @@ export function useCloudSync({
           .upsert({ user_id: user.id, data: payload }, { onConflict: "user_id" });
         if (error) throw error;
         lastSavedJsonRef.current = json;
+        setStatus("ready");
       } catch (err) {
-        console.error("[useCloudSync] save error", err);
-        setError(err.message || "Zapis do chmury nie powiódł się.");
+        console.warn("[useCloudSync] Błąd zapisu do chmury (zapisano w localStorage):", err);
+        setStatus("offline");
       }
     }, DEBOUNCE_MS);
 

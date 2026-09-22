@@ -16,6 +16,7 @@ import { useAuth } from "./auth/AuthProvider";
 import LoginScreen from "./auth/LoginScreen";
 import AccountMenu from "./auth/AccountMenu";
 import { useCloudSync } from "./useCloudSync";
+import { isSupabaseConfigured } from "./supabaseClient";
 
 const CRYPTO_LIST = [
   { label: "Bitcoin (BTC)",    id: "bitcoin" },
@@ -1651,7 +1652,9 @@ export default function App() {
     }
   `;
 
-  if (authLoading || (user && syncStatus === "loading")) return (
+  const [skipAuth, setSkipAuth] = useState(false);
+
+  if (authLoading || (user && syncStatus === "loading" && allAssets.length === 0)) return (
     <>
       <style>{globalStyles}</style>
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7f96", fontFamily: "'DM Mono',monospace", fontSize: 12, letterSpacing: ".15em" }}>
@@ -1660,25 +1663,10 @@ export default function App() {
     </>
   );
 
-  if (!user) return (
+  if (isSupabaseConfigured && !user && !skipAuth) return (
     <>
       <style>{globalStyles}</style>
-      <LoginScreen />
-    </>
-  );
-
-  if (syncStatus === "error") return (
-    <>
-      <style>{globalStyles}</style>
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <div style={{ maxWidth: 400, textAlign: "center", color: "#e05555", fontSize: 13 }}>
-          <div style={{ fontSize: 12, letterSpacing: ".15em", color: "#4a5a6e", fontFamily: "'DM Mono',monospace", marginBottom: 12 }}>BŁĄD SYNCHRONIZACJI</div>
-          <div style={{ color: "#e8edf3", marginBottom: 16 }}>{syncError || "Nie udało się załadować portfela."}</div>
-          <button onClick={() => window.location.reload()} style={{ padding: "9px 16px", borderRadius: 8, background: "#00c896", color: "#000", fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "'Sora',sans-serif", fontSize: 12 }}>
-            Spróbuj ponownie
-          </button>
-        </div>
-      </div>
+      <LoginScreen onContinueOffline={() => setSkipAuth(true)} />
     </>
   );
 
@@ -1706,6 +1694,15 @@ export default function App() {
             ) : "PORTFOLIO TRACKER"}
           </div>
           <div style={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10 }}>
+            {syncStatus === "ready" && (
+              <span title="Zsynchronizowano z chmurą" style={{ fontSize: 10, color: "#00c896", background: "#0d3a28", padding: "3px 8px", borderRadius: 12, border: "1px solid #1a5a40", fontFamily: "'DM Mono', monospace" }}>☁️ Chmura</span>
+            )}
+            {syncStatus === "offline" && (
+              <span title="Dane zapisane lokalnie na tym urządzeniu" style={{ fontSize: 10, color: "#8a9bb0", background: "#161d28", padding: "3px 8px", borderRadius: 12, border: "1px solid #2a3a50", fontFamily: "'DM Mono', monospace" }}>💾 Lokalnie</span>
+            )}
+            {syncStatus === "loading" && (
+              <span title="Synchronizacja..." style={{ fontSize: 10, color: "#f0a030", background: "#2a1e00", padding: "3px 8px", borderRadius: 12, border: "1px solid #4a3800", fontFamily: "'DM Mono', monospace" }}>🔄 Sync...</span>
+            )}
             <AccountMenu />
             <MenuDropdown onNavigate={id => {
               setCurrentView(id);

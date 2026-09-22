@@ -62,7 +62,7 @@ const tabBtn = (active) => ({
   textTransform: "uppercase",
 });
 
-export default function LoginScreen() {
+export default function LoginScreen({ onContinueOffline }) {
   const [mode, setMode] = useState("password"); // "password" | "magic"
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState("");
@@ -271,6 +271,28 @@ export default function LoginScreen() {
               Klikniesz w link w mailu i zalogujesz się bez hasła.
             </div>
           </form>
+        )}
+
+        {onContinueOffline && (
+          <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px dashed #1e2a38", textAlign: "center" }}>
+            <button
+              type="button"
+              onClick={onContinueOffline}
+              style={{
+                background: "transparent",
+                border: "1px solid #2a3a50",
+                borderRadius: 8,
+                color: "#8a9bb0",
+                padding: "8px 14px",
+                fontSize: 12,
+                cursor: "pointer",
+                fontFamily: "'Sora', sans-serif",
+                width: "100%"
+              }}
+            >
+              Używaj bez logowania (tryb lokalny)
+            </button>
+          </div>
         )}
 
         {error && (
