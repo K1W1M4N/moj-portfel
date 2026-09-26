@@ -1,0 +1,4 @@
+# GitHub przypisuje wymienione osoby jako reviewerów automatycznie,
+# gdy PR dotyka pasujących ścieżek (wildcard = caly projekt) - autor
+# PR-a jest pomijany, wiec dziala to w obie strony.
+* @K1W1M4N @KRG1222
