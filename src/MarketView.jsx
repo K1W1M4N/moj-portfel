@@ -85,7 +85,7 @@ function useMarketNews() {
   const fetchNews = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/market-news", {
+      const res = await fetch("/api/news", {
         signal: AbortSignal.timeout(12000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

@@ -102,7 +102,7 @@ function useStockNews(symbol, stockName, exchange) {
       try {
         const params = new URLSearchParams({ symbol: searchQuery });
         if (exchange) params.set("exchange", exchange);
-        const res = await fetch(`/api/stock-news?${params}`, {
+        const res = await fetch(`/api/news?${params}`, {
           signal: controller.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
