@@ -18,24 +18,24 @@ export default async function handler(req, res) {
     const now = new Date();
     const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-    // Wyrażenia regularne dla każdego typu
-    const patterns = {
-      TOS: /TOS[^%]*?([\d,]+(?:\.\d+)?)\s*%/i,
-      EDO: /EDO[^%]*?([\d,]+(?:\.\d+)?)\s*%/i,
-      COI: /COI[^%]*?([\d,]+(?:\.\d+)?)\s*%/i,
-      ROS: /ROS[^%]*?([\d,]+(?:\.\d+)?)\s*%/i,
-      ROD: /ROD[^%]*?([\d,]+(?:\.\d+)?)\s*%/i,
-      ROR: /ROR[^%]*?([\d,]+(?:\.\d+)?)\s*%/i,
-      DOR: /DOR[^%]*?([\d,]+(?:\.\d+)?)\s*%/i,
-    };
+    // Zamiast szukać "TOS...%" w całym dokumencie (łapało przypadkowe fragmenty typu
+    // "crossorigin" dla ROS albo "vendor" dla DOR), kotwiczymy się na linku karty
+    // produktu (/oferta-obligacji/.../tos0929/) i czytamy % z okna zaraz za nim.
+    // Strona owija znak procenta w <sub>%</sub>, stąd (?:<[^>]+>)* przed %.
+    const types = ["TOS", "EDO", "COI", "ROS", "ROD", "ROR", "DOR"];
 
-    Object.entries(patterns).forEach(([type, pattern]) => {
-      const match = html.match(pattern);
-      if (match) {
-        const rate = parseFloat(match[1].replace(",", ".")) / 100;
-        if (rate > 0 && rate < 0.3) {
-          rates[type] = { [yearMonth]: rate };
-        }
+    types.forEach((type) => {
+      const linkPattern = new RegExp(`href="/oferta-obligacji/[^"]*/${type.toLowerCase()}\\d+/"`, "i");
+      const linkMatch = linkPattern.exec(html);
+      if (!linkMatch) return;
+
+      const window = html.slice(linkMatch.index, linkMatch.index + 600);
+      const rateMatch = window.match(/([\d,]+(?:\.\d+)?)\s*(?:<[^>]+>)*\s*%/);
+      if (!rateMatch) return;
+
+      const rate = parseFloat(rateMatch[1].replace(",", ".")) / 100;
+      if (rate > 0 && rate < 0.3) {
+        rates[type] = { [yearMonth]: rate };
       }
     });
 
