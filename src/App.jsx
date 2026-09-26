@@ -5,7 +5,8 @@ import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue, computeSav
 import { CommodityModal, CommodityRow, CommodityDetailPanel, useCommodityPrices, calcCommodityValue } from "./CommodityModal";
 import { CurrencyModal, CurrencyRow, SUPPORTED_CURRENCIES } from "./CurrencyModal";
 import { fetchFxRate } from "./fxUtils";
-import { PNL_MODES, getPnlMode, setPnlMode, usePnlMode } from "./preferences";
+import { PNL_MODES, getPnlMode, setPnlMode, usePnlMode, useTaxMode, TAX_MODES } from "./preferences";
+import { usePriceHistory, calcPeriodReturn, calcTotalReturn, calcAnnualReturn, describeExcluded } from "./returnsCalc";
 import { calcPaidPLN } from "./portfolioCalc";
 import { SettingsView } from "./SettingsView";
 import { XtbImportModal } from "./XtbImportModal";
@@ -530,74 +531,24 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
 
 // ─── Podsumowanie Portfela (Live) ──────────────────────────────────────────────
 
-// Oblicz wartość konta oszczędnościowego na dowolną datę w przeszłości
-// Prosta, niezawodna metoda: bieżąca wartość minus odsetki za X dni wstecz
-function calcSavingsValueAtDate(account, targetDate) {
-  const { openDate, rate } = account;
-  if (!openDate || rate == null) return null;
-  const annualRate = rate / 100;
-  const tDate = new Date(targetDate); tDate.setHours(0, 0, 0, 0);
-  const openDateObj = new Date(openDate); openDateObj.setHours(0, 0, 0, 0);
-  if (tDate < openDateObj) return null; // konto jeszcze nie istniało
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const daysBack = Math.max(0, Math.round((today - tDate) / 86400000));
-  const currentVal = account.value || 0;
-  // Odejmij narosłe odsetki netto (po Belce 19%) za ostatnie daysBack dni
-  const interestGross = currentVal * annualRate * (daysBack / 365);
-  const interestNet = interestGross * 0.81;
-  return Math.round((currentVal - interestNet) * 100) / 100;
-}
+function PortfolioSummaryPanel({ assets, activeFilter, categories, pnlMode, stockPrices }) {
+  const taxMode = useTaxMode();
+  const net = taxMode === TAX_MODES.NET;
+  const { hist, loading: histLoading } = usePriceHistory(assets);
 
-function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlMode, stockPrices }) {
-  const cats = activeFilter ? [activeFilter] : categories.map(c => c.name);
-  let totalValue = 0, totalPaid = 0;
+  const catNames = new Set(activeFilter ? [activeFilter] : categories.map(c => c.name));
+  const scoped = assets.filter(a => catNames.has(a.category));
+  const costBasis = a => getAssetCostBasis(a, pnlMode, stockPrices);
 
-  cats.forEach(c => {
-    const catAssets = assets.filter(a => a.category === c);
-    totalValue += catAssets.reduce((s, a) => s + a.value, 0);
-    totalPaid += catAssets.reduce((s, a) => s + getAssetCostBasis(a, pnlMode, stockPrices), 0);
-  });
+  const { gain: totalPnl, pct: totalPnlPct, value: totalValue } = calcTotalReturn(scoped, costBasis, net);
 
-  const totalPnl = totalPaid > 0 ? totalValue - totalPaid : null;
-  const totalPnlPct = totalPaid > 0 ? (totalValue - totalPaid) / totalPaid * 100 : null;
-
-  // Oblicz historyczną wartość portfela — zlicza co może:
-  // Obligacje → precyzyjny calcBondCurrentValue
-  // Konto oszczędnościowe → odsetki wstecz
-  // Reszta (akcje, krypto, PPK itp.) → bieżąca wartość (diff=0, brak danych historycznych)
-  function getHistVal(daysAgo) {
-    const t = new Date(); t.setDate(t.getDate() - daysAgo);
-    const targetAssets = activeFilter
-      ? assets.filter(a => a.category === activeFilter)
-      : assets;
-    if (targetAssets.length === 0) return null;
-    let total = 0;
-    for (const a of targetAssets) {
-      // Obligacje — precyzyjne
-      if (a.isBond && a.purchaseDate && a.quantity) {
-        total += calcBondCurrentValue(a, t).currentValue;
-        continue;
-      }
-      // Konto oszczędnościowe — odsetki
-      if (a.isSavings && a.openDate && a.rate != null) {
-        const v = calcSavingsValueAtDate(a, t);
-        if (v !== null) { total += v; continue; }
-      }
-      // Wszystko inne — brak historycznych cen, zakładamy wartość = dziś
-      total += a.value || 0;
-    }
-    return total;
-  }
-
-  const v1d = getHistVal(1);
-  const v30d = getHistVal(30);
-  const v365d = getHistVal(365);
-  const diff1d = v1d !== null ? totalValue - v1d : null;
-  const pct1d = v1d && v1d > 0 ? (diff1d / v1d) * 100 : null;
-  const diff30d = v30d !== null ? totalValue - v30d : null;
-  const pct30d = v30d && v30d > 0 ? (diff30d / v30d) * 100 : null;
-  const diff365d = v365d !== null ? totalValue - v365d : null;
-  const pct365d = v365d && v365d > 0 ? (diff365d / v365d) * 100 : null;
+  // Zysk za okres: obligacje, konta i akcje (z notowań historycznych) — szczegóły w returnsCalc.js
+  const ctx = { hist, stockPrices, net };
+  const r1d = calcPeriodReturn(scoped, 1, ctx);
+  const r30d = calcPeriodReturn(scoped, 30, ctx);
+  const r365d = calcPeriodReturn(scoped, 365, ctx);
+  const excluded = describeExcluded([...new Set([...r1d.excluded, ...r30d.excluded, ...r365d.excluded])], scoped);
+  const annual = calcAnnualReturn(scoped, costBasis, net);
 
   // Formatowanie kwot — bez groszy gdy >= 1000 zł (kompaktowe kafelki)
   function fmtCompact(n) {
@@ -639,7 +590,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlM
           <div style={{ fontSize: 15, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>{fmt(totalValue)}</div>
         </div>
         <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Zysk Całkowity</div>
+          <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Zysk Całkowity{net ? " (netto)" : ""}</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: "auto" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
               {totalPnl !== null ? fmtCompact(totalPnl) : "—"}
@@ -654,16 +605,24 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlM
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {mBlock("Zysk dzienny", diff1d, pct1d)}
-          {mBlock("Zysk miesięczny", diff30d, pct30d)}
-          {mBlock("Zysk roczny", diff365d, pct365d)}
-          <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-            <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: pct365d !== null ? (pct365d >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>
-              {pct365d !== null ? (pct365d >= 0 ? "+" : "") + pct365d.toFixed(2) + "%" : "—"}
+          {mBlock("Zysk dzienny", r1d.gain, r1d.pct)}
+          {mBlock("Zysk miesięczny", r30d.gain, r30d.pct)}
+          {mBlock("Zysk roczny", r365d.gain, r365d.pct)}
+          <div title="Średnioroczna stopa zwrotu (XIRR) od pierwszej wpłaty — uwzględnia daty i kwoty wpłat. Pomija pozycje bez dat zakupu."
+            style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+            <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>
+              Średnia Roczna{annual && <span style={{ textTransform: "none", letterSpacing: 0 }}> · od {new Date(annual.since).toLocaleDateString("pl-PL", { month: "2-digit", year: "numeric" })}</span>}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: annual ? (annual.rate >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>
+              {annual ? (annual.rate >= 0 ? "+" : "") + annual.rate.toFixed(2) + "%" : "—"}
             </div>
           </div>
       </div>
+      {(histLoading || excluded) && (
+        <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 8, lineHeight: 1.5 }}>
+          {histLoading ? "Wczytywanie notowań historycznych…" : `Zysk za okres bez: ${excluded} (brak historii cen)`}
+        </div>
+      )}
     </div>
   );
 }
@@ -2289,7 +2248,6 @@ export default function App() {
                     assets={assetsWithLivePrices}
                     activeFilter={activeFilter}
                     categories={categories}
-                    history={history}
                     pnlMode={pnlMode}
                     stockPrices={stockPrices}
                   />

@@ -1,8 +1,9 @@
-// src/SettingsView.jsx — Ekran ustawień. Na razie: wybór trybu wyceny P&L.
-import { usePnlMode, setPnlMode, PNL_MODES } from "./preferences";
+// src/SettingsView.jsx — Ekran ustawień: tryb wyceny P&L i podatek Belki w podsumowaniu.
+import { usePnlMode, setPnlMode, PNL_MODES, useTaxMode, setTaxMode, TAX_MODES } from "./preferences";
 
 export function SettingsView() {
   const mode = usePnlMode();
+  const taxMode = useTaxMode();
 
   return (
     <div style={{ padding: "0 14px", maxWidth: 640, margin: "0 auto" }}>
@@ -34,6 +35,28 @@ export function SettingsView() {
 
       <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 12, lineHeight: 1.6, paddingLeft: 4 }}>
         Żadne dane nie są usuwane przy zmianie trybu - przełącznik zmienia tylko sposób prezentacji zysku na liście i w modalach.
+      </div>
+
+      <div style={{ fontSize: 11, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.08em", margin: "24px 0 8px", paddingLeft: 4 }}>
+        Podatek Belki w podsumowaniu
+      </div>
+
+      <div style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 12, overflow: "hidden" }}>
+        <ModeOption
+          active={taxMode === TAX_MODES.GROSS}
+          onClick={() => setTaxMode(TAX_MODES.GROSS)}
+          title="Przed podatkiem (brutto)"
+          subtitle="Zyski bez potrącenia 19% podatku"
+          detail="Domyślnie. Tak jak u brokera i na liście aktywów — obligacje, akcje i odsetki z kont pokazane brutto."
+        />
+        <div style={{ height: 1, background: "#1e2a38" }} />
+        <ModeOption
+          active={taxMode === TAX_MODES.NET}
+          onClick={() => setTaxMode(TAX_MODES.NET)}
+          title="Po podatku (netto)"
+          subtitle="Zyski pomniejszone o 19% podatku Belki"
+          detail="Tyle faktycznie zostanie w kieszeni: 19% od odsetek (obligacje, konta) i od dodatniej sumy zysków na akcjach. Straty na akcjach nie są pomniejszane. Dotyczy panelu podsumowania pod wykresem."
+        />
       </div>
     </div>
   );
