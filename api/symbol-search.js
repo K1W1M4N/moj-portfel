@@ -1,7 +1,7 @@
 // api/symbol-search.js — Vercel Serverless Proxy do wyszukiwarki symboli
 // Yahoo Finance search (primary, pokrywa GPW + NewConnect) + Twelve Data (supplement dla ETF)
 
-const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY || "a681abc9ebc045a39c938d8b058567d9";
+const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY;
 
 // Mapowanie kodów giełd Yahoo → nasze kody (używane przez api/stock-price.js)
 const YAHOO_EXCHANGE_MAP = {
@@ -71,6 +71,7 @@ async function searchYahoo(query) {
 
 // ─── Twelve Data search (supplement) ──────────────────────────────────────────
 async function searchTwelveData(query) {
+  if (!TWELVE_DATA_KEY) return []; // brak klucza w env — pomiń supplement, Yahoo starczy
   try {
     const url = `https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(query)}&outputsize=30&apikey=${TWELVE_DATA_KEY}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
