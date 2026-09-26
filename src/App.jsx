@@ -8,6 +8,8 @@ import { fetchFxRate } from "./fxUtils";
 import { PNL_MODES, getPnlMode, setPnlMode, usePnlMode } from "./preferences";
 import { calcPaidPLN } from "./portfolioCalc";
 import { SettingsView } from "./SettingsView";
+import { XtbImportModal } from "./XtbImportModal";
+import { AUTH_BYPASS } from "./devMode";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
 import { SAVINGS_RATES_DB } from "./savingsRates";
@@ -1449,6 +1451,7 @@ export default function App() {
   const [commodityDetail, setCommodityDetail] = useState(null);
   const [currencyModal, setCurrencyModal] = useState(null);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [showXtbImport, setShowXtbImport] = useState(false);
   const [movingAsset, setMovingAsset] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
   const [currentView, setCurrentView] = useState("portfolio");
@@ -1545,6 +1548,21 @@ export default function App() {
 
   function handleDelete(id) {
     setAllAssets(all => all.filter(a => a.id !== id));
+  }
+
+  // ── Import z XTB: hurtowe dodanie / aktualizacja / usunięcie pozycji ──
+  function handleXtbImport({ newPortfolios, upserts, removeIds, focusPortfolioId }) {
+    if (newPortfolios.length) setPortfolios(prev => [...prev, ...newPortfolios]);
+    if (upserts.length && !categories.find(c => c.name === "Akcje / ETF")) {
+      setCategories(cs => [...cs, DEFAULT_CATEGORIES.find(c => c.name === "Akcje / ETF")]);
+    }
+    setAllAssets(all => {
+      const byId = new Map(upserts.map(a => [a.id, a]));
+      const next = all.filter(a => !removeIds.has(a.id)).map(a => byId.get(a.id) ?? a);
+      const existing = new Set(next.map(a => a.id));
+      return [...next, ...upserts.filter(a => !existing.has(a.id))];
+    });
+    if (focusPortfolioId) setActivePortfolioId(focusPortfolioId);
   }
 
   function handleMoveAsset(id, newPortfolioId) {
@@ -1680,6 +1698,11 @@ export default function App() {
   return (
     <>
       <style>{globalStyles}</style>
+      {AUTH_BYPASS && (
+        <div style={{ position: "sticky", top: 0, zIndex: 150, background: "#e8a040", color: "#161d28", fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "5px 12px", fontFamily: "'DM Mono', monospace" }}>
+          TRYB TESTOWY · bez logowania · dane tylko lokalnie, chmura nietknięta
+        </div>
+      )}
       <div id="main-container" style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
 
         {/* Nagłówek */}
@@ -2278,7 +2301,7 @@ export default function App() {
             </div>
 
             {/* Przycisk dodawania */}
-            <div id="add-btns" style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+            <div id="add-btns" style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
               <button id="add-btn"
                 onMouseEnter={() => setHovAdd(true)} onMouseLeave={() => setHovAdd(false)}
                 onClick={() => setShowTypeSelector(true)}
@@ -2294,6 +2317,17 @@ export default function App() {
                   transition: "all .2s", WebkitTapHighlightColor: "transparent",
                 }}>
                 + Dodaj aktywo
+              </button>
+              <button id="xtb-import-btn"
+                onClick={() => setShowXtbImport(true)}
+                style={{
+                  padding: "11px 20px", borderRadius: 12, border: "1px solid #2a3a50",
+                  background: "transparent", color: "#8a9bb0", fontWeight: 600, fontSize: 13, cursor: "pointer",
+                  fontFamily: "'Sora', sans-serif", transition: "all .2s", WebkitTapHighlightColor: "transparent",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = "#e8f0f8"; e.currentTarget.style.borderColor = "#4a5a6e"; }}
+                onMouseLeave={e => { e.currentTarget.style.color = "#8a9bb0"; e.currentTarget.style.borderColor = "#2a3a50"; }}>
+                ⇅ Import z XTB
               </button>
             </div>
 
@@ -2398,6 +2432,16 @@ export default function App() {
             else if (type === "Surowce") setCommodityModal("add");
             else setModal({ isNew: true, category: type });
           }}
+        />
+      )}
+
+      {showXtbImport && (
+        <XtbImportModal
+          portfolios={portfolios}
+          allAssets={allAssets}
+          activePortfolioId={activePortfolioId}
+          onApply={handleXtbImport}
+          onClose={() => setShowXtbImport(false)}
         />
       )}
 

@@ -1,9 +1,17 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { AUTH_BYPASS, SANDBOX_USER } from "../devMode";
 
 const AuthContext = createContext(null);
 
+const SANDBOX_AUTH = { session: null, user: SANDBOX_USER, loading: false, signOut: () => {} };
+
 export function AuthProvider({ children }) {
+  if (AUTH_BYPASS) return <AuthContext.Provider value={SANDBOX_AUTH}>{children}</AuthContext.Provider>;
+  return <SupabaseAuthProvider>{children}</SupabaseAuthProvider>;
+}
+
+function SupabaseAuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 

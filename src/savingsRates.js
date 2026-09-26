@@ -1,11 +1,56 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-05-25 12:24
+// Ostatnia aktualizacja: 2026-09-21 15:35
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
-  lastUpdated: "2026-05",
+  lastUpdated: "2026-09",
   accounts: [
+    {
+      bank: "Nest Konto Oszczędnościowe",
+      name: "Oprocentowanie rachunków oszczędnościowych",
+      rateStandard: 7.0,
+      ratePromo: null,
+      promoLimit: 25000,
+      promoDays: null,
+      promoEndDate: null,
+      promoConditions: null,
+      promoConditionsList: [],
+      requiresROR: false,
+      isNew: true,
+      addedDate: "2026-09-14",
+      url: "",
+    },
+    {
+      bank: "Nest Konto Oszczędnościowe",
+      name: "Nest Konto Oszczędnościowe",
+      rateStandard: 7.0,
+      ratePromo: null,
+      promoLimit: null,
+      promoDays: null,
+      promoEndDate: null,
+      promoConditions: null,
+      promoConditionsList: [],
+      requiresROR: false,
+      isNew: true,
+      addedDate: "2026-09-14",
+      url: "",
+    },
+    {
+      bank: "Ranking Kont Oszczędnościowych – Wrzesień 2026 r.",
+      name: "Ranking Kont Oszczędnościowych – Wrzesień 2026 r.",
+      rateStandard: 0.97,
+      ratePromo: 7.0,
+      promoLimit: 100000,
+      promoDays: 6,
+      promoEndDate: "2026-09-18",
+      promoConditions: null,
+      promoConditionsList: [],
+      requiresROR: true,
+      isNew: true,
+      addedDate: "2026-09-14",
+      url: "",
+    },
     {
       bank: "BOŚ Bank",
       name: "Konto Oszczędnościowe Cyfrowy Zysk",
@@ -215,6 +260,21 @@ export const SAVINGS_RATES_DB = {
       isNew: false,
       addedDate: "2026-04-13",
       url: "https://www.ing.pl/indywidualni/inwestycje-i-oszczednosci/smart-saver",
+    },
+    {
+      bank: "Renault Bank",
+      name: "Indeksowanym Koncie Oszczędnościowym",
+      rateStandard: 4.0,
+      ratePromo: null,
+      promoLimit: 25000,
+      promoDays: null,
+      promoEndDate: null,
+      promoConditions: null,
+      promoConditionsList: [],
+      requiresROR: false,
+      isNew: true,
+      addedDate: "2026-09-14",
+      url: "https://www.raisin.com",
     },
     {
       bank: "Santander Bank Polska",
