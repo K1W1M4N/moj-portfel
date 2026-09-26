@@ -979,7 +979,7 @@ function WelcomeScreen({ onStart }) {
   const [hov, setHov] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "24px 16px" }}>
-      <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace", marginBottom: 36 }}>PORTFOLIO TRACKER</div>
+      <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'Times New Roman', Times, serif", marginBottom: 36 }}>PORTFOLIO TRACKER</div>
       <div style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 16, padding: "40px 32px", width: "100%", maxWidth: 420, textAlign: "center" }}>
         <div style={{ fontSize: 40, marginBottom: 20 }}>📊</div>
         <div style={{ fontSize: 22, fontWeight: 600, color: "#e8f0f8", marginBottom: 10 }}>Twój prywatny tracker inwestycji</div>
@@ -1673,7 +1673,7 @@ export default function App() {
         {/* Nagłówek */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
           <div style={{ flex: 1 }} />
-          <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace", textAlign: "center", flex: 1 }}>
+          <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'Times New Roman', Times, serif", textAlign: "center", flex: 1 }}>
             PORTFOLIO TRACKER
           </div>
           <div style={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10 }}>
