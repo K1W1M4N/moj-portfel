@@ -18,13 +18,16 @@ function localApi(env) {
         const url = new URL(req.url, 'http://localhost')
         const m = url.pathname.match(/^\/api\/([\w-]+)$/)
         if (!m) return next()
-        const file = path.resolve(server.config.root, 'api', `${m[1]}.js`)
+        // Jak na Vercelu: konkretny plik api/<nazwa>.js, a w przeciwnym razie router api/[route].js
+        const own = path.resolve(server.config.root, 'api', `${m[1]}.js`)
+        const file = fs.existsSync(own) ? own : path.resolve(server.config.root, 'api', '[route].js')
         if (!fs.existsSync(file)) return next()
 
         try {
           let raw = ''
           for await (const chunk of req) raw += chunk
           req.query = Object.fromEntries(url.searchParams)
+          if (file !== own) req.query.route = m[1]
           req.body = raw && /json/.test(req.headers['content-type'] || '') ? JSON.parse(raw) : raw || undefined
           req.devLocal = true
 

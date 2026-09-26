@@ -1,4 +1,4 @@
-// api/_lib/market-news.js — obsługiwane przez api/news.js (bez parametru symbol)
+// api/_lib/market-news.js — obsługiwane przez api/_lib/news.js (bez parametru symbol)
 // Newsy rynkowe:
 //   Primary  → investing.com RSS (pl.investing.com/rss/news.rss)
 //   Fallback → Yahoo Finance RSS (finance.yahoo.com/rss/...)
