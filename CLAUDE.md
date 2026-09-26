@@ -2,7 +2,7 @@
 
 Aplikacja do śledzenia portfela inwestycyjnego (akcje/ETF, obligacje, surowce, waluty,
 konta oszczędnościowe). React + Vite, dane w Supabase z fallbackiem do localStorage,
-backend to funkcje serverless na Vercelu (`api/*.js`).
+backend to funkcje serverless na Vercelu (`api/`).
 
 Nad projektem pracują dwie osoby przez Claude Code: **Tomasz** i **Karol**. Ten plik
 czyta Claude Code automatycznie na starcie każdej sesji — jeśli coś tu jest nieaktualne,
@@ -14,8 +14,15 @@ popraw ten plik zamiast tylko wspominać o tym w rozmowie.
 - **Baza:** Supabase (`src/supabaseClient.js`). Jeśli brak `VITE_SUPABASE_URL` /
   `VITE_SUPABASE_ANON_KEY`, aplikacja działa offline na `localStorage` — to zamierzone
   zachowanie (fix "Offline-First", wrzesień 2026), nie błąd.
-- **Backend:** funkcje serverless w `api/*.js`, deployowane przez Vercel. Każda ma
-  łańcuch fallbacków (np. Yahoo Finance → Stooq → Twelve Data) — jeśli jedno źródło
+- **Backend:** funkcje serverless w `api/`, deployowane przez Vercel. Plan Hobby pozwala
+  na **maks. 12 funkcji** na wdrożenie (przekroczenie = nieudany deploy), dlatego:
+  - szybkie endpointy GET leżą w `api/_lib/<nazwa>.js` i obsługuje je jedna funkcja-router
+    `api/[route].js` (adres `/api/<nazwa>` bez zmian). Nowy endpoint = plik w `_lib/`
+    + wpis w `ROUTES` w `api/[route].js`, nie nowy plik w `api/`;
+  - osobnymi funkcjami są tylko `api/news-summary.js` (30 s) i `api/xtb-screenshot.js`
+    (60 s, Supabase, POST) — limity czasu w `vercel.json`.
+
+  Każdy endpoint ma łańcuch fallbacków (np. Yahoo Finance → Stooq → Twelve Data) — jeśli jedno źródło
   padnie, endpoint ma i tak zwrócić dane, nie 500.
 - **Tryb testowy (sandbox):** `npm run dev:sandbox` (port 5174, `.env.sandbox`,
   `src/devMode.js`). Pomija logowanie i Supabase, dane tylko w localStorage tej sesji
@@ -50,16 +57,14 @@ jednej wersji kosztem drugiej.
 
 ## Znane problemy
 
-- **Zaszyte klucze API w kodzie** (nienaprawione): `api/stock-price.js`,
-  `api/symbol-search.js` mają `process.env.TWELVE_DATA_API_KEY || "a681ab..."`,
-  `api/commodity-price.js` ma `process.env.GOLDAPI_KEY || "goldapi-..."`. Klucze
-  fallbackowe są w historii gita w plaintext. Do zrobienia: wygenerować nowe klucze,
-  ustawić je na Vercelu (Settings → Environment Variables), dopiero potem usunąć
-  fallbacki z kodu (branch `fix/usun-zaszyte-klucze`).
+- **Zaszyte klucze API** (Twelve Data, GoldAPI): fallbacki usunięte z kodu (commit
+  `0b2de30`, branch `fix/usun-zaszyte-klucze`), ale stare klucze nadal są w historii gita
+  w plaintext. Jeśli nie zostały jeszcze unieważnione — wygenerować nowe i ustawić na
+  Vercelu (Settings → Environment Variables).
 - **Schemat bazy Supabase** nie jest nigdzie w repo (tabela `portfolios`, polityki RLS).
   Jeśli Claude Code ma pomóc przy czymś związanym z bazą, poproś Karola o zrzut
   struktury — bez tego Claude nie widzi tej części systemu.
-- `api/bond-rates.js` — scraper obligacjeskarbowe.pl naprawiony (wrzesień 2026):
+- `api/_lib/bond-rates.js` — scraper obligacjeskarbowe.pl naprawiony (wrzesień 2026):
   strona owija `%` w `<sub>%</sub>`, a stare regexy dla ROS/ROD/DOR łapały przypadkowe
   fragmenty strony. Teraz kotwiczone na linku karty produktu. Jeśli znów zacznie
   zwracać `success: false`, prawdopodobnie strona znowu zmieniła markup.
