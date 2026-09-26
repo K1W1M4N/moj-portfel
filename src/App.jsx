@@ -14,6 +14,7 @@ import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
 import { SAVINGS_RATES_DB } from "./savingsRates";
 import { MarketView } from "./MarketView";
+import { BottomNav, MenuSheet, AssetsOverview, CategoryHeader, SegmentedControl } from "./AppNav";
 import { useAuth } from "./auth/AuthProvider";
 import LoginScreen from "./auth/LoginScreen";
 import AccountMenu from "./auth/AccountMenu";
@@ -300,88 +301,6 @@ function BondRatesView() {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// ─── Menu ─────────────────────────────────────────────────────────────────────
-function MenuDropdown({ onNavigate }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    function handleClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("touchstart", handleClick);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("touchstart", handleClick);
-    };
-  }, []);
-
-  const items = [
-    { id: "savings",  label: "Konta Oszcz.", desc: "Zarządzaj kontami" },
-    { id: "bonds",    label: "Obligacje", desc: "Aktualne stawki" },
-    { id: "history",  label: "Historia", desc: "Wartość portfela w czasie" },
-    { id: "market",   label: "Rynek", desc: "Liderzy wzrostów i newsy" },
-    { id: "settings", label: "Ustawienia", desc: "Tryb wyceny, preferencje" },
-  ];
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          background: open ? "#1e2a38" : "transparent",
-          border: `1px solid ${open ? "#2a3a50" : "#1e2a38"}`,
-          borderRadius: 10, color: "#8a9bb0", cursor: "pointer",
-          width: 36, height: 36, display: "flex", alignItems: "center",
-          justifyContent: "center", transition: "all .15s",
-          flexDirection: "column", gap: 4, padding: "8px 9px",
-        }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{
-              width: 16, height: 2, borderRadius: 1,
-              background: open ? "#e8f0f8" : "#5a6a7e",
-              transition: "all .15s",
-              transform: open && i === 0 ? "translateY(6px) rotate(45deg)" :
-                         open && i === 1 ? "scaleX(0)" :
-                         open && i === 2 ? "translateY(-6px) rotate(-45deg)" : "none",
-            }} />
-          ))}
-        </div>
-      </button>
-
-      {open && (
-        <div style={{
-          position: "absolute", top: 44, right: 0,
-          background: "#161d28", border: "1px solid #2a3a50",
-          borderRadius: 12, padding: "6px", minWidth: 200,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.4)", zIndex: 100,
-        }}>
-          {items.map(item => (
-            <button key={item.id}
-              onClick={() => { onNavigate(item.id); setOpen(false); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                width: "100%", padding: "10px 12px", borderRadius: 8,
-                border: "none", background: "transparent", cursor: "pointer",
-                textAlign: "left", transition: "background .1s",
-                WebkitTapHighlightColor: "transparent",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = "#1e2a38"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "#e8f0f8", fontFamily: "'Sora', sans-serif" }}>{item.label}</div>
-                <div style={{ fontSize: 11, color: "#4a5a6e", fontFamily: "'Sora', sans-serif" }}>{item.desc}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -1455,6 +1374,9 @@ export default function App() {
   const [movingAsset, setMovingAsset] = useState(null);
   const [hovAdd, setHovAdd] = useState(false);
   const [currentView, setCurrentView] = useState("portfolio");
+  const [assetsCategory, setAssetsCategory] = useState(null);
+  const [kbSection, setKbSection] = useState("bonds");
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // ── Stany kont oszczędnościowych ──
   const [selectedSavings, setSelectedSavings] = useState(null);
@@ -1527,6 +1449,30 @@ export default function App() {
   function handleStart() {
     try { localStorage.setItem("pt-welcomed", "1"); } catch {}
     setWelcomed(true);
+  }
+
+  function startAdd(type) {
+    if (type === "Waluty / Gotówka" || type === "Waluty") setCurrencyModal("add");
+    else if (type === "Konto oszczędnościowe") { setEditingSavings(null); setShowSavingsForm(true); }
+    else if (type === "Obligacje") setBondModal("add");
+    else if (type === "Akcje / ETF") setStockModal("add");
+    else if (type === "Surowce") setCommodityModal("add");
+    else setModal({ isNew: true, category: type });
+  }
+
+  function handleTabSelect(id) {
+    if (id === "menu") { setMenuOpen(o => !o); return; }
+    setMenuOpen(false);
+    // Ponowne kliknięcie „Aktywa” wraca do listy kategorii
+    if (id === "assets" && currentView === "assets") setAssetsCategory(null);
+    setCurrentView(id);
+    window.scrollTo(0, 0);
+  }
+
+  function openKb(section) {
+    setKbSection(section);
+    setCurrentView("kb");
+    window.scrollTo(0, 0);
   }
 
   function handleFilterChange(cat) {
@@ -1637,14 +1583,33 @@ export default function App() {
   const visible = activeFilter ? assetsWithLivePrices.filter(a => a.category === activeFilter) : assetsWithLivePrices;
   const usedCats = categories.filter(c => assetsWithLivePrices.some(a => a.category === c.name));
 
+  // Widok kont oszczędnościowych dzieli się na: Twoje konta (Aktywa) i oferty banków (Baza wiedzy)
+  const savingsMode = currentView === "assets" && assetsCategory === "Konto oszczędnościowe" ? "accounts"
+    : currentView === "kb" && kbSection === "savings" ? "offers" : null;
+
   const allUpdates = [stockLastUpdated, lastUpdated, commodityLastUpdated, currencyLastUpdated].filter(Boolean);
   const anyLastUpdated = allUpdates.length > 0 ? allUpdates.reduce((a, b) => a > b ? a : b) : null;
 
-  const viewTitles = {
-    portfolio: "PORTFOLIO TRACKER",
-    bonds: "← PORTFOLIO TRACKER",
-    savings: "← PORTFOLIO TRACKER",
-  };
+  function renderAssetRow(a) {
+    return (
+      <div key={a.id} className="asset-row-wrap">
+        {a.isBond ? (
+          <BondRow bond={a} color={catColor(categories, a.category || "Obligacje")} onClick={() => setBondDetail(a)} />
+        ) : a.isStock ? (
+          <StockRow stock={a} stockPrices={stockPrices} color={catColor(categories, a.category || "Akcje / ETF")} onClick={() => setStockDetail(a)} />
+        ) : a.isCommodity ? (
+          <CommodityRow asset={a} commodityPrices={commodityPrices} color={catColor(categories, a.category || "Surowce")} onClick={() => setCommodityDetail(a)} />
+        ) : a.isSavings ? (
+          <SavingsRow account={a} color={catColor(categories, a.category || "Konto oszczędnościowe")} onClick={() => setSelectedSavings(a)} />
+        ) : a.isCurrency ? (
+          <CurrencyRow asset={a} color={catColor(categories, a.category || "Waluty")} onClick={() => setCurrencyModal(a)} />
+        ) : (
+          <AssetRow asset={a} total={total} categories={categories} prices={prices}
+            onClick={() => setModal(a)} />
+        )}
+      </div>
+    );
+  }
 
   const globalStyles = `
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600&display=swap');
@@ -1703,18 +1668,13 @@ export default function App() {
           TRYB TESTOWY · bez logowania · dane tylko lokalnie, chmura nietknięta
         </div>
       )}
-      <div id="main-container" style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
+      <div id="main-container" style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px 110px" }}>
 
         {/* Nagłówek */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
           <div style={{ flex: 1 }} />
           <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace", textAlign: "center", flex: 1 }}>
-            {currentView !== "portfolio" ? (
-              <button onClick={() => setCurrentView("portfolio")}
-                style={{ background: "none", border: "none", color: "#5a6a7e", cursor: "pointer", fontSize: 11, letterSpacing: ".1em", fontFamily: "'DM Mono', monospace", display: "flex", alignItems: "center", gap: 6, margin: "0 auto" }}>
-                ← PORTFOLIO TRACKER
-              </button>
-            ) : "PORTFOLIO TRACKER"}
+            PORTFOLIO TRACKER
           </div>
           <div style={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10 }}>
             {syncStatus === "ready" && (
@@ -1727,14 +1687,65 @@ export default function App() {
               <span title="Synchronizacja..." style={{ fontSize: 10, color: "#f0a030", background: "#2a1e00", padding: "3px 8px", borderRadius: 12, border: "1px solid #4a3800", fontFamily: "'DM Mono', monospace" }}>🔄 Sync...</span>
             )}
             <AccountMenu />
-            <MenuDropdown onNavigate={id => {
-              setCurrentView(id);
-            }} />
           </div>
         </div>
 
-        {/* ── Widok kont oszczędnościowych ── */}
-        {currentView === "savings" && (() => {
+        {/* ── Widok Aktywa ── */}
+        {currentView === "assets" && !assetsCategory && (
+          <AssetsOverview
+            categories={categories}
+            assets={assetsWithLivePrices}
+            portfolioName={portfolios.find(p => p.id === activePortfolioId)?.name || "Portfel"}
+            onOpen={name => { setAssetsCategory(name); window.scrollTo(0, 0); }}
+          />
+        )}
+        {currentView === "assets" && assetsCategory && (() => {
+          const items = assetsWithLivePrices.filter(a => a.category === assetsCategory);
+          const actions = [{ label: "+ Dodaj", primary: true, onClick: () => startAdd(assetsCategory) }];
+          if (assetsCategory === "Akcje / ETF") actions.push({ label: "⇅ Import z XTB", onClick: () => setShowXtbImport(true) });
+          if (assetsCategory === "Obligacje") actions.push({ label: "% Aktualne stawki", onClick: () => openKb("bonds") });
+          if (assetsCategory === "Konto oszczędnościowe") actions.push({ label: "★ Najlepsze oferty", onClick: () => openKb("savings") });
+          return (
+            <>
+              <CategoryHeader
+                name={assetsCategory}
+                color={catColor(categories, assetsCategory)}
+                sum={items.reduce((s, a) => s + a.value, 0)}
+                count={items.length}
+                actions={actions}
+                onBack={() => setAssetsCategory(null)}
+              />
+              {savingsMode !== "accounts" && (
+                <ErrorBoundary key={"cat-list-" + assetsCategory}>
+                  {items.length === 0 ? (
+                    <div style={{ background: "#161d28", border: "1px dashed #1e2a38", borderRadius: 12, padding: 32, textAlign: "center", color: "#4a5a6e", fontSize: 13 }}>
+                      Brak aktywów w tej kategorii.
+                    </div>
+                  ) : items.map(renderAssetRow)}
+                </ErrorBoundary>
+              )}
+            </>
+          );
+        })()}
+
+        {/* ── Widok Baza wiedzy ── */}
+        {currentView === "kb" && (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#e8f0f8" }}>Baza wiedzy</div>
+              <div style={{ fontSize: 12, color: "#8a9bb0", marginTop: 4 }}>Aktualne stawki obligacji i ofert banków</div>
+            </div>
+            <SegmentedControl
+              options={[{ id: "bonds", label: "Obligacje skarbowe" }, { id: "savings", label: "Konta oszczędnościowe" }]}
+              value={kbSection}
+              onChange={setKbSection}
+            />
+            {kbSection === "bonds" && <ErrorBoundary key="bonds-view"><BondRatesView /></ErrorBoundary>}
+          </>
+        )}
+
+        {/* ── Konta oszczędnościowe: Twoje konta / oferty ── */}
+        {savingsMode && (() => {
           const today = new Date(); today.setHours(0,0,0,0);
           const daysUntil = (dateStr) => {
             if (!dateStr) return null;
@@ -1761,15 +1772,8 @@ export default function App() {
           const fmt = v => new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", maximumFractionDigits: 0 }).format(v);
 
           return (
-            <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 16px 32px" }}>
-              {/* Twoje konta */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <div style={{ fontSize: 13, color: "#5a6a7e" }}>Twoje konta oszczędnościowe w tym portfelu</div>
-                <button onClick={() => setShowSavingsForm(true)}
-                  style={{ padding: "8px 16px", borderRadius: 8, background: "#00c896", color: "#000", fontWeight: 700, fontSize: 12, border: "none", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
-                  + Dodaj konto
-                </button>
-              </div>
+            <div>
+              {savingsMode === "accounts" && (<>
 
               {/* P2: Nagłówek sekcji z sumami */}
               {(() => {
@@ -1906,13 +1910,16 @@ export default function App() {
                 })}
                 {assetsWithLivePrices.filter(a => a.isSavings).length === 0 && (
                   <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "40px 0", color: "#5a6a7e", fontSize: 13, background: "#161d28", borderRadius: 12, border: "2px dashed #2a3a50" }}>
-                    Brak zapisanych kont oszczędnościowych. Kliknij "Dodaj konto" aby rozpocząć.
+                    Brak zapisanych kont oszczędnościowych. Kliknij „+ Dodaj” aby rozpocząć.
                   </div>
                 )}
               </div>
 
+              </>)}
+
               {/* Oferty kont oszczędnościowych */}
-              <div style={{ marginTop: 36 }}>
+              {savingsMode === "offers" && (
+              <div>
                 {(() => {
                   const [year, month] = SAVINGS_RATES_DB.lastUpdated.split('-').map(Number);
                   const dataDate = new Date(year, month - 1, 1);
@@ -1964,15 +1971,15 @@ export default function App() {
                     return (
                       <div key={i}
                         onClick={() => setExpandedOffer(offer)}
-                        style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", transition: "border-color .15s" }}
+                        style={{ background: "#161d28", border: "1px solid #1e2a38", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", transition: "border-color .15s" }}
                         onMouseEnter={e => e.currentTarget.style.borderColor = "#2a4060"}
                         onMouseLeave={e => e.currentTarget.style.borderColor = "#1e2a38"}>
                         {/* Rank */}
-                        <div style={{ minWidth: 24, fontSize: 11, color: "#4a5a6e", fontFamily: "'DM Mono',monospace", textAlign: "right" }}>
+                        <div style={{ minWidth: 18, fontSize: 11, color: "#4a5a6e", fontFamily: "'DM Mono',monospace", textAlign: "right" }}>
                           {i + 1}.
                         </div>
                         {/* Rate badge */}
-                        <div style={{ minWidth: 54, textAlign: "center" }}>
+                        <div style={{ minWidth: 50, textAlign: "center" }}>
                           <div style={{ fontSize: 17, fontWeight: 700, color: isPromo ? "#00c896" : "#6bcfae", fontFamily: "'DM Mono',monospace", lineHeight: 1 }}>
                             {bestRate.toFixed(1)}%
                           </div>
@@ -1982,7 +1989,7 @@ export default function App() {
                             </div>
                           )}
                         </div>
-                        {/* Info */}
+                        {/* Info: nazwa + szczegóły i plakietki w zawijanym wierszu (mieści się na telefonie) */}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#e8edf3", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {offer.bank}
@@ -1990,43 +1997,40 @@ export default function App() {
                           <div style={{ fontSize: 11, color: "#6b7f96", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {offer.name}
                           </div>
+                          {(() => {
+                            const details = [
+                              offer.promoLimit != null && `do ${fmt(offer.promoLimit)}`,
+                              offer.promoDays != null && `przez ${offer.promoDays} dni`,
+                              isPromo && `std: ${offer.rateStandard}%`,
+                            ].filter(Boolean);
+                            const b = expiryBadge(offer);
+                            if (details.length === 0 && !offer.requiresROR && !offer.isNew && !b) return null;
+                            return (
+                              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 6px", marginTop: 6 }}>
+                                {details.length > 0 && (
+                                  <span style={{ fontSize: 10, color: "#8a9bb0", fontFamily: "'DM Mono',monospace", marginRight: 2 }}>
+                                    {details.join(" · ")}
+                                  </span>
+                                )}
+                                {offer.requiresROR && (
+                                  <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "#1e2a38", color: "#6b7f96", fontFamily: "'DM Mono',monospace", whiteSpace: "nowrap" }}>
+                                    wymaga ROR
+                                  </span>
+                                )}
+                                {offer.isNew && (
+                                  <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, background: "#0d3a28", color: "#00c896", border: "1px solid #1a5a40", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap", fontWeight: 700, letterSpacing: ".04em" }}>
+                                    Nowa
+                                  </span>
+                                )}
+                                {b && (
+                                  <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: b.bg, color: b.color, fontFamily: "'DM Mono',monospace", whiteSpace: "nowrap", fontWeight: 700 }}>
+                                    ⏰ {b.label}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
-                        {/* Details */}
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, minWidth: 100 }}>
-                          {offer.promoLimit != null && (
-                            <div style={{ fontSize: 10, color: "#8a9bb0", fontFamily: "'DM Mono',monospace" }}>
-                              do {fmt(offer.promoLimit)}
-                            </div>
-                          )}
-                          {offer.promoDays != null && (
-                            <div style={{ fontSize: 10, color: "#8a9bb0", fontFamily: "'DM Mono',monospace" }}>
-                              przez {offer.promoDays} dni
-                            </div>
-                          )}
-                          {isPromo && (
-                            <div style={{ fontSize: 10, color: "#4a5a6e", fontFamily: "'DM Mono',monospace" }}>
-                              std: {offer.rateStandard}%
-                            </div>
-                          )}
-                        </div>
-                        {/* ROR badge */}
-                        {offer.requiresROR && (
-                          <div style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "#1e2a38", color: "#6b7f96", fontFamily: "'DM Mono',monospace", whiteSpace: "nowrap" }}>
-                            wymaga ROR
-                          </div>
-                        )}
-                        {/* New badge */}
-                        {offer.isNew && (
-                          <div style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, background: "#0d3a28", color: "#00c896", border: "1px solid #1a5a40", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap", fontWeight: 700, letterSpacing: ".04em" }}>
-                            Nowa
-                          </div>
-                        )}
-                        {/* Expiry badge */}
-                        {(() => { const b = expiryBadge(offer); return b ? (
-                          <div style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: b.bg, color: b.color, fontFamily: "'DM Mono',monospace", whiteSpace: "nowrap", fontWeight: 700 }}>
-                            ⏰ {b.label}
-                          </div>
-                        ) : null; })()}
                         <div style={{ fontSize: 10, color: "#3a4a5e" }}>›</div>
                       </div>
                     );
@@ -2193,6 +2197,7 @@ export default function App() {
                   )}
                 </div>
               </div>
+              )}
             </div>
           );
         })()}
@@ -2202,9 +2207,6 @@ export default function App() {
 
         {/* ── Widok rynku ── */}
         {currentView === "market" && <MarketView />}
-
-        {/* ── Widok obligacji ── */}
-        {currentView === "bonds" && <ErrorBoundary key="bonds-view"><BondRatesView /></ErrorBoundary>}
 
         {/* ── Widok ustawień ── */}
         {currentView === "settings" && <SettingsView />}
@@ -2318,17 +2320,6 @@ export default function App() {
                 }}>
                 + Dodaj aktywo
               </button>
-              <button id="xtb-import-btn"
-                onClick={() => setShowXtbImport(true)}
-                style={{
-                  padding: "11px 20px", borderRadius: 12, border: "1px solid #2a3a50",
-                  background: "transparent", color: "#8a9bb0", fontWeight: 600, fontSize: 13, cursor: "pointer",
-                  fontFamily: "'Sora', sans-serif", transition: "all .2s", WebkitTapHighlightColor: "transparent",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = "#e8f0f8"; e.currentTarget.style.borderColor = "#4a5a6e"; }}
-                onMouseLeave={e => { e.currentTarget.style.color = "#8a9bb0"; e.currentTarget.style.borderColor = "#2a3a50"; }}>
-                ⇅ Import z XTB
-              </button>
             </div>
 
             {/* Filtry */}
@@ -2364,24 +2355,7 @@ export default function App() {
                   : "Brak aktywów w tej kategorii."}
               </div>
             ) : (
-              visible.map(a => (
-                <div key={a.id} className="asset-row-wrap">
-                  {a.isBond ? (
-                    <BondRow bond={a} color={catColor(categories, a.category || "Obligacje")} onClick={() => setBondDetail(a)} />
-                  ) : a.isStock ? (
-                    <StockRow stock={a} stockPrices={stockPrices} color={catColor(categories, a.category || "Akcje / ETF")} onClick={() => setStockDetail(a)} />
-                  ) : a.isCommodity ? (
-                    <CommodityRow asset={a} commodityPrices={commodityPrices} color={catColor(categories, a.category || "Surowce")} onClick={() => setCommodityDetail(a)} />
-                  ) : a.isSavings ? (
-                    <SavingsRow account={a} color={catColor(categories, a.category || "Konto oszczędnościowe")} onClick={() => setSelectedSavings(a)} />
-                  ) : a.isCurrency ? (
-                    <CurrencyRow asset={a} color={catColor(categories, a.category || "Waluty")} onClick={() => setCurrencyModal(a)} />
-                  ) : (
-                    <AssetRow asset={a} total={total} categories={categories} prices={prices}
-                      onClick={() => setModal(a)} />
-                  )}
-                </div>
-              ))
+              visible.map(renderAssetRow)
             )}
             </ErrorBoundary>
 
@@ -2419,18 +2393,21 @@ export default function App() {
         )}
       </div>
 
+      <MenuSheet
+        open={menuOpen}
+        currentView={currentView}
+        onNavigate={id => { setMenuOpen(false); setCurrentView(id); window.scrollTo(0, 0); }}
+        onClose={() => setMenuOpen(false)}
+      />
+      <BottomNav currentView={currentView} menuOpen={menuOpen} onSelect={handleTabSelect} />
+
       {/* ── Modale ── */}
       {showTypeSelector && (
         <AssetTypeSelectorModal
           onClose={() => setShowTypeSelector(false)}
           onSelect={type => {
             setShowTypeSelector(false);
-            if (type === "Waluty / Gotówka") setCurrencyModal("add");
-            else if (type === "Konto oszczędnościowe") { setEditingSavings(null); setShowSavingsForm(true); }
-            else if (type === "Obligacje") setBondModal("add");
-            else if (type === "Akcje / ETF") setStockModal("add");
-            else if (type === "Surowce") setCommodityModal("add");
-            else setModal({ isNew: true, category: type });
+            startAdd(type);
           }}
         />
       )}

@@ -26,4 +26,9 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Funkcje serwerowe Vercel i konfiguracja Vite działają w Node
+    files: ['api/**/*.js', 'vite.config.js', 'scripts/**/*.js'],
+    languageOptions: { globals: globals.node },
+  },
 ])

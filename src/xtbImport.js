@@ -207,8 +207,51 @@ export async function parseXtbFile(file) {
   return accounts;
 }
 
+// ─── Zrzut ekranu (odczyt przez api/xtb-screenshot) → format "konta" jak z pliku ─
+// Zrzut nie mówi, z którego konta pochodzi, więc numer konta dopasowujemy do portfela
+// docelowego (pozycje zaimportowane wcześniej z pliku mają xtbAccount).
+export function accountFromScreenshot(result, accountNumber) {
+  const positions = (result.positions || []).map(p => {
+    const fromTicker = p.ticker ? mapXtbTicker(p.ticker) : null;
+    const market = fromTicker?.market || (p.market !== "UNKNOWN" ? p.market : null);
+    const map = market ? XTB_SUFFIX_MAP[market] : null;
+    const symbol = fromTicker?.symbol || String(p.name || "").toUpperCase();
+    const qty = num(p.quantity);
+    const currency = map?.currency ?? "PLN";
+    // Koszt w PLN: wartość − zysk (oba z konta w PLN) to najdokładniejsze, co widać na zrzucie.
+    // Bez nich — ilość × cena otwarcia, poprawne tylko dla instrumentów w PLN.
+    const paidFromPnl = p.value_pln > 0 ? p.value_pln - p.profit_pln : 0;
+    // (przy nieznanej giełdzie nie zakładamy PLN — cena może być w USD/EUR)
+    const paidPLN = round(paidFromPnl > 0 ? paidFromPnl : map?.currency === "PLN" ? qty * num(p.avg_open_price) : 0);
+    return {
+      xtbTicker: p.ticker || (market ? `${symbol}.${market}` : symbol),
+      symbol,
+      exchange: map?.exchange ?? null,
+      currency,
+      market,
+      name: p.name || symbol,
+      category: "",
+      qty,
+      avgPrice: num(p.avg_open_price),
+      valuePLN: num(p.value_pln) || paidPLN,
+      paidPLN,
+      tranches: paidPLN > 0 ? [{ qty, totalPLN: paidPLN, estimated: true }] : [],
+      hasEstimates: false,
+      unsupported: !map,
+      fromScreenshot: true,
+      missingCost: paidPLN <= 0,
+    };
+  });
+  return { accountNumber, product: "Zrzut ekranu", positions, fromScreenshot: true };
+}
+
 // ─── Budowa aktywa w formacie aplikacji ──────────────────────────────────────
 export function buildStockAsset(pos, existing, accountNumber, syncedAt) {
+  // Zrzut bez widocznego kosztu: przy zmianie liczby sztuk skaluj dotychczasowy koszt proporcjonalnie
+  if (pos.missingCost && existing?.stockPaidPLN > 0 && existing?.stockQuantity > 0) {
+    const paidPLN = round(existing.stockPaidPLN * (pos.qty / existing.stockQuantity));
+    pos = { ...pos, paidPLN, tranches: [{ qty: pos.qty, totalPLN: paidPLN, estimated: true }] };
+  }
   return {
     ...(existing || {}),
     id: existing?.id ?? `xtb-${accountNumber}-${pos.xtbTicker}-${Date.now()}`,
@@ -229,7 +272,7 @@ export function buildStockAsset(pos, existing, accountNumber, syncedAt) {
     // Import nadpisuje ręczny tryb "Z brokera"
     stockBrokerValue: undefined,
     stockBrokerPnl: undefined,
-    xtbAccount: accountNumber,
+    xtbAccount: accountNumber ?? existing?.xtbAccount,
     xtbTicker: pos.xtbTicker,
     xtbSyncedAt: syncedAt,
   };
@@ -241,9 +284,21 @@ function sameMarket(asset, pos) {
   return !a || !pos.market || a === pos.market;
 }
 
+const normName = s => String(s || "").toLowerCase().replace(/[^a-z0-9ąćęłńóśźż]/g, "");
+function sameName(asset, pos) {
+  const n = normName(pos.name);
+  return !!n && (normName(asset.stockName) === n || normName(asset.name) === n);
+}
+
 // ─── Różnica: plik XTB vs aktywa w portfelu docelowym ────────────────────────
 // Zwraca listę zmian { kind: "new" | "update" | "same" | "remove", pos?, before?, defaultOn, ... }
+//
+// Dla zrzutów ekranu (account.fromScreenshot):
+//   - porównujemy tylko liczbę sztuk — koszt ze zrzutu jest przybliżony i nie powinien
+//     nadpisywać dokładnych transz z importu pliku,
+//   - usunięcia są domyślnie odznaczone, bo zrzuty mogą nie obejmować całej listy.
 export function diffXtbAccount(account, portfolioAssets) {
+  const screenshot = !!account.fromScreenshot;
   const stocks = portfolioAssets.filter(a => a.isStock);
   const used = new Set();
   const changes = [];
@@ -251,7 +306,9 @@ export function diffXtbAccount(account, portfolioAssets) {
   for (const pos of account.positions) {
     const before =
       stocks.find(a => !used.has(a.id) && a.xtbAccount === account.accountNumber && a.xtbTicker === pos.xtbTicker) ||
-      stocks.find(a => !used.has(a.id) && sameMarket(a, pos));
+      stocks.find(a => !used.has(a.id) && sameMarket(a, pos)) ||
+      // Zrzut bez widocznego tickera — dopasuj po nazwie
+      (screenshot ? stocks.find(a => !used.has(a.id) && sameName(a, pos)) : null);
     if (before) used.add(before.id);
 
     if (!before) {
@@ -259,15 +316,15 @@ export function diffXtbAccount(account, portfolioAssets) {
       continue;
     }
     const qtySame = Math.abs((before.stockQuantity || 0) - pos.qty) < 1e-6;
-    const paidSame = Math.abs((before.stockPaidPLN || 0) - pos.paidPLN) < 0.5;
+    const paidSame = screenshot || Math.abs((before.stockPaidPLN || 0) - pos.paidPLN) < 0.5;
     changes.push({ kind: qtySame && paidSame ? "same" : "update", pos, before, defaultOn: !(qtySame && paidSame) });
   }
 
   // Pozycje w aplikacji, których nie ma w pliku → sprzedane (albo z innego brokera)
   for (const a of stocks) {
     if (used.has(a.id)) continue;
-    const fromThisAccount = a.xtbAccount === account.accountNumber;
-    changes.push({ kind: "remove", before: a, defaultOn: fromThisAccount, fromThisAccount });
+    const fromThisAccount = !!account.accountNumber && a.xtbAccount === account.accountNumber;
+    changes.push({ kind: "remove", before: a, defaultOn: fromThisAccount && !screenshot, fromThisAccount, screenshot });
   }
 
   const order = { new: 0, update: 1, remove: 2, same: 3 };

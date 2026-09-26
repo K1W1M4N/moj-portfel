@@ -1,4 +1,4 @@
-// api/stock-news.js — Newsy finansowe dla spółki/ETF (Yahoo Finance + Bankier.pl dla GPW)
+// api/_lib/stock-news.js — obsługiwane przez api/_lib/news.js (?symbol=…). Newsy finansowe dla spółki/ETF (Yahoo Finance + Bankier.pl dla GPW)
 
 // ─── Helpers ETF ──────────────────────────────────────────────────────────────
 function detectETF(name = "") {
