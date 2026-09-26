@@ -1,7 +1,7 @@
 // api/stock-price.js — Vercel Serverless Proxy dla cen akcji/ETF
 // Yahoo Finance v8 (primary) → Stooq CSV (fallback GPW) → Twelve Data (last resort)
 
-const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY || "a681abc9ebc045a39c938d8b058567d9";
+const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY;
 
 // ─── Mapowanie giełd ──────────────────────────────────────────────────────────
 const EXCHANGE_MAP = {
@@ -128,6 +128,7 @@ async function fetchBiznesradar(symbol, exchange) {
 
 // ─── Twelve Data (fallback) ───────────────────────────────────────────────────
 async function fetchTwelveData(symbol) {
+  if (!TWELVE_DATA_KEY) return null;
   try {
     const url = `https://api.twelvedata.com/price?symbol=${encodeURIComponent(symbol)}&apikey=${TWELVE_DATA_KEY}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });

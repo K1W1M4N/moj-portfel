@@ -1,7 +1,7 @@
 // api/commodity-price.js — Vercel Serverless Proxy dla cen surowców
 // Yahoo Finance futures (primary, darmowe) → GoldAPI.io (fallback)
 
-const GOLDAPI_KEY = process.env.GOLDAPI_KEY || "goldapi-1ay1g1smnax7gq4-io";
+const GOLDAPI_KEY = process.env.GOLDAPI_KEY;
 
 // Mapowanie symbol → Yahoo Finance ticker futures
 const YAHOO_TICKERS = {
