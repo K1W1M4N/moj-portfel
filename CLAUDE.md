@@ -42,8 +42,9 @@ Oboje commitujecie niezależnie na to samo repo — bez tego cyklu nadpisujecie 
 3. Małe, jednotematyczne commity i PR-y. Nie mieszaj bug fixa z inną zmianą w jednym PR.
 4. Przed commitem: `npm run build` musi przejść. Przy zmianach w UI odpal
    `npm run dev:sandbox` i sprawdź w przeglądarce.
-5. PR na GitHubie, review drugiej osoby, dopiero potem merge do `main`. Jedna osoba
-   mergująca bez przeglądu to powrót do rozjechanej historii.
+5. PR na GitHubie, potem merge do `main` — autor PR-a może zmergować sam, bez czekania
+   na review drugiej osoby (CODEOWNERS tylko przypisuje reviewera, nie blokuje mergu).
+   Przed mergem: zsynchronizuj `main` do gałęzi i upewnij się, że `npm run build` przechodzi.
 6. Po mergu do `main` Vercel wdraża produkcję automatycznie.
 
 **Kto dotyka `App.jsx`.** To plik, w którym siedzicie obaj i on generuje najwięcej
