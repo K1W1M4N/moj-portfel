@@ -157,7 +157,7 @@ export default function LoginScreen({ onContinueOffline }) {
     }}>
       <div style={cardStyle}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'DM Mono', monospace" }}>
+          <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#4a5a6e", fontFamily: "'Times New Roman', Times, serif" }}>
             PORTFOLIO TRACKER
           </div>
           <div style={{ fontSize: 18, color: "#e8edf3", marginTop: 8, fontFamily: "'Sora', sans-serif", fontWeight: 600 }}>
