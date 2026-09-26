@@ -9,6 +9,7 @@ import { PNL_MODES, getPnlMode, setPnlMode, usePnlMode } from "./preferences";
 import { calcPaidPLN } from "./portfolioCalc";
 import { SettingsView } from "./SettingsView";
 import { XtbImportModal } from "./XtbImportModal";
+import { AUTH_BYPASS } from "./devMode";
 import { BOND_RATES_HISTORY } from "./bondRates";
 import { INFLATION_HISTORY } from "./inflationData";
 import { SAVINGS_RATES_DB } from "./savingsRates";
@@ -1709,6 +1710,11 @@ export default function App() {
   return (
     <>
       <style>{globalStyles}</style>
+      {AUTH_BYPASS && (
+        <div style={{ position: "sticky", top: 0, zIndex: 150, background: "#e8a040", color: "#161d28", fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "5px 12px", fontFamily: "'DM Mono', monospace" }}>
+          TRYB TESTOWY · bez logowania · dane tylko lokalnie, chmura nietknięta
+        </div>
+      )}
       <div id="main-container" style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
 
         {/* Nagłówek */}

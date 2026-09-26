@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./auth/AuthProvider";
+import { AUTH_BYPASS } from "./devMode";
 
 const DEBOUNCE_MS = 1500;
 
@@ -74,6 +75,12 @@ export function useCloudSync({
   useEffect(() => {
     if (authLoading) return;
 
+    // Tryb testowy: bez chmury, dane tylko w localStorage
+    if (AUTH_BYPASS) {
+      setStatus("ready");
+      return;
+    }
+
     if (!user) {
       hydratedRef.current = false;
       lastSavedJsonRef.current = null;
@@ -141,7 +148,7 @@ export function useCloudSync({
 
   // Debounced save after state changes
   useEffect(() => {
-    if (!user || !hydratedRef.current) return;
+    if (AUTH_BYPASS || !user || !hydratedRef.current) return;
     const payload = { portfolios, activePortfolioId, allAssets, categories, history };
     const json = JSON.stringify(payload);
     if (json === lastSavedJsonRef.current) return;
