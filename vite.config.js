@@ -49,4 +49,7 @@ function localApi(env) {
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [react(), localApi(loadEnv(mode, process.cwd(), ''))],
+  // PORT ustawia podgląd w Claude Code (autoPort w .claude/launch.json) — każdy chat dostaje
+  // własny port. Bez PORT domyślne 5173; `npm run dev:sandbox` i tak wymusza 5174 flagą --port.
+  server: process.env.PORT ? { port: Number(process.env.PORT), strictPort: true } : undefined,
 }))

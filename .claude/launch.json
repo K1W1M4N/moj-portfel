@@ -8,7 +8,8 @@
         "run",
         "dev"
       ],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
     },
     {
       "name": "moj-portfel-vercel",
@@ -24,12 +25,14 @@
     },
     {
       "name": "moj-portfel-sandbox",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "npx",
       "runtimeArgs": [
-        "run",
-        "dev:sandbox"
+        "vite",
+        "--mode",
+        "sandbox"
       ],
-      "port": 5174
+      "port": 5174,
+      "autoPort": true
     }
   ]
 }
