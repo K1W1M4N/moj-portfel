@@ -16,8 +16,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -25,7 +23,7 @@ jobs:
           python-version: '3.11'
 
       - name: Instaluj zależności
-        run: pip install requests beautifulsoup4
+        run: pip install requests
 
       - name: Pobierz i zaktualizuj dane inflacji
         run: python scripts/fetch_inflation.py
