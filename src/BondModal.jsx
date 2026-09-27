@@ -145,7 +145,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
         const { value: infl, assumed } = getBondPeriodInflation(pStart);
         rate = Math.max(0, infl) + params.margin;
         rateLabel = assumed
-          ? `~${(rate*100).toFixed(2)}% (zał. infl. ${(infl*100).toFixed(1)}% + ${(params.margin*100).toFixed(1)}%)`
+          ? `~${(rate*100).toFixed(2)}% (zał. infl. ${(infl*100).toFixed(2)}% + ${(params.margin*100).toFixed(1)}%)`
           : `${(rate*100).toFixed(2)}% (infl. ${(infl*100).toFixed(1)}% + ${(params.margin*100).toFixed(1)}%)`;
       } else {
         rate = bond.rate;
@@ -251,7 +251,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
         <div style={{background:"#0a1a12",border:"1px solid #1a3a20",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
           <div style={{fontSize:10,color:"#5a6a7e",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>
             Estymacja na dzień wykupu
-            {isInflationBond && <span style={{color:"#3a4a5e",marginLeft:6,textTransform:"none"}}>(zakładana inflacja {(assumedInfl*100).toFixed(1)}% · średnia {ASSUMED_INFLATION_MONTHS} mies.)</span>}
+            {isInflationBond && <span style={{color:"#3a4a5e",marginLeft:6,textTransform:"none"}}>(zakładana inflacja {(assumedInfl*100).toFixed(2)}% · średnia {ASSUMED_INFLATION_MONTHS} mies.)</span>}
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:8}}>
             <div>
