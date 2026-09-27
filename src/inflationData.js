@@ -77,10 +77,38 @@ export function getInflationForMonth(yearMonth) {
 // WERYFIKACJA (EDO zakup 30.08.2024, rok 2 od 30.08.2025):
 // bank podaje 6.10% = marża 2% + inflacja 4.1% = GUS za czerwiec 2025 ("2025-06").
 // Za sierpień 2025 GUS podał 2.9%, więc miesiąc startu okresu dałby złą stawkę.
+//
+// Okresy, dla których GUS jeszcze nie opublikował inflacji (przyszłe lata), liczone są
+// z założenia getAssumedFutureInflation(). Po każdej miesięcznej aktualizacji danych
+// kolejne okresy same przechodzą z założenia na prawdziwą wartość z GUS.
 export function getInflationForBondPeriod(periodStartDate) {
+  return getBondPeriodInflation(periodStartDate).value;
+}
+
+// To samo co getInflationForBondPeriod, plus informacja, czy wartość jest znana z GUS
+// (assumed: false), czy jest założeniem dla przyszłego okresu (assumed: true)
+export function getBondPeriodInflation(periodStartDate) {
   const d = new Date(periodStartDate);
   d.setDate(1);
   d.setMonth(d.getMonth() - 2);
   const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  return getInflationForMonth(yearMonth);
+  if (yearMonth > getLatestInflationMonth()) {
+    return { value: getAssumedFutureInflation(), assumed: true, yearMonth };
+  }
+  return { value: getInflationForMonth(yearMonth), assumed: false, yearMonth };
+}
+
+export function getLatestInflationMonth() {
+  return Object.keys(INFLATION_HISTORY).sort().pop();
+}
+
+// Założenie inflacji dla przyszłych okresów: średnia z ostatnich 12 opublikowanych miesięcy.
+// Nie skacze od jednego odczytu jak "ostatni miesiąc" i nie jest wzięta z sufitu jak stałe 4%.
+export const ASSUMED_INFLATION_MONTHS = 12;
+export function getAssumedFutureInflation() {
+  const values = Object.keys(INFLATION_HISTORY).sort()
+    .slice(-ASSUMED_INFLATION_MONTHS)
+    .map(k => INFLATION_HISTORY[k]);
+  if (!values.length) return 0.04;
+  return values.reduce((a, b) => a + b, 0) / values.length;
 }

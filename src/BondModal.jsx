@@ -1,7 +1,7 @@
 // src/BondModal.jsx
 import { useState, useEffect } from "react";
 import { getRateForPurchase, fetchLatestRates } from "./bondRates";
-import { INFLATION_HISTORY, getInflationForBondPeriod } from "./inflationData";
+import { INFLATION_HISTORY, getInflationForBondPeriod, getBondPeriodInflation, getAssumedFutureInflation, ASSUMED_INFLATION_MONTHS } from "./inflationData";
 
 // ─── Typy obligacji ───────────────────────────────────────────────────────────
 export const BOND_TYPES = {
@@ -84,7 +84,7 @@ export function calcBondCurrentValue(bond, customToday = null) {
   let valueYesterday = 0;
   for (let i = 0; i < quantity; i++) valueYesterday += calcSingleBond(params, purchase, yesterday, bondRate);
 
-  // Estymacja zysku na koniec — zakładamy obecną stawkę dla przyszłych okresów
+  // Estymacja zysku na koniec — przyszłe okresy z założoną inflacją (getAssumedFutureInflation)
   const maturity = new Date(maturityDate); maturity.setHours(0,0,0,0);
   let totalAtMaturity = 0;
   for (let i = 0; i < quantity; i++) totalAtMaturity += calcSingleBond(params, purchase, maturity, bondRate);
@@ -118,11 +118,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
 
   // Inflacja dla obligacji indeksowanych
   const isInflationBond = params?.rateType === "inflation";
-  const latestInflKey = Object.keys(INFLATION_HISTORY).sort().pop();
-  const latestInfl = INFLATION_HISTORY[latestInflKey];
-  const currentPeriodRate = isInflationBond
-    ? Math.max(0, latestInfl) + params.margin
-    : bond.rate;
+  const assumedInfl = getAssumedFutureInflation();
 
   // Oblicz stawki dla każdego okresu
   const periods = [];
@@ -146,14 +142,11 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
         rate = bond.rate;
         rateLabel = `${(rate*100).toFixed(2)}% (stała)`;
       } else if (params.rateType === "inflation") {
-        const infl = getInflationForBondPeriod(pStart);
+        const { value: infl, assumed } = getBondPeriodInflation(pStart);
         rate = Math.max(0, infl) + params.margin;
-        const inflKey = (() => {
-          const pm = pStart.getMonth() === 0 ? 12 : pStart.getMonth();
-          const py = pStart.getMonth() === 0 ? pStart.getFullYear()-1 : pStart.getFullYear();
-          return `${py}-${String(pm).padStart(2,"0")}`;
-        })();
-        rateLabel = `${(rate*100).toFixed(2)}% (infl. ${(infl*100).toFixed(1)}% + ${(params.margin*100).toFixed(1)}%)`;
+        rateLabel = assumed
+          ? `~${(rate*100).toFixed(2)}% (zał. infl. ${(infl*100).toFixed(1)}% + ${(params.margin*100).toFixed(1)}%)`
+          : `${(rate*100).toFixed(2)}% (infl. ${(infl*100).toFixed(1)}% + ${(params.margin*100).toFixed(1)}%)`;
       } else {
         rate = bond.rate;
         rateLabel = `${(rate*100).toFixed(2)}%`;
@@ -258,7 +251,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
         <div style={{background:"#0a1a12",border:"1px solid #1a3a20",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
           <div style={{fontSize:10,color:"#5a6a7e",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>
             Estymacja na dzień wykupu
-            {isInflationBond && <span style={{color:"#3a4a5e",marginLeft:6,textTransform:"none"}}>(inflacja {(latestInfl*100).toFixed(1)}%)</span>}
+            {isInflationBond && <span style={{color:"#3a4a5e",marginLeft:6,textTransform:"none"}}>(zakładana inflacja {(assumedInfl*100).toFixed(1)}% · średnia {ASSUMED_INFLATION_MONTHS} mies.)</span>}
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:8}}>
             <div>
