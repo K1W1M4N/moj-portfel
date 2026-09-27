@@ -1,6 +1,7 @@
 // src/CurrencyModal.jsx
 import { useState, useEffect } from "react";
 import { fetchFxRate } from "./fxUtils";
+import { fmtNum, fmtPctSigned } from "./format";
 
 // ─── Konfiguracja walut ───────────────────────────────────────────────────────
 export const SUPPORTED_CURRENCIES = [
@@ -157,7 +158,7 @@ export function CurrencyModal({ asset, onSave, onDelete, onClose, onMove }) {
             <div>
               <div style={{ fontSize: 10, color: "#5a6a7e", textTransform: "uppercase" }}>Aktualny kurs</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#3b9eff", fontFamily: "'DM Mono', monospace" }}>
-                {loadingRate ? "..." : `1 ${currencyCode} = ${numCurrentRate.toFixed(4)} PLN`}
+                {loadingRate ? "..." : `1 ${currencyCode} = ${fmtNum(numCurrentRate, 4)} PLN`}
               </div>
             </div>
             {currencyCode !== "PLN" && (
@@ -189,7 +190,7 @@ export function CurrencyModal({ asset, onSave, onDelete, onClose, onMove }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 11, color: "#8a9bb0" }}>Zysk / Strata na kursie:</span>
               <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
-                {pnlPLN >= 0 ? "+" : ""}{fmtPLN(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)
+                {pnlPLN >= 0 ? "+" : ""}{fmtPLN(pnlPLN)} ({fmtPctSigned(pnlPct)})
               </span>
             </div>
           </div>
@@ -265,12 +266,12 @@ export function CurrencyRow({ asset, color, onClick }) {
           <div style={{ fontSize: 11, color: "#4a5a6e" }}>
             {fmtCurr(asset.currencyAmount, asset.currencyCode)}
             {asset.currencyCode !== "PLN" && (
-              <span style={{ marginLeft: 6, color: "#2d3d4d" }}>@ {currentRate.toFixed(4)}</span>
+              <span style={{ marginLeft: 6, color: "#2d3d4d" }}>@ {fmtNum(currentRate, 4)}</span>
             )}
           </div>
           {asset.currencyCode !== "PLN" && asset.currencyPurchaseRate && (
             <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
-              {pnlPLN >= 0 ? "+" : ""}{pnlPLN.toFixed(2)} zł ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+              {pnlPLN >= 0 ? "+" : ""}{fmtNum(pnlPLN)} zł ({fmtPctSigned(pnlPct, 1)})
             </div>
           )}
         </div>

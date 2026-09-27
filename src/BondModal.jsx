@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { getRateForPurchase, fetchLatestRates } from "./bondRates";
 import { INFLATION_HISTORY, getInflationForBondPeriod, getBondPeriodInflation, getAssumedFutureInflation, ASSUMED_INFLATION_MONTHS } from "./inflationData";
+import { fmtPct, fmtPctSigned } from "./format";
 
 // ─── Typy obligacji ───────────────────────────────────────────────────────────
 export const BOND_TYPES = {
@@ -140,16 +141,16 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
       let rate, rateLabel, inflNote = null;
       if (k === 0) {
         rate = bond.rate;
-        rateLabel = `${(rate*100).toFixed(2)}% (stała)`;
+        rateLabel = `${fmtPct(rate*100)} (stała)`;
       } else if (params.rateType === "inflation") {
         const { value: infl, assumed, yearMonth } = getBondPeriodInflation(pStart);
         rate = Math.max(0, infl) + params.margin;
-        rateLabel = `${assumed ? "~" : ""}${(rate*100).toFixed(2)}% (infl. ${(infl*100).toFixed(1)}% + ${(params.margin*100).toFixed(1)}%)`;
+        rateLabel = `${assumed ? "~" : ""}${fmtPct(rate*100)} (infl. ${fmtPct(infl*100, 1)} + ${fmtPct(params.margin*100, 1)})`;
         const [iy, im] = yearMonth.split("-");
         inflNote = assumed ? "inflacja: założenie" : `inflacja GUS za ${im}.${iy}`;
       } else {
         rate = bond.rate;
-        rateLabel = `${(rate*100).toFixed(2)}%`;
+        rateLabel = fmtPct(rate*100);
       }
 
       const isPast = today > pEnd;
@@ -220,13 +221,13 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
             <div>
               <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Obecna wartość</div>
               <div style={{fontSize:14,fontWeight:600,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{fmt2(calc.currentValue)}</div>
-              <div style={{fontSize:11,color:"#009966",fontFamily:"'DM Mono',monospace",marginTop:2}}>(+{gainPct.toFixed(2)}%)</div>
+              <div style={{fontSize:11,color:"#009966",fontFamily:"'DM Mono',monospace",marginTop:2}}>({fmtPctSigned(gainPct)})</div>
             </div>
             <div>
               <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Narosłe odsetki</div>
               {/* Dwie linijki: kwota i procent osobno */}
               <div style={{fontSize:13,fontWeight:600,color:"#f0a030",fontFamily:"'DM Mono',monospace"}}>+{fmt2(earned)}</div>
-              <div style={{fontSize:11,color:"#c07820",fontFamily:"'DM Mono',monospace"}}>(+{gainPct.toFixed(2)}%)</div>
+              <div style={{fontSize:11,color:"#c07820",fontFamily:"'DM Mono',monospace"}}>({fmtPctSigned(gainPct)})</div>
             </div>
             <div>
               <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Przyrost dzienny</div>
@@ -251,7 +252,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
         <div style={{background:"#0a1a12",border:"1px solid #1a3a20",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
           <div style={{fontSize:10,color:"#5a6a7e",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>
             Estymacja na dzień wykupu
-            {isInflationBond && <span style={{color:"#3a4a5e",marginLeft:6,textTransform:"none"}}>(zakładana inflacja {(assumedInfl*100).toFixed(1)}% · średnia {ASSUMED_INFLATION_MONTHS} mies.)</span>}
+            {isInflationBond && <span style={{color:"#3a4a5e",marginLeft:6,textTransform:"none"}}>(zakładana inflacja {fmtPct(assumedInfl*100, 1)} · średnia {ASSUMED_INFLATION_MONTHS} mies.)</span>}
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:8}}>
             <div>
@@ -261,7 +262,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
             <div style={{textAlign:"right"}}>
               <div style={{fontSize:10,color:"#5a6a7e",marginBottom:2}}>Estymowany zysk</div>
               <div style={{fontSize:15,fontWeight:700,color:"#00c896",fontFamily:"'DM Mono',monospace"}}>+{fmt2(calc.estimatedProfit)}</div>
-              <div style={{fontSize:11,color:"#009966",fontFamily:"'DM Mono',monospace"}}>(+{estimatedProfitPct.toFixed(2)}%)</div>
+              <div style={{fontSize:11,color:"#009966",fontFamily:"'DM Mono',monospace"}}>({fmtPctSigned(estimatedProfitPct)})</div>
             </div>
           </div>
         </div>
@@ -299,7 +300,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
           </div>
           {periods.some(p => p.inflNote === "inflacja: założenie") && (
             <div style={{fontSize:10,color:"#4a5a6e",marginTop:8,lineHeight:1.5}}>
-              ~ założenie: średnia inflacja GUS z ostatnich {ASSUMED_INFLATION_MONTHS} mies. ({(assumedInfl*100).toFixed(1)}%).
+              ~ założenie: średnia inflacja GUS z ostatnich {ASSUMED_INFLATION_MONTHS} mies. ({fmtPct(assumedInfl*100, 1)}).
               Stawka zaktualizuje się sama, gdy GUS opublikuje inflację dla danego okresu.
             </div>
           )}
@@ -395,11 +396,11 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
 
         {isInflationBond && (
           <div style={{background:"#0f1a27",border:"1px solid #1e3a50",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#5a7a9e",lineHeight:1.7}}>
-            <span style={{color:"#3b9eff",fontWeight:600}}>Indeksowana inflacją GUS</span> · marża {((params.margin)*100).toFixed(1)}%
-            <br/>Ostatnia inflacja GUS: <span style={{color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>{(latestInfl*100).toFixed(1)}%</span>
+            <span style={{color:"#3b9eff",fontWeight:600}}>Indeksowana inflacją GUS</span> · marża {fmtPct(params.margin*100, 1)}
+            <br/>Ostatnia inflacja GUS: <span style={{color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>{fmtPct(latestInfl*100, 1)}</span>
             <span style={{color:"#4a5a6e",marginLeft:6}}>({latestInflKey})</span>
             <br/>Rok 1: stałe oprocentowanie z listu emisyjnego (pole poniżej).
-            <br/>Od roku 2: inflacja GUS ogłoszona w miesiącu przed startem roku + marża {((params.margin)*100).toFixed(1)}%.
+            <br/>Od roku 2: inflacja GUS ogłoszona w miesiącu przed startem roku + marża {fmtPct(params.margin*100, 1)}.
           </div>
         )}
 
@@ -422,7 +423,7 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
           <label style={labelSt}>
             Oprocentowanie roku 1 (%)
             <span style={{color:rateColor,marginLeft:8,fontWeight:400,textTransform:"none",letterSpacing:0}}>
-              {displayRate.toFixed(2)}% — {rateSource}
+              {fmtPct(displayRate)} — {rateSource}
             </span>
           </label>
           <input style={{...baseInp,MozAppearance:"textfield"}} type="number" step="0.01"
@@ -493,7 +494,7 @@ export function BondRow({ bond, color, onClick }) {
 
   // Skrócona nazwa: "EDO – 100 szt. (6.80%)" → "EDO · 100 szt."
   const shortName = `${bond.type || bond.name?.split("–")[0]?.trim()} · ${bond.quantity} szt.`;
-  const rateLabel = bond.rate ? ` (${(bond.rate*100).toFixed(2)}%)` : "";
+  const rateLabel = bond.rate ? ` (${fmtPct(bond.rate*100)})` : "";
 
   return (
     <div onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
@@ -519,7 +520,7 @@ export function BondRow({ bond, color, onClick }) {
             {new Date(bond.purchaseDate).toLocaleDateString("pl-PL")} → {new Date(bond.maturityDate).toLocaleDateString("pl-PL")} · {Math.round(calc.progress*100)}%
           </div>
           <div style={{fontSize:11,color:"#00c896",fontFamily:"'DM Mono',monospace",flexShrink:0,whiteSpace:"nowrap"}}>
-            +{fmt2(earned)} (+{gainPct.toFixed(2)}%)
+            +{fmt2(earned)} ({fmtPctSigned(gainPct)})
           </div>
         </div>
       </div>
