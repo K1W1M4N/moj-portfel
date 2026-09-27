@@ -42,6 +42,7 @@ const fmtPLN2 = n => new Intl.NumberFormat("pl-PL", { style: "currency", currenc
 const fmtUSD  = n => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " USD";
 
 import { fetchFxRate } from "./fxUtils";
+import { fmtNum, fmtPctSigned } from "./format";
 
 // ─── Cache cen surowców w localStorage ───────────────────────────────────────
 const COMMODITY_CACHE_KEY = "pt-commodity-cache";
@@ -181,7 +182,7 @@ export function CommodityDetailPanel({ asset, commodityPrices, onEdit, onDelete,
             <div style={{ fontSize: 11, color: "#5a6a7e" }}>
               {asset.commodityAmount} {asset.commodityUnit}
               {asset.commodityUnit !== "oz" && (
-                <span style={{ marginLeft: 6, color: "#3a4a5e" }}>= {oz.toFixed(4)} oz</span>
+                <span style={{ marginLeft: 6, color: "#3a4a5e" }}>= {fmtNum(oz, 4)} oz</span>
               )}
             </div>
           </div>
@@ -263,7 +264,7 @@ export function CommodityDetailPanel({ asset, commodityPrices, onEdit, onDelete,
                 <div>
                   <div style={{ fontSize: 10, color: "#5a6a7e", marginBottom: 2 }}>Zmiana %</div>
                   <div style={{ fontSize: 18, fontWeight: 700, color: pnlPLN >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono',monospace" }}>
-                    {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
+                    {fmtPctSigned(pnlPct)}
                   </div>
                 </div>
               </>
@@ -293,7 +294,7 @@ export function CommodityDetailPanel({ asset, commodityPrices, onEdit, onDelete,
                       </div>
                       {lotPct !== null && (
                         <span style={{ fontSize: 11, fontFamily: "'DM Mono',monospace", color: lotPnl >= 0 ? "#00c896" : "#f05060", flexShrink: 0 }}>
-                          {lotPct >= 0 ? "+" : ""}{lotPct.toFixed(1)}%
+                          {fmtPctSigned(lotPct, 1)}
                         </span>
                       )}
                     </div>
@@ -312,7 +313,7 @@ export function CommodityDetailPanel({ asset, commodityPrices, onEdit, onDelete,
 
         {/* Stopka */}
         <div style={{ fontSize: 11, color: "#3a4a5e", padding: "4px 4px", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 4 }}>
-          <span>{usdPLN ? `1 USD = ${usdPLN.toFixed(4)} PLN (NBP)` : ""}</span>
+          <span>{usdPLN ? `1 USD = ${fmtNum(usdPLN, 4)} PLN (NBP)` : ""}</span>
           <span>
             Źródło: {providerLabel}
             {fromCache && cacheAge !== null && ` (${cacheAge} min temu)`}
@@ -546,7 +547,7 @@ export function CommodityModal({ asset, onSave, onDelete, onClose }) {
               <div>
                 <div style={{ fontSize: 11, color: "#5a7a9e" }}>Łącznie</div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: "#e8f0f8", fontFamily: "'DM Mono', monospace" }}>
-                  {totalOz.toFixed(4)} oz
+                  {fmtNum(totalOz, 4)} oz
                 </div>
                 <div style={{ fontSize: 11, color: "#4a5a6e" }}>Zapłacono: {fmtPLN(totalPaidPLN)}</div>
               </div>
@@ -558,7 +559,7 @@ export function CommodityModal({ asset, onSave, onDelete, onClose }) {
                   </div>
                   {pnlPLN !== null && (
                     <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
-                      {pnlPLN >= 0 ? "+" : ""}{fmtPLN(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct?.toFixed(1)}%)
+                      {pnlPLN >= 0 ? "+" : ""}{fmtPLN(pnlPLN)} ({fmtPctSigned(pnlPct, 1)})
                     </div>
                   )}
                 </div>
@@ -652,7 +653,7 @@ export function CommodityRow({ asset, commodityPrices, color, onClick }) {
           </div>
           {hasLivePrice && (
             <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0, whiteSpace: "nowrap", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
-              {pnlPLN >= 0 ? "+" : ""}{fmtPLN0(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+              {pnlPLN >= 0 ? "+" : ""}{fmtPLN0(pnlPLN)} ({fmtPctSigned(pnlPct, 1)})
             </div>
           )}
         </div>

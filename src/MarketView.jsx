@@ -23,9 +23,9 @@ function fmtNum(n, decimals = 2) {
 }
 function fmtVol(n) {
   if (n == null) return "—";
-  if (n >= 1e9) return (n / 1e9).toFixed(1) + " G";
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + " M";
-  if (n >= 1e3) return (n / 1e3).toFixed(0) + " k";
+  if (n >= 1e9) return fmtNum(n / 1e9, 1) + " G";
+  if (n >= 1e6) return fmtNum(n / 1e6, 1) + " M";
+  if (n >= 1e3) return fmtNum(n / 1e3, 0) + " k";
   return String(n);
 }
 function timeAgo(ms) {

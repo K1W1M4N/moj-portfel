@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { fetchFxRate, fetchFxRates } from "./fxUtils";
 import { usePnlMode } from "./preferences";
 import { calcPaidPLN } from "./portfolioCalc";
+import { fmtNum, fmtPct, fmtPctSigned } from "./format";
 
 // ─── Proxy URL — omija CORS i limity Twelve Data ─────────────────────────────
 const PROXY_BASE = "/api/stock-price";
@@ -246,7 +247,7 @@ function StockNewsSection({ articles, fetchedAt, loading, onRefresh, relevantInd
           fontSize: 11, color: accentColor, lineHeight: 1.5,
         }}>
           <span style={{ fontWeight: 600 }}>
-            {moveUp ? "▲" : "▼"} Kurs zmienił się o {moveUp ? "+" : ""}{pnlPct.toFixed(1)}% od zakupu.
+            {moveUp ? "▲" : "▼"} Kurs zmienił się o {moveUp ? "+" : ""}{fmtPct(pnlPct, 1)} od zakupu.
           </span>
         </div>
       )}
@@ -697,7 +698,7 @@ function StockChart({ symbol, exchange, currency, open: openProp, onToggle }) {
 
     const yLabels = [0, 1, 2].map(i => ({
       y: toY(minP + pRange * i / 2),
-      label: (minP + pRange * i / 2).toFixed(2),
+      label: fmtNum(minP + pRange * i / 2),
     }));
     const xLabels = [0, 1, 2, 3].map(i => {
       const idx = Math.round(i / 3 * (pts.length - 1));
@@ -745,7 +746,7 @@ function StockChart({ symbol, exchange, currency, open: openProp, onToggle }) {
             <span>Wykres kursu</span>
             {geom && (
               <span style={{ color: geom.changeColor, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
-                {geom.changePct >= 0 ? "+" : ""}{geom.changePct.toFixed(2)}%
+                {fmtPctSigned(geom.changePct)}
               </span>
             )}
           </span>
@@ -789,7 +790,7 @@ function StockChart({ symbol, exchange, currency, open: openProp, onToggle }) {
                   <>
                     <span style={{ color: "#5a6a7e" }}>{geom.hoverInfo.date}</span>
                     <span style={{ fontFamily: "'DM Mono', monospace", color: "#e8f0f8" }}>
-                      {geom.hoverInfo.price.toFixed(2)} {currency}
+                      {fmtNum(geom.hoverInfo.price)} {currency}
                     </span>
                   </>
                 ) : (
@@ -800,7 +801,7 @@ function StockChart({ symbol, exchange, currency, open: openProp, onToggle }) {
                       {new Date(geom.pts[geom.pts.length-1].ts * 1000).toLocaleDateString("pl-PL", { day: "2-digit", month: "short", year: "numeric" })}
                     </span>
                     <span style={{ fontFamily: "'DM Mono', monospace", color: geom.changeColor }}>
-                      {geom.changePct >= 0 ? "+" : ""}{geom.changePct.toFixed(2)}%
+                      {fmtPctSigned(geom.changePct)}
                     </span>
                   </>
                 )}
@@ -1008,10 +1009,10 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
               </div>
               {hasLive && priceData && (
                 <div style={{ fontSize: 12, color: "#8a9bb0", marginTop: 3 }}>
-                  {priceData.priceOrig.toFixed(2)} {stock.stockCurrency}
+                  {fmtNum(priceData.priceOrig)} {stock.stockCurrency}
                   {stock.stockCurrency !== "PLN" && (
                     <span style={{ marginLeft: 6, color: "#5a6a7e" }}>
-                      × {priceData.fx.toFixed(2)} PLN/
+                      × {fmtNum(priceData.fx)} PLN/
                       {stock.stockCurrency}
                     </span>
                   )}
@@ -1051,7 +1052,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
               <div style={{ fontSize: 11, color: "#5a7a9e" }}>Zysk / strata</div>
               <div style={{ fontSize: 14, fontWeight: 600, color: pnlColor, fontFamily: "'DM Mono', monospace" }}>
                 {pnlPLN >= 0 ? "+" : ""}{fmtPLN2(pnlPLN)}
-                <span style={{ fontSize: 12, marginLeft: 6 }}>({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)</span>
+                <span style={{ fontSize: 12, marginLeft: 6 }}>({fmtPctSigned(pnlPct)})</span>
               </div>
             </div>
           </div>
@@ -1070,7 +1071,7 @@ export function StockDetailPanel({ stock, stockPrices, onEdit, onDelete, onClose
         <div style={{ background: "#0f1a27", borderRadius: 12, padding: "14px 16px", marginBottom: 14, marginTop: 16 }}>
           <div style={{ fontSize: 11, color: "#5a7a9e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Szczegóły pozycji</div>
 
-          <Row label="Ilość" value={`${Number(stock.stockQuantity).toFixed(4)} szt.`} />
+          <Row label="Ilość" value={`${fmtNum(stock.stockQuantity, 4)} szt.`} />
 
           {/* Transze — lista zakupów */}
           {stock.stockTranches?.length > 0 ? (
@@ -1612,7 +1613,7 @@ function Summary({ paid, current, pnl, pnlPct, sub }) {
             <div style={{ fontSize: 15, fontWeight: 600, color: "#e8e040", fontFamily: "'DM Mono', monospace" }}>{fmtPLN(current)}</div>
             {pnl !== null && (
               <div style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: pnl >= 0 ? "#00c896" : "#f05060" }}>
-                {pnl >= 0 ? "+" : ""}{fmtPLN(pnl)} ({pnlPct >= 0 ? "+" : ""}{pnlPct?.toFixed(1)}%)
+                {pnl >= 0 ? "+" : ""}{fmtPLN(pnl)} ({fmtPctSigned(pnlPct, 1)})
               </div>
             )}
           </div>
@@ -1767,15 +1768,15 @@ export function StockRow({ stock, stockPrices, onClick }) {
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div style={{ fontSize: 11, color: "#4a5a6e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
-            {stock.stockQuantity > 0 && `${Number(stock.stockQuantity).toFixed(4)} szt.`}
+            {stock.stockQuantity > 0 && `${fmtNum(stock.stockQuantity, 4)} szt.`}
             {priceData && (
               <span style={{ marginLeft: 4, color: "#5a6a7e" }}>
-                @ {priceData.stale ? "~" : ""}{priceData.priceOrig.toFixed(2)} {stock.stockCurrency}
+                @ {priceData.stale ? "~" : ""}{fmtNum(priceData.priceOrig)} {stock.stockCurrency}
               </span>
             )}
             {showAvgBuy && (
               <span style={{ marginLeft: 4, color: "#3a4a5e", fontSize: 10 }}>
-                · zak. {avgBuyOrig.toFixed(2)}
+                · zak. {fmtNum(avgBuyOrig)}
               </span>
             )}
             {!hasLivePrice && (
@@ -1788,7 +1789,7 @@ export function StockRow({ stock, stockPrices, onClick }) {
           </div>
           {hasLivePrice && (
             <div style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0, whiteSpace: "nowrap", color: pnlPLN >= 0 ? "#00c896" : "#f05060" }}>
-              {pnlPLN >= 0 ? "+" : ""}{fmtPLN2(pnlPLN)} ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)
+              {pnlPLN >= 0 ? "+" : ""}{fmtPLN2(pnlPLN)} ({fmtPctSigned(pnlPct)})
             </div>
           )}
         </div>
