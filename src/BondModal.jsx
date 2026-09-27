@@ -137,16 +137,16 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
       }
       const today = new Date();
 
-      let rate, rateLabel;
+      let rate, rateLabel, inflNote = null;
       if (k === 0) {
         rate = bond.rate;
         rateLabel = `${(rate*100).toFixed(2)}% (stała)`;
       } else if (params.rateType === "inflation") {
-        const { value: infl, assumed } = getBondPeriodInflation(pStart);
+        const { value: infl, assumed, yearMonth } = getBondPeriodInflation(pStart);
         rate = Math.max(0, infl) + params.margin;
-        rateLabel = assumed
-          ? `~${(rate*100).toFixed(2)}% (zał. infl. ${(infl*100).toFixed(1)}% + ${(params.margin*100).toFixed(1)}%)`
-          : `${(rate*100).toFixed(2)}% (infl. ${(infl*100).toFixed(1)}% + ${(params.margin*100).toFixed(1)}%)`;
+        rateLabel = `${assumed ? "~" : ""}${(rate*100).toFixed(2)}% (infl. ${(infl*100).toFixed(1)}% + ${(params.margin*100).toFixed(1)}%)`;
+        const [iy, im] = yearMonth.split("-");
+        inflNote = assumed ? "inflacja: założenie" : `inflacja GUS za ${im}.${iy}`;
       } else {
         rate = bond.rate;
         rateLabel = `${(rate*100).toFixed(2)}%`;
@@ -154,7 +154,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
 
       const isPast = today > pEnd;
       const isCurrent = today >= pStart && today <= pEnd;
-      periods.push({ k, pStart, pEnd, rate, rateLabel, isPast, isCurrent });
+      periods.push({ k, pStart, pEnd, rate, rateLabel, inflNote, isPast, isCurrent });
     }
   }
 
@@ -270,7 +270,7 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
         <div style={{background:"#0f1a27",borderRadius:12,padding:"12px 14px"}}>
           <div style={{fontSize:10,color:"#5a6a7e",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>Okresy odsetkowe</div>
           <div style={{display:"flex",flexDirection:"column",gap:5}}>
-            {periods.map(({k, pStart, pEnd, rateLabel, isPast, isCurrent}) => (
+            {periods.map(({k, pStart, pEnd, rateLabel, inflNote, isPast, isCurrent}) => (
               <div key={k} style={{padding:"7px 10px",borderRadius:8,background:isCurrent?"#1a2a1a":isPast?"transparent":"transparent",border:`1px solid ${isCurrent?"#00c89640":"#1e2a38"}`}}>
                 {/* Wiersz: numer roku + stawka (whiteSpace nowrap) */}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
@@ -292,10 +292,17 @@ export function BondDetailPanel({ bond, onEdit, onDelete, onClose, onMove }) {
                 {/* Daty w osobnym wierszu */}
                 <div style={{fontSize:10,color:isPast?"#2a3a4e":"#3a4a5e",marginTop:2,marginLeft:10}}>
                   {pStart.toLocaleDateString("pl-PL")} – {pEnd.toLocaleDateString("pl-PL")}
+                  {inflNote && <span> · {inflNote}</span>}
                 </div>
               </div>
             ))}
           </div>
+          {periods.some(p => p.inflNote === "inflacja: założenie") && (
+            <div style={{fontSize:10,color:"#4a5a6e",marginTop:8,lineHeight:1.5}}>
+              ~ założenie: średnia inflacja GUS z ostatnich {ASSUMED_INFLATION_MONTHS} mies. ({(assumedInfl*100).toFixed(1)}%).
+              Stawka zaktualizuje się sama, gdy GUS opublikuje inflację dla danego okresu.
+            </div>
+          )}
         </div>
 
       </div>
@@ -391,7 +398,8 @@ export function BondModal({ bond, onSave, onDelete, onClose }) {
             <span style={{color:"#3b9eff",fontWeight:600}}>Indeksowana inflacją GUS</span> · marża {((params.margin)*100).toFixed(1)}%
             <br/>Ostatnia inflacja GUS: <span style={{color:"#e8f0f8",fontFamily:"'DM Mono',monospace"}}>{(latestInfl*100).toFixed(1)}%</span>
             <span style={{color:"#4a5a6e",marginLeft:6}}>({latestInflKey})</span>
-            <br/>Stawka bieżącego okresu: <span style={{color:"#00c896",fontFamily:"'DM Mono',monospace"}}>{((Math.max(0,latestInfl)+params.margin)*100).toFixed(2)}%</span>
+            <br/>Rok 1: stałe oprocentowanie z listu emisyjnego (pole poniżej).
+            <br/>Od roku 2: inflacja GUS ogłoszona w miesiącu przed startem roku + marża {((params.margin)*100).toFixed(1)}%.
           </div>
         )}
 
