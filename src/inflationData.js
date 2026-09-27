@@ -104,11 +104,15 @@ export function getLatestInflationMonth() {
 
 // Założenie inflacji dla przyszłych okresów: średnia z ostatnich 12 opublikowanych miesięcy.
 // Nie skacze od jednego odczytu jak "ostatni miesiąc" i nie jest wzięta z sufitu jak stałe 4%.
+// Zaokrąglona do 0,1 p.p., tak jak GUS publikuje inflację — w wyliczeniach i w etykietach
+// używana jest ta sama liczba.
 export const ASSUMED_INFLATION_MONTHS = 12;
 export function getAssumedFutureInflation() {
   const values = Object.keys(INFLATION_HISTORY).sort()
     .slice(-ASSUMED_INFLATION_MONTHS)
     .map(k => INFLATION_HISTORY[k]);
   if (!values.length) return 0.04;
-  return values.reduce((a, b) => a + b, 0) / values.length;
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  // epsilon: suma ułamków binarnych daje np. 0.027499999… zamiast 0.0275
+  return Math.round(avg * 1000 + 1e-9) / 1000;
 }
