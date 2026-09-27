@@ -46,16 +46,20 @@ function calcSingleBond(params, purchaseDate, today, rate1) {
       rate = rate1;
     }
 
+    // Bez zaokrągleń na koniec lat — PKO BP zaokrągla do grosza tylko wynik końcowy.
+    // WERYFIKACJA (EDO zakup 30.08.2024, stan 27.09.2026): 100 × 1,068 × 1,061 × (1 + 4,5% × 28/365)
+    // = 113,70597 → 113,71 zł/szt., zgodnie z bankiem. Zaokrąglanie co rok dawało 113,70.
     const ACT = (pEnd - pStart) / 86400000;
     if (today <= pEnd) {
       const a_k = (today - pStart) / 86400000;
-      val = Math.round((params.coupon ? 100.0 : val) * (1 + rate * a_k / ACT) * 100) / 100;
+      val = (params.coupon ? 100.0 : val) * (1 + rate * a_k / ACT);
       break;
     } else {
-      val = params.coupon ? 100.0 : Math.round(val * (1 + rate) * 100) / 100;
+      val = params.coupon ? 100.0 : val * (1 + rate);
     }
   }
-  return val;
+  // epsilon: np. 100 × 1,068 × 1,061 w liczbach binarnych może wyjść o włos poniżej ,xx5
+  return Math.round(val * 100 + 1e-9) / 100;
 }
 
 export function calcBondCurrentValue(bond, customToday = null) {
