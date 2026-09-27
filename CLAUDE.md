@@ -86,11 +86,18 @@ są dużo tańsze niż ogólne ("napraw ceny akcji").
 
 ## Środowisko lokalne
 
+Pełna lista zmiennych jest w `.env.example` — skopiuj go do `.env.local` i uzupełnij:
+
 ```
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
-GROQ_API_KEY=...        # używany przez api/news-summary.js (streszczenia AI)
+TWELVE_DATA_API_KEY=... # fallback kursów akcji i wyszukiwarki symboli
+GOLDAPI_KEY=...         # ceny surowców
+GROQ_API_KEY=...        # api/news-summary.js i api/xtb-screenshot.js
 ```
 
-`.env.local` jest w `.gitignore`. Wartości Supabase z panelu Supabase (Project
-Settings → API) albo od drugiej osoby.
+`.env.local` jest w `.gitignore`, więc klucze **nie przechodzą przez `git pull`** — każdy
+musi je mieć u siebie. Wartości: `vercel env pull .env.local` (wymaga dostępu do projektu
+na Vercelu, nadpisuje plik), panel Supabase (Project Settings → API) albo prywatnie od
+drugiej osoby. Nigdy nie wklejaj wartości kluczy do repo, PR-a ani commita. Dodajesz
+nową zmienną? Dopisz jej nazwę (bez wartości) do `.env.example` i ustaw ją na Vercelu.
