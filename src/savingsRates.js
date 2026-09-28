@@ -1,6 +1,6 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-09-21 15:35
+// Ostatnia aktualizacja: 2026-09-28 17:16
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
@@ -17,7 +17,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: null,
       promoConditionsList: [],
       requiresROR: false,
-      isNew: true,
+      isNew: false,
       addedDate: "2026-09-14",
       url: "",
     },
@@ -32,7 +32,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: null,
       promoConditionsList: [],
       requiresROR: false,
-      isNew: true,
+      isNew: false,
       addedDate: "2026-09-14",
       url: "",
     },
@@ -43,11 +43,11 @@ export const SAVINGS_RATES_DB = {
       ratePromo: 7.0,
       promoLimit: 100000,
       promoDays: 6,
-      promoEndDate: "2026-09-18",
+      promoEndDate: "2026-09-25",
       promoConditions: null,
       promoConditionsList: [],
       requiresROR: true,
-      isNew: true,
+      isNew: false,
       addedDate: "2026-09-14",
       url: "",
     },
@@ -272,7 +272,7 @@ export const SAVINGS_RATES_DB = {
       promoConditions: null,
       promoConditionsList: [],
       requiresROR: false,
-      isNew: true,
+      isNew: false,
       addedDate: "2026-09-14",
       url: "https://www.raisin.com",
     },
