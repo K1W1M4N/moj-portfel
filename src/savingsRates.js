@@ -1,10 +1,10 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-09-28 17:16
+// Ostatnia aktualizacja: 2026-10-05 17:45
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
-  lastUpdated: "2026-09",
+  lastUpdated: "2026-10",
   accounts: [
     {
       bank: "Nest Konto Oszczędnościowe",
@@ -37,18 +37,18 @@ export const SAVINGS_RATES_DB = {
       url: "",
     },
     {
-      bank: "Ranking Kont Oszczędnościowych – Wrzesień 2026 r.",
-      name: "Ranking Kont Oszczędnościowych – Wrzesień 2026 r.",
+      bank: "Sprawdź, jak tworzymy ranking",
+      name: "Ranking Kont Oszczędnościowych – Październik 2026 r.",
       rateStandard: 0.97,
       ratePromo: 7.0,
       promoLimit: 100000,
-      promoDays: 6,
-      promoEndDate: "2026-09-25",
+      promoDays: 4,
+      promoEndDate: "2026-10-01",
       promoConditions: null,
       promoConditionsList: [],
       requiresROR: true,
-      isNew: false,
-      addedDate: "2026-09-14",
+      isNew: true,
+      addedDate: "2026-10-05",
       url: "",
     },
     {
