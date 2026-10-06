@@ -85,7 +85,10 @@ D. Kolejność dowolna; proponowana w pkt 9.
 - Dziennik musi być idempotentny: ponowny import tego samego pliku nie może dublować wpisów (klucz: konto + ID operacji z XTB).
 
 ## 9. Etapy wdrożenia
-**Status: etap 1 zrobiony (niezacommitowany). Kolejny: etap 2.**
+**Status: etap 1 zacommitowany (93436ae). Etap 2 zrobiony i sprawdzony w trybie testowym (niezacommitowany). Kolejny: etap 3.**
+Etap 2 — logika w `src/dailyBalance.js`. Ograniczenia: kurs waluty z poprzedniego dnia przyjęty jako dzisiejszy (zmiana FX w ciągu doby
+nie jest ujęta); waluty/gotówka i aktywa ręczne nie mają źródła zmiany dziennej → kafelek pokazuje dopisek "bez: <kategoria>";
+krypto liczone ze zmiany 24h (okno kroczące, nie sesja).
 Odstępstwo od planu w etapie 1: bez podbicia `SCHEMA_VERSION` — nowy `src/historyStore.js` czyta oba formaty historii (stary i nowy),
 więc migracja nie jest potrzebna (stare wpisy są czytane jako portfel "default" z flagą `legacy`).
 1. Naprawy: koszt surowców (`commodityPaidPLN` w `getAssetCostBasis`); snapshot per portfel + pole `paid` + nadpisywanie wpisu dnia po odświeżeniu cen;

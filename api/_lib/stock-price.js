@@ -44,8 +44,11 @@ async function fetchYahoo(symbol, exchange) {
     const price = meta.regularMarketPrice;
     if (!price || isNaN(price)) return null;
 
+    // range=1d: chartPreviousClose = zamknięcie poprzedniej sesji (także w weekend — wtedy ostatnia sesja vs. jej poprzedniczka)
+    const prev = parseFloat(meta.previousClose ?? meta.chartPreviousClose);
     return {
       price: parseFloat(price),
+      previousClose: prev > 0 ? prev : null,
       currency: meta.currency || map.currency,
       provider: "yahoo",
       timestamp: new Date(meta.regularMarketTime * 1000).toISOString(),
@@ -179,6 +182,19 @@ async function fetchPrice(symbol, exchange) {
   return null;
 }
 
+// Cena z providera + poprzednie zamknięcie (jeśli provider go nie dał — dopytujemy Yahoo, np. dla GPW przez Stooq).
+// sessionTs = czas notowania, do którego odnosi się previousClose (do ustalenia, którą sesję opisuje "bilans dziś").
+async function fetchPriceWithPrev(symbol, exchange) {
+  const result = await fetchPrice(symbol, exchange);
+  if (!result) return null;
+  if (result.provider === "yahoo") return { ...result, sessionTs: result.timestamp };
+  const y = await fetchYahoo(symbol, exchange);
+  if (!y || !y.previousClose) return result;
+  // Waluty muszą się zgadzać, inaczej poprzednie zamknięcie byłoby w innej jednostce niż cena
+  if (result.currency && y.currency && result.currency !== y.currency) return result;
+  return { ...result, previousClose: y.previousClose, sessionTs: y.timestamp };
+}
+
 // ─── API Handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   // CORS headers
@@ -211,7 +227,7 @@ export default async function handler(req, res) {
     symbolList.map(async (symbol, i) => {
       const exchange = exchangeList[i] || "XNAS"; // Default: NASDAQ
       try {
-        const result = await fetchPrice(symbol, exchange);
+        const result = await fetchPriceWithPrev(symbol, exchange);
         if (result) {
           prices[symbol] = result;
         } else {

@@ -48,8 +48,10 @@ async function fetchYahooFutures(symbol) {
     const price = meta.regularMarketPrice;
     if (!price || isNaN(price) || price <= 0) return null;
 
+    const prev = parseFloat(meta.previousClose ?? meta.chartPreviousClose);
     return {
       priceUSD: parseFloat(price),
+      previousCloseUSD: prev > 0 ? prev : null,
       provider: "yahoo",
       timestamp: meta.regularMarketTime
         ? new Date(meta.regularMarketTime * 1000).toISOString()

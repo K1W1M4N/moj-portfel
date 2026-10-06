@@ -7,6 +7,7 @@ import { CurrencyModal, CurrencyRow, SUPPORTED_CURRENCIES } from "./CurrencyModa
 import { fetchFxRate } from "./fxUtils";
 import { PNL_MODES, getPnlMode, setPnlMode, usePnlMode } from "./preferences";
 import { calcPaidPLN } from "./portfolioCalc";
+import { calcDailyBalance, sessionLabel } from "./dailyBalance";
 import { historySeries, upsertSnapshot, removePortfolioFromHistory } from "./historyStore";
 import { SettingsView } from "./SettingsView";
 import { XtbImportModal } from "./XtbImportModal";
@@ -549,7 +550,7 @@ function calcSavingsValueAtDate(account, targetDate) {
   return Math.round((currentVal - interestNet) * 100) / 100;
 }
 
-function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlMode, stockPrices }) {
+function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlMode, stockPrices, cryptoPrices, commodityPrices }) {
   const cats = activeFilter ? [activeFilter] : categories.map(c => c.name);
   let totalValue = 0, totalPaid = 0;
 
@@ -590,11 +591,18 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlM
     return total;
   }
 
-  const v1d = getHistVal(1);
   const v30d = getHistVal(30);
   const v365d = getHistVal(365);
-  const diff1d = v1d !== null ? totalValue - v1d : null;
-  const pct1d = v1d && v1d > 0 ? (diff1d / v1d) * 100 : null;
+
+  // Bilans dziś — faktyczna zmiana od poprzedniego zamknięcia (patrz src/dailyBalance.js)
+  const daily = calcDailyBalance(
+    activeFilter ? assets.filter(a => a.category === activeFilter) : assets,
+    { stockPrices, cryptoPrices, commodityPrices, bondDailyGain: a => calcBondCurrentValue(a).dailyGain }
+  );
+  const dailyNotes = [];
+  const sess = sessionLabel(daily.sessionTs);
+  if (sess) dailyNotes.push("sesja " + sess);
+  if (daily.uncovered.length > 0) dailyNotes.push("bez: " + daily.uncovered.map(u => u.category).join(", "));
   const diff30d = v30d !== null ? totalValue - v30d : null;
   const pct30d = v30d && v30d > 0 ? (diff30d / v30d) * 100 : null;
   const diff365d = v365d !== null ? totalValue - v365d : null;
@@ -610,7 +618,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlM
     }).format(n);
   }
 
-  const mBlock = (label, diff, pct) => (
+  const mBlock = (label, diff, pct, note) => (
     <div style={{ background: "#0f1621", border: "1px solid " + (diff !== null && diff !== 0 ? (diff > 0 ? "#00c89630" : "#f0506030") : "#1e2a38"), borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, flex: "1 1 120px", minWidth: 0 }}>
       <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>{label}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginTop: "auto" }}>
@@ -623,6 +631,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlM
           </div>
         )}
       </div>
+      {note && <div style={{ fontSize: 8, color: "#4a5a6e", lineHeight: 1.3 }}>{note}</div>}
     </div>
   );
 
@@ -655,7 +664,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlM
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {mBlock("Zysk dzienny", diff1d, pct1d)}
+          {mBlock("Bilans dziś", daily.covered > 0 ? daily.diff : null, daily.pct, dailyNotes.join(" · ") || null)}
           {mBlock("Zysk miesięczny", diff30d, pct30d)}
           {mBlock("Zysk roczny", diff365d, pct365d)}
           <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
@@ -2289,6 +2298,8 @@ export default function App() {
                     history={history}
                     pnlMode={pnlMode}
                     stockPrices={stockPrices}
+                    cryptoPrices={prices}
+                    commodityPrices={commodityPrices}
                   />
                 </>
               ) : (
