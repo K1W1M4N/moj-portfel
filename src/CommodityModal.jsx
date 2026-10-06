@@ -97,6 +97,7 @@ export function useCommodityPrices(assets) {
         if (pd?.priceUSD) {
           newPrices[sym] = {
             priceUSD: pd.priceUSD,
+            prevUSD: pd.previousCloseUSD > 0 ? pd.previousCloseUSD : null,
             pricePLN: pd.priceUSD * usdPLN,
             usdPLN,
             eurPLN,

@@ -56,6 +56,14 @@ pracowaliście (np. `useCloudSync.js`, `App.jsx`), przeczytaj obie strony zmiany
 wybierzesz jedną — zwykle chodzi o połączenie dwóch warunków/guardów, nie o wybór
 jednej wersji kosztem drugiej.
 
+## Bilanse na ekranie głównym
+
+Kafelki "Bilans dziś / w tym miesiącu / w tym roku / portfela" liczą się z faktycznych danych, nie z estymacji:
+`src/dailyBalance.js` (poprzednie zamknięcie), `src/periodBalance.js` (kursy historyczne z `/api/price-at`,
+per transza — zakup w okresie nie jest zyskiem), `src/historyStore.js` (dzienne snapshoty per portfel).
+To czyste moduły bez Reacta — po zmianie obliczeń odpal `npm run test:bilans`.
+Plan, decyzje i znane luki: `docs/PLAN-statystyki-portfela.md`.
+
 ## Znane problemy
 
 - **Zaszyte klucze API** (Twelve Data, GoldAPI): fallbacki usunięte z kodu (commit

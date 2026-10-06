@@ -8,6 +8,7 @@
 const ROUTES = {
   "stock-price":     () => import("./_lib/stock-price.js"),
   "stock-chart":     () => import("./_lib/stock-chart.js"),
+  "price-at":        () => import("./_lib/price-at.js"),
   "symbol-search":   () => import("./_lib/symbol-search.js"),
   "commodity-price": () => import("./_lib/commodity-price.js"),
   "fx-rate":         () => import("./_lib/fx-rate.js"),

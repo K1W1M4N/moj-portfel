@@ -340,6 +340,12 @@ function getRefreshInterval() {
 }
 
 // ─── Hook: live ceny dla aktywów giełdowych ───────────────────────────────────
+// Poprzednie zamknięcie (w walucie notowania) i czas sesji, której dotyczy — do liczenia "bilansu dziś"
+function prevFields(entry) {
+  const prev = parseFloat(entry?.previousClose);
+  return prev > 0 ? { prevOrig: prev, sessionTs: entry.sessionTs || null } : {};
+}
+
 export function useStockPrices(assets) {
   const [stockPrices, setStockPrices] = useState(() => loadPriceCache());
   const [stockLastUpdated, setStockLastUpdated] = useState(null);
@@ -370,7 +376,7 @@ export function useStockPrices(assets) {
           const currency = asset?.stockCurrency || "PLN";
           const priceOrig = parseFloat(priceVal);
           const fx = fxRates[currency] || 1;
-          newPrices[symbols[0]] = { priceOrig, pricePLN: priceOrig * fx, currency, fx, ts: Date.now(), provider: entry?.provider || data?.provider || null };
+          newPrices[symbols[0]] = { priceOrig, pricePLN: priceOrig * fx, currency, fx, ts: Date.now(), provider: entry?.provider || data?.provider || null, ...prevFields(entry) };
         }
       } else {
         for (const sym of symbols) {
@@ -381,7 +387,7 @@ export function useStockPrices(assets) {
             const currency = asset?.stockCurrency || "PLN";
             const priceOrig = parseFloat(priceVal);
             const fx = fxRates[currency] || 1;
-            newPrices[sym] = { priceOrig, pricePLN: priceOrig * fx, currency, fx, ts: Date.now(), provider: entry?.provider || null };
+            newPrices[sym] = { priceOrig, pricePLN: priceOrig * fx, currency, fx, ts: Date.now(), provider: entry?.provider || null, ...prevFields(entry) };
           }
         }
       }
