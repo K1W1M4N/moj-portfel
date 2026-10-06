@@ -113,3 +113,40 @@ więc migracja nie jest potrzebna (stare wpisy są czytane jako portfel "default
 - Stopa zwrotu realna (po inflacji — jest `inflationData.js`) zamiast usuniętej "średniej rocznej".
 - Rozbicie bilansu okresu na kategorie po kliknięciu kafelka.
 - Najlepsza/najgorsza pozycja okresu.
+
+## 10. Baza do następnej sesji (stan na 2026-10-06)
+
+Gałąź `feature/bilans-statystyki`, etapy 1–4 i 7 gotowe. Start: `git pull`, `npm install`, `npm run test:bilans`, `npm run dev:sandbox`.
+
+### Do zrobienia
+1. **Etap 5 — daty zakupu.** Opcjonalne pole "data zakupu" w formularzach akcji (Szybko / Transze / Z brokera) i krypto; `createdAt` dla każdego
+   nowego aktywa. `stockLots()` w `src/periodBalance.js` już czyta `stockPurchaseDate` i `createdAt` — wystarczy zacząć je zapisywać.
+   Dla krypto, surowców i walut trzeba jeszcze dodać źródło kursu historycznego (CoinGecko history, Yahoo futures, kurs waluty z `/api/price-at`).
+2. **Etap 6 — dziennik zrealizowanych wyników.** Kolejno: kupony obligacji (wyliczane), import XTB, ręczne dodawanie.
+   BLOKADA: potrzebny prawdziwy plik eksportu z xStation (Historia konta → Eksport), żeby zobaczyć nazwy typów operacji w "Cash Operations"
+   i ewentualny arkusz "Closed Positions". Nie zgadywać nazw.
+3. Sprawdzić kafelki na prawdziwym portfelu (tryb testowy nie łączy się z chmurą — weryfikacja była tylko na danych przykładowych).
+
+### Napotkane problemy (nierozwiązane)
+- **Kupony obligacji zaniżają bilans.** `calcSingleBond` (`src/BondModal.jsx`) dla obligacji kuponowych wraca po rocznicy do 100 zł; wypłacony kupon
+  znika z wartości. W dniu wypłaty "Bilans dziś" i bilans okresu pokażą stratę o wielkości kuponu. Naprawa w etapie 6.
+- **Sprzedane pozycje znikają z zyskiem.** Aplikacja zna tylko stan bieżący; dywidendy nie są liczone nigdzie.
+- **Brak dat zakupu** dla akcji dodanych ręcznie / ze zrzutu ekranu, krypto, surowców, walut → kafelki miesiąca i roku pokazują "bez: …"
+  albo liczą od pierwszego snapshotu ("od DD.MM").
+- **"Bilans dziś" nie ujmuje dziennej zmiany kursu waluty** (wczorajsze zamknięcie przeliczane dzisiejszym kursem). Do poprawy: kurs waluty
+  z poprzedniego dnia z `/api/price-at` albo `chartPreviousClose` pary walutowej.
+- **Waluty / gotówka nie mają kosztu zakupu** (`getAssetCostBasis` zwraca `a.value`) → zysk walut zawsze 0, mimo że jest pole `currencyPurchaseRate`.
+- **Krypto w "Bilansie dziś"** to okno kroczące 24h (CoinGecko), nie doba kalendarzowa.
+- **Stooq nie działa** (strona z zabezpieczeniem antybotowym, październik 2026) — dotyczy też `api/_lib/stock-price.js`, gdzie Stooq jest pierwszym
+  źródłem dla GPW; każde zapytanie traci czas na nieudaną próbę, zanim przejdzie na Yahoo. Rozważyć zmianę kolejności.
+- **Data kapitalizacji konta o dzień za wcześnie.** `computeSavings` (`src/SavingsModal.jsx`) robi `toISOString().slice(0,10)` z lokalnej północy,
+  co w polskiej strefie daje poprzedni dzień ("2026-09-30" zamiast 1.10). Wpływa na to, do którego okresu trafia wpłata z ostatniego dnia miesiąca.
+- **Stare wpisy historii** (sprzed rozdzielenia portfeli) są przypisane do portfela "default" i nie mają kosztu zakupu — nie nadają się
+  jako baza bilansu; wykres historii może dla nich pokazywać wartość innej zakładki.
+- **Niespójność podatku Belki:** konto oszczędnościowe liczone netto, obligacje i akcje brutto. Bez decyzji.
+- **Akcje notowane w pensach (Londyn, GBp):** niesprawdzone, czy kurs i poprzednie zamknięcie są w tej samej jednostce co waluta pozycji.
+- **Tryb P&L "XTB"** zmienia koszt zakupu zapisywany w snapshotach (koszt po bieżącym kursie) — zapas ze snapshotów dla akcji walutowych
+  byłby wtedy niespójny między dniami. Dziś nie szkodzi, bo akcje z datami idą ścieżką per pozycja.
+- **Lint:** `npm run lint` zgłasza ~60 starych błędów (puste `catch {}`, `setAssets` niezdefiniowane w `App.jsx` ok. linii 1780). Nie ruszane.
+- **Narzędziowe:** `App.jsx`, `StockModal.jsx` itd. mają końce linii CRLF, a nowe pliki LF — przy edycji skryptem trzeba normalizować.
+  W Git Bash heredoc bez cudzysłowów zjada odwrotne apostrofy.
