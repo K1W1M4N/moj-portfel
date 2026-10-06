@@ -7,6 +7,7 @@ import { CurrencyModal, CurrencyRow, SUPPORTED_CURRENCIES } from "./CurrencyModa
 import { fetchFxRate } from "./fxUtils";
 import { PNL_MODES, getPnlMode, setPnlMode, usePnlMode } from "./preferences";
 import { calcPaidPLN } from "./portfolioCalc";
+import { historySeries, upsertSnapshot, removePortfolioFromHistory } from "./historyStore";
 import { SettingsView } from "./SettingsView";
 import { XtbImportModal } from "./XtbImportModal";
 import { AUTH_BYPASS } from "./devMode";
@@ -317,7 +318,7 @@ function getAssetCostBasis(a, pnlMode = "snapshot", stockPrices = {}) {
   if (a.isBond) return (a.quantity || 0) * 100;
   if (a.isSavings) { const txs = a.transactions || []; return txs.length > 0 ? txs.reduce((s, tx) => s + tx.amount, 0) : (a.value || 0); }
   if (a.isCurrency) return a.value || 0;
-  if (a.isCommodity) return a.commodityPaid || a.value || 0;
+  if (a.isCommodity) return a.commodityPaidPLN || a.commodityPaid || a.value || 0;
   if (a.purchaseAmount > 0) return a.purchaseAmount;
   return a.value || 0;
 }
@@ -1095,20 +1096,6 @@ function MoveAssetModal({ asset, portfolios, onClose, onConfirm }) {
 }
 
 // ─── Historia wartości portfela ───────────────────────────────────────────────
-function saveSnapshot(history, total, assetsWithLivePrices, categories) {
-  const today = new Date().toISOString().slice(0, 10);
-  if (history.length > 0 && history[history.length - 1].date === today) return history;
-  const byCategory = {};
-  categories.forEach(c => {
-    const val = assetsWithLivePrices.filter(a => a.category === c.name).reduce((s, a) => s + a.value, 0);
-    if (val > 0) byCategory[c.name] = Math.round(val * 100) / 100;
-  });
-  const next = [...history, { date: today, total: Math.round(total * 100) / 100, byCategory }];
-  while (next.length > 365) next.shift();
-  try { localStorage.setItem("pt-history", JSON.stringify(next)); } catch {}
-  return next;
-}
-
 function HistoryChart({ history }) {
   const canvasRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
@@ -1395,7 +1382,6 @@ export default function App() {
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("pt-history") || "[]"); } catch { return []; }
   });
-  const snapshotTakenRef = useRef(false);
 
   const [editingPortfolio, setEditingPortfolio] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState("");
@@ -1557,6 +1543,7 @@ export default function App() {
     if (!window.confirm(`Czy na pewno chcesz usunąć '${port?.name}'? Wszystkie aktywa w tym portfelu zostaną trwale usunięte.`)) return;
     
     setAllAssets(all => all.filter(a => a.portfolioId !== id));
+    setHistory(h => removePortfolioFromHistory(h, id));
     const nextList = portfolios.filter(p => p.id !== id);
     setPortfolios(nextList);
     if (activePortfolioId === id) {
@@ -1574,11 +1561,21 @@ export default function App() {
   const total = assetsWithLivePrices.reduce((s, a) => s + a.value, 0);
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
+  // Snapshot dnia dla aktywnego portfela. Pierwszy render liczy zwykle na cenach z cache,
+  // więc po każdej zmianie wartości (z krótkim opóźnieniem) nadpisujemy wpis dnia — wygrywa ostatnia znana wartość.
+  const totalPaid = assetsWithLivePrices.reduce((s, a) => s + getAssetCostBasis(a, pnlMode, stockPrices), 0);
   useEffect(() => {
-    if (snapshotTakenRef.current || total <= 0) return;
-    snapshotTakenRef.current = true;
-    setHistory(h => saveSnapshot(h, total, assetsWithLivePrices, categories));
-  }, [total]); // eslint-disable-line
+    if (total <= 0) return;
+    const timer = setTimeout(() => {
+      const byCategory = {}, paidByCategory = {};
+      for (const a of assetsWithLivePrices) {
+        byCategory[a.category] = (byCategory[a.category] || 0) + a.value;
+        paidByCategory[a.category] = (paidByCategory[a.category] || 0) + getAssetCostBasis(a, pnlMode, stockPrices);
+      }
+      setHistory(h => upsertSnapshot(h, activePortfolioId, { total, paid: totalPaid, byCategory, paidByCategory }));
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [total, totalPaid, activePortfolioId]); // eslint-disable-line
 
   const visible = activeFilter ? assetsWithLivePrices.filter(a => a.category === activeFilter) : assetsWithLivePrices;
   const usedCats = categories.filter(c => assetsWithLivePrices.some(a => a.category === c.name));
@@ -2203,7 +2200,7 @@ export default function App() {
         })()}
 
         {/* ── Widok historii ── */}
-        {currentView === "history" && <HistoryView history={history} />}
+        {currentView === "history" && <HistoryView history={historySeries(history, activePortfolioId)} />}
 
         {/* ── Widok rynku ── */}
         {currentView === "market" && <MarketView />}
