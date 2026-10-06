@@ -1,4 +1,4 @@
-import { Component, useState, useRef, useEffect, useCallback } from "react";
+import { Component, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./BondModal";
 import { StockModal, StockRow, StockDetailPanel, useStockPrices, isMarketHours } from "./StockModal";
 import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue, computeSavings } from "./SavingsModal";
@@ -8,6 +8,9 @@ import { fetchFxRate } from "./fxUtils";
 import { PNL_MODES, getPnlMode, setPnlMode, usePnlMode } from "./preferences";
 import { calcPaidPLN } from "./portfolioCalc";
 import { calcDailyBalance, sessionLabel } from "./dailyBalance";
+import { calcPeriodBalance, periodBoundaries } from "./periodBalance";
+import { useHistoricalPrices } from "./useHistoricalPrices";
+import { localDateStr } from "./historyStore";
 import { historySeries, upsertSnapshot, removePortfolioFromHistory } from "./historyStore";
 import { SettingsView } from "./SettingsView";
 import { XtbImportModal } from "./XtbImportModal";
@@ -532,81 +535,49 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
 
 // ─── Podsumowanie Portfela (Live) ──────────────────────────────────────────────
 
-// Oblicz wartość konta oszczędnościowego na dowolną datę w przeszłości
-// Prosta, niezawodna metoda: bieżąca wartość minus odsetki za X dni wstecz
-function calcSavingsValueAtDate(account, targetDate) {
-  const { openDate, rate } = account;
-  if (!openDate || rate == null) return null;
-  const annualRate = rate / 100;
-  const tDate = new Date(targetDate); tDate.setHours(0, 0, 0, 0);
-  const openDateObj = new Date(openDate); openDateObj.setHours(0, 0, 0, 0);
-  if (tDate < openDateObj) return null; // konto jeszcze nie istniało
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const daysBack = Math.max(0, Math.round((today - tDate) / 86400000));
-  const currentVal = account.value || 0;
-  // Odejmij narosłe odsetki netto (po Belce 19%) za ostatnie daysBack dni
-  const interestGross = currentVal * annualRate * (daysBack / 365);
-  const interestNet = interestGross * 0.81;
-  return Math.round((currentVal - interestNet) * 100) / 100;
-}
+// Bilanse liczone z faktycznych danych: src/dailyBalance.js (dziś) i src/periodBalance.js (miesiąc / rok).
+function PortfolioSummaryPanel({ assets, activeFilter, categories, series, pnlMode, stockPrices, cryptoPrices, commodityPrices }) {
+  const today = localDateStr();
+  const bounds = useMemo(() => periodBoundaries(), [today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const boundaryList = useMemo(() => [...new Set([bounds.year, bounds.month])], [bounds]);
+  // Notowania historyczne pobieramy dla całego portfela (nie tylko filtrowanej kategorii) — filtr nie odpala nowych zapytań
+  const hist = useHistoricalPrices(assets, boundaryList);
 
-function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlMode, stockPrices, cryptoPrices, commodityPrices }) {
-  const cats = activeFilter ? [activeFilter] : categories.map(c => c.name);
-  let totalValue = 0, totalPaid = 0;
-
-  cats.forEach(c => {
-    const catAssets = assets.filter(a => a.category === c);
-    totalValue += catAssets.reduce((s, a) => s + a.value, 0);
-    totalPaid += catAssets.reduce((s, a) => s + getAssetCostBasis(a, pnlMode, stockPrices), 0);
-  });
-
+  const shown = activeFilter ? assets.filter(a => a.category === activeFilter) : assets;
+  const costBasis = a => getAssetCostBasis(a, pnlMode, stockPrices);
+  const totalValue = shown.reduce((s, a) => s + a.value, 0);
+  const totalPaid = shown.reduce((s, a) => s + costBasis(a), 0);
   const totalPnl = totalPaid > 0 ? totalValue - totalPaid : null;
   const totalPnlPct = totalPaid > 0 ? (totalValue - totalPaid) / totalPaid * 100 : null;
 
-  // Oblicz historyczną wartość portfela — zlicza co może:
-  // Obligacje → precyzyjny calcBondCurrentValue
-  // Konto oszczędnościowe → odsetki wstecz
-  // Reszta (akcje, krypto, PPK itp.) → bieżąca wartość (diff=0, brak danych historycznych)
-  function getHistVal(daysAgo) {
-    const t = new Date(); t.setDate(t.getDate() - daysAgo);
-    const targetAssets = activeFilter
-      ? assets.filter(a => a.category === activeFilter)
-      : assets;
-    if (targetAssets.length === 0) return null;
-    let total = 0;
-    for (const a of targetAssets) {
-      // Obligacje — precyzyjne
-      if (a.isBond && a.purchaseDate && a.quantity) {
-        total += calcBondCurrentValue(a, t).currentValue;
-        continue;
-      }
-      // Konto oszczędnościowe — odsetki
-      if (a.isSavings && a.openDate && a.rate != null) {
-        const v = calcSavingsValueAtDate(a, t);
-        if (v !== null) { total += v; continue; }
-      }
-      // Wszystko inne — brak historycznych cen, zakładamy wartość = dziś
-      total += a.value || 0;
-    }
-    return total;
-  }
-
-  const v30d = getHistVal(30);
-  const v365d = getHistVal(365);
-
-  // Bilans dziś — faktyczna zmiana od poprzedniego zamknięcia (patrz src/dailyBalance.js)
-  const daily = calcDailyBalance(
-    activeFilter ? assets.filter(a => a.category === activeFilter) : assets,
-    { stockPrices, cryptoPrices, commodityPrices, bondDailyGain: a => calcBondCurrentValue(a).dailyGain }
-  );
+  const daily = calcDailyBalance(shown, {
+    stockPrices, cryptoPrices, commodityPrices,
+    bondDailyGain: a => calcBondCurrentValue(a).dailyGain,
+  });
   const dailyNotes = [];
   const sess = sessionLabel(daily.sessionTs);
   if (sess) dailyNotes.push("sesja " + sess);
   if (daily.uncovered.length > 0) dailyNotes.push("bez: " + daily.uncovered.map(u => u.category).join(", "));
-  const diff30d = v30d !== null ? totalValue - v30d : null;
-  const pct30d = v30d && v30d > 0 ? (diff30d / v30d) * 100 : null;
-  const diff365d = v365d !== null ? totalValue - v365d : null;
-  const pct365d = v365d && v365d > 0 ? (diff365d / v365d) * 100 : null;
+
+  const periodCtx = {
+    hist, costBasis, series, today,
+    bondValueAt: (a, boundary) => {
+      const [y, m, d] = boundary.split("-").map(Number);
+      return calcBondCurrentValue(a, new Date(y, m - 1, d)).currentValue;
+    },
+  };
+  const month = calcPeriodBalance(shown, bounds.month, periodCtx);
+  const year = calcPeriodBalance(shown, bounds.year, periodCtx);
+
+  const periodNote = p => {
+    const notes = [];
+    if (p.since) notes.push("od " + p.since.slice(8, 10) + "." + p.since.slice(5, 7));
+    const none = p.uncovered.filter(u => !u.partial).map(u => u.category);
+    const part = p.uncovered.filter(u => u.partial).map(u => u.category);
+    if (none.length > 0) notes.push("bez: " + none.join(", "));
+    if (part.length > 0) notes.push("bez części: " + part.join(", "));
+    return notes.join(" · ") || null;
+  };
 
   // Formatowanie kwot — bez groszy gdy >= 1000 zł (kompaktowe kafelki)
   function fmtCompact(n) {
@@ -618,22 +589,25 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlM
     }).format(n);
   }
 
-  const mBlock = (label, diff, pct, note) => (
-    <div style={{ background: "#0f1621", border: "1px solid " + (diff !== null && diff !== 0 ? (diff > 0 ? "#00c89630" : "#f0506030") : "#1e2a38"), borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, flex: "1 1 120px", minWidth: 0 }}>
+  const mBlock = (label, diff, pct, note, loading) => (
+    <div style={{ background: "#0f1621", border: "1px solid " + (diff !== null && diff !== 0 ? (diff > 0 ? "#00c89630" : "#f0506030") : "#1e2a38"), borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
       <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>{label}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginTop: "auto" }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
-          {diff !== null ? fmtCompact(diff) : "—"}
+        <div style={{ fontSize: 12, fontWeight: 700, color: loading ? "#5a6a7e" : diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#e8f0f8", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
+          {loading ? "…" : diff !== null ? fmtCompact(diff) : "—"}
         </div>
-        {pct !== null && (
+        {!loading && diff !== null && pct !== null && (
           <div style={{ fontSize: 9, fontWeight: 600, color: diff > 0 ? "#00c896" : diff < 0 ? "#f05060" : "#5a6a7e", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap", flexShrink: 0 }}>
             ({pct > 0 ? "+" : ""}{pct.toFixed(1)}%)
           </div>
         )}
       </div>
-      {note && <div style={{ fontSize: 8, color: "#4a5a6e", lineHeight: 1.3 }}>{note}</div>}
+      {note && !loading && <div style={{ fontSize: 8, color: "#4a5a6e", lineHeight: 1.3 }}>{note}</div>}
     </div>
   );
+
+  // Kafelek okresu: "—" gdy nie udało się policzyć żadnej pozycji (sama lista braków w dopisku)
+  const periodBlock = (label, p) => mBlock(label, p.base > 0 || p.diff !== 0 ? p.diff : null, p.pct, periodNote(p), p.pending);
 
   return (
     <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px dashed #1e2a38" }}>
@@ -643,36 +617,16 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, history, pnlM
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-        <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Bieżąca Wartość</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>{fmt(totalValue)}</div>
-        </div>
-        <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Zysk Całkowity</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: "auto" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: totalPnl >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
-              {totalPnl !== null ? fmtCompact(totalPnl) : "—"}
-            </div>
-            {totalPnlPct !== null && (
-              <div style={{ fontSize: 9, fontWeight: 600, color: totalPnlPct >= 0 ? "#00c896" : "#f05060", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap", flexShrink: 0 }}>
-                ({totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(1)}%)
-              </div>
-            )}
-          </div>
-        </div>
+      <div style={{ background: "linear-gradient(145deg, #0d131c, #111720)", border: "1px solid #1e2a38", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+        <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.05em" }}>Bieżąca Wartość</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "#e8f0f8", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>{fmt(totalValue)}</div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {mBlock("Bilans dziś", daily.covered > 0 ? daily.diff : null, daily.pct, dailyNotes.join(" · ") || null)}
-          {mBlock("Zysk miesięczny", diff30d, pct30d)}
-          {mBlock("Zysk roczny", diff365d, pct365d)}
-          <div style={{ background: "#0f1621", border: "1px solid #1e2a38", borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-            <div style={{ fontSize: 9, color: "#5a6a7e", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Sora', sans-serif" }}>Średnia Roczna</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: pct365d !== null ? (pct365d >= 0 ? "#00c896" : "#f05060") : "#5a6a7e", fontFamily: "'DM Mono', monospace", marginTop: "auto", whiteSpace: "nowrap" }}>
-              {pct365d !== null ? (pct365d >= 0 ? "+" : "") + pct365d.toFixed(2) + "%" : "—"}
-            </div>
-          </div>
+        {mBlock("Bilans dziś", daily.covered > 0 ? daily.diff : null, daily.pct, dailyNotes.join(" · ") || null)}
+        {periodBlock("Bilans w tym miesiącu", month)}
+        {periodBlock("Bilans w tym roku", year)}
+        {mBlock("Bilans portfela", totalPnl, totalPnlPct, null)}
       </div>
     </div>
   );
@@ -2295,7 +2249,7 @@ export default function App() {
                     assets={assetsWithLivePrices}
                     activeFilter={activeFilter}
                     categories={categories}
-                    history={history}
+                    series={historySeries(history, activePortfolioId)}
                     pnlMode={pnlMode}
                     stockPrices={stockPrices}
                     cryptoPrices={prices}

@@ -85,7 +85,14 @@ D. Kolejność dowolna; proponowana w pkt 9.
 - Dziennik musi być idempotentny: ponowny import tego samego pliku nie może dublować wpisów (klucz: konto + ID operacji z XTB).
 
 ## 9. Etapy wdrożenia
-**Status: etap 1 zacommitowany (93436ae). Etap 2 zrobiony i sprawdzony w trybie testowym (niezacommitowany). Kolejny: etap 3.**
+**Status: etapy 1–4 i 7 zrobione na gałęzi `feature/bilans-statystyki`, sprawdzone w trybie testowym. Kolejne: etap 5 (daty zakupu), etap 6 (dziennik zrealizowanych).**
+Etap 3–4 — logika w `src/periodBalance.js`, notowania przez `api/_lib/price-at.js` + `src/useHistoricalPrices.js` (cache `pt-hist-prices`),
+kafelki w `PortfolioSummaryPanel`. Testy: `npm run test:bilans`. Do zrobienia w kolejnych etapach / znane luki:
+- akcje bez dat transz (dodane ręcznie, import ze zrzutu), krypto, surowce, waluty → tylko zapas ze snapshotów albo dopisek "bez: …" (etap 5);
+- kupony obligacji i sprzedane pozycje nie są jeszcze doliczane (etap 6) — w okresie z wypłatą kuponu bilans obligacji kuponowych jest zaniżony;
+- Stooq odpowiada stroną z zabezpieczeniem antybotowym (październik 2026) — w praktyce działa Yahoo → Biznesradar / NBP;
+- `computeSavings` zapisuje datę kapitalizacji przez `toISOString()`, więc w polskiej strefie wychodzi dzień wcześniej (np. "2026-09-30"
+  zamiast 1.10) — bilans okresu to uwzględnia, ale warto to kiedyś poprawić u źródła.
 Etap 2 — logika w `src/dailyBalance.js`. Ograniczenia: kurs waluty z poprzedniego dnia przyjęty jako dzisiejszy (zmiana FX w ciągu doby
 nie jest ujęta); waluty/gotówka i aktywa ręczne nie mają źródła zmiany dziennej → kafelek pokazuje dopisek "bez: <kategoria>";
 krypto liczone ze zmiany 24h (okno kroczące, nie sesja).
