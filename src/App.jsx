@@ -1,5 +1,6 @@
 import { Component, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { BondModal, BondDetailPanel, BondRow, calcBondCurrentValue } from "./BondModal";
+import { bondCoupons } from "./bondEngine";
 import { StockModal, StockRow, StockDetailPanel, useStockPrices, isMarketHours } from "./StockModal";
 import { SavingsModal, SavingsFormModal, SavingsRow, getSavingsValue, computeSavings } from "./SavingsModal";
 import { CommodityModal, CommodityRow, CommodityDetailPanel, useCommodityPrices, calcCommodityValue } from "./CommodityModal";
@@ -537,8 +538,13 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
 // ─── Podsumowanie Portfela (Live) ──────────────────────────────────────────────
 
 // Bilanse liczone z faktycznych danych: src/dailyBalance.js (dziś) i src/periodBalance.js (miesiąc / rok).
-function PortfolioSummaryPanel({ assets, activeFilter, categories, series, realized, portfolioId, pnlMode, stockPrices, cryptoPrices, commodityPrices }) {
+function PortfolioSummaryPanel({ assets, activeFilter, categories, series, realized: realizedStored, portfolioId, taxWrapper, pnlMode, stockPrices, cryptoPrices, commodityPrices }) {
   const today = localDateStr();
+  // Kupony obligacji (COI/ROR/DOR) wyliczamy na bieżąco — poza IKE/IKZE po podatku Belki. Razem z zapisanym dziennikiem
+  // (import XTB) traktujemy je jak zrealizowane wyniki: wartość obligacji po wypłacie kuponu spada, a kupon to zysk.
+  const taxFree = taxWrapper === "ike" || taxWrapper === "ikze";
+  const coupons = assets.filter(a => a.isBond).flatMap(b => bondCoupons(b, { taxFree }).map(c => ({ ...c, portfolioId })));
+  const realized = useMemo(() => [...(realizedStored || []), ...coupons], [realizedStored, JSON.stringify(coupons)]); // eslint-disable-line react-hooks/exhaustive-deps
   const bounds = useMemo(() => periodBoundaries(), [today]); // eslint-disable-line react-hooks/exhaustive-deps
   const boundaryList = useMemo(() => [...new Set([bounds.year, bounds.month])], [bounds]);
   // Notowania historyczne pobieramy dla całego portfela (nie tylko filtrowanej kategorii) — filtr nie odpala nowych zapytań
@@ -559,7 +565,8 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, series, reali
 
   const daily = calcDailyBalance(shown, {
     stockPrices, cryptoPrices, commodityPrices,
-    bondDailyGain: a => calcBondCurrentValue(a).dailyGain,
+    // w dniu spadku wartości po wypłacie kuponu dodajemy kupon, żeby nie wyszła strata
+    bondDailyGain: a => calcBondCurrentValue(a).dailyGain + coupons.filter(c => c.id === `coupon-${a.id}-${today}`).reduce((s, c) => s + c.pnlPLN, 0),
   });
   const dailyNotes = [];
   const sess = sessionLabel(daily.sessionTs);
@@ -2243,6 +2250,9 @@ export default function App() {
                       minWidth: 100, display: "flex", alignItems: "center", justifyContent: "center"
                     }}>
                     {p.name}
+                    {(p.taxWrapper === "ike" || p.taxWrapper === "ikze") && (
+                      <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: "#e8e040", border: "1px solid #e8e04060", borderRadius: 4, padding: "1px 4px" }}>{p.taxWrapper.toUpperCase()}</span>
+                    )}
                   </button>
                 );
               })}
@@ -2268,6 +2278,14 @@ export default function App() {
               {editingPortfolio && (
                 <div style={{ position: "absolute", top: -1, left: -1, right: -1, background: "#1a2535", border: "1px solid #00c89650", borderRadius: "0 16px 16px 0", padding: 16, zIndex: 10, display: "flex", alignItems: "center", gap: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.5)", flexWrap: "wrap" }}>
                   <input autoFocus style={{ display: "block", flex: 1, minWidth: 160, padding: "9px 12px", fontSize: 13, borderRadius: 8, background: "#161d28", border: "1px solid #243040", color: "#e8f0f8", fontFamily: "'Sora', sans-serif", outline: "none", boxSizing: "border-box", transition: "border-color .15s, box-shadow .15s" }} value={newPortfolioName} onChange={e => setNewPortfolioName(e.target.value)} onKeyDown={e => { if(e.key==="Enter") handleRenamePortfolio(); if(e.key==="Escape") setEditingPortfolio(false); }} onFocus={e => { e.target.style.borderColor = "#00c896"; e.target.style.boxShadow = "0 0 0 3px #00c89618"; }} onBlur={e => { e.target.style.borderColor = "#243040"; e.target.style.boxShadow = "none"; }} />
+                  <select title="Rodzaj konta: w IKE/IKZE kupony obligacji liczymy bez podatku Belki"
+                    value={portfolios.find(p => p.id === activePortfolioId)?.taxWrapper || "none"}
+                    onChange={e => { const v = e.target.value; setPortfolios(prev => prev.map(p => p.id === activePortfolioId ? { ...p, taxWrapper: v === "none" ? undefined : v } : p)); }}
+                    style={{ padding: "8px 10px", borderRadius: 8, background: "#161d28", border: "1px solid #243040", color: "#e8f0f8", fontSize: 13, fontFamily: "'Sora', sans-serif" }}>
+                    <option value="none">Zwykły rachunek</option>
+                    <option value="ike">IKE</option>
+                    <option value="ikze">IKZE</option>
+                  </select>
                   <button onClick={handleRenamePortfolio} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#00c896", color: "#000", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Zmień</button>
                   <button onClick={() => handleDeletePortfolio(activePortfolioId)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #f0506060", background: "transparent", color: "#f05060", fontSize: 13, cursor: "pointer" }}>Usuń portfel</button>
                   <button onClick={() => setEditingPortfolio(false)} style={{ padding: "8px", background: "transparent", border: "none", color: "#5a6a7e", cursor: "pointer", fontSize: 16 }}>×</button>
@@ -2292,6 +2310,7 @@ export default function App() {
                     series={historySeries(history, activePortfolioId)}
                     realized={realized}
                     portfolioId={activePortfolioId}
+                    taxWrapper={portfolios.find(p => p.id === activePortfolioId)?.taxWrapper}
                     pnlMode={pnlMode}
                     stockPrices={stockPrices}
                     cryptoPrices={prices}

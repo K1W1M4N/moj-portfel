@@ -198,7 +198,8 @@ export function XtbImportModal({ portfolios, allAssets, activePortfolioId, reali
       const acc = effective(raw, pid);
       if (pid === NEW_PORTFOLIO) {
         pid = `portfel_${Date.now()}_${raw.key}`;
-        newPortfolios.push({ id: pid, name: acc.fromScreenshot ? "XTB" : `XTB ${acc.product === "My Trades" ? acc.accountNumber : acc.product}` });
+        const wrapper = String(acc.product || "").toLowerCase();
+        newPortfolios.push({ id: pid, name: acc.fromScreenshot ? "XTB" : `XTB ${acc.product === "My Trades" ? acc.accountNumber : acc.product}`, ...(wrapper === "ike" || wrapper === "ikze" ? { taxWrapper: wrapper } : {}) });
       }
       firstTarget ??= pid;
       if (realizedOn(raw)) realizedAdds.push(...newRealized(raw).map(e => ({ ...e, portfolioId: pid })));

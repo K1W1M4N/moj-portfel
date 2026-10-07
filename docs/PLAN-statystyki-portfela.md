@@ -89,7 +89,7 @@ D. Kolejność dowolna; proponowana w pkt 9.
 Etap 3–4 — logika w `src/periodBalance.js`, notowania przez `api/_lib/price-at.js` + `src/useHistoricalPrices.js` (cache `pt-hist-prices`),
 kafelki w `PortfolioSummaryPanel`. Testy: `npm run test:bilans`. Do zrobienia w kolejnych etapach / znane luki:
 - akcje bez dat transz (dodane ręcznie, import ze zrzutu), krypto, surowce, waluty → tylko zapas ze snapshotów albo dopisek "bez: …" (etap 5);
-- sprzedane pozycje, dywidendy i odsetki XTB są doliczane z dziennika (`src/realizedLog.js`, klucz `pt-realized`, synchronizowany z chmurą); kupony obligacji jeszcze nie — w okresie z wypłatą kuponu bilans obligacji kuponowych jest zaniżony;
+- sprzedane pozycje, dywidendy i odsetki XTB są doliczane z dziennika (`src/realizedLog.js`, klucz `pt-realized`, synchronizowany z chmurą); kupony obligacji są wyliczane (`bondCoupons`) i doliczane tak samo;
 - Stooq odpowiada stroną z zabezpieczeniem antybotowym (październik 2026) — w praktyce działa Yahoo → Biznesradar / NBP;
 - `computeSavings` zapisuje datę kapitalizacji przez `toISOString()`, więc w polskiej strefie wychodzi dzień wcześniej (np. "2026-09-30"
   zamiast 1.10) — bilans okresu to uwzględnia, ale warto to kiedyś poprawić u źródła.
@@ -126,7 +126,11 @@ Etapy 1–4 i 7 w `main`; etap 5 i 6 (część XTB) na osobnych gałęziach — 
    `Free funds interest`, `Free funds interest tax` (Cash Operations) i arkusz `Closed Positions` (Profit/Loss już w PLN). Import dopisuje wpisy z id
    stabilnym (ponowny import nie dubluje). Bilans okresu dla sprzedaży partii kupionej PRZED okresem liczy tylko zmianę od dnia granicznego
    (kurs z `/api/price-at`); bez kursu — cały wynik i dopisek "bez kursu z początku okresu".
-   Zostało: **kupony obligacji** (wyliczane z `calcSingleBond`), **ręczne dodawanie** wpisów, widok/lista dziennika, edycja/usuwanie wpisu.
+   **Kupony obligacji — zrobione** (`feature/kupony-obligacji`): `bondCoupons()` w `src/bondEngine.js` (silnik wyceny wydzielony z `BondModal.jsx`) wylicza kupony COI/ROR/DOR
+   na bieżąco (bez zapisu), data wpisu = dzień spadku wartości (dzień po rocznicy). Poza IKE/IKZE kupon jest netto (Belka 19%, zaokrąglenie do grosza —
+   bank może zaokrąglać inaczej), w IKE/IKZE brutto. Rodzaj konta: `taxWrapper` (`ike`/`ikze`/brak) w obiekcie portfela, ustawiany w edycji zakładki;
+   import XTB ustawia go dla nowych portfeli z kont IKE/IKZE. Wartość samej obligacji nadal jest brutto, więc w dniu wypłaty bilans dnia = −podatek.
+   Zostało: **ręczne dodawanie** wpisów, widok/lista dziennika, edycja/usuwanie wpisu.
    Uwaga: konto XTB bez otwartych pozycji (np. "My Trades" z samą wpłatą) domyślnie jest pomijane w imporcie — odsetki z niego trzeba wybrać ręcznie.
 3. Sprawdzić kafelki na prawdziwym portfelu (tryb testowy nie łączy się z chmurą — weryfikacja była tylko na danych przykładowych).
 
