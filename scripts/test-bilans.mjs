@@ -4,6 +4,9 @@ import assert from "node:assert";
 import { historySeries, upsertSnapshot, removePortfolioFromHistory } from "../src/historyStore.js";
 import { calcDailyBalance, sessionLabel } from "../src/dailyBalance.js";
 import { calcPeriodBalance, periodBoundaries, stockLots, neededHistory } from "../src/periodBalance.js";
+import * as XLSX from "xlsx";
+import { parseRealized } from "../src/xtbImport.js";
+import { mergeRealized, realizedTotal, realizedByKind, realizedSoldCost, realizedPeriod, realizedHistoryAssets, removePortfolioFromRealized } from "../src/realizedLog.js";
 
 const near = (a, b, e = 0.005) => assert.ok(Math.abs(a - b) < e, `${a} != ${b}`);
 let passed = 0;
@@ -171,6 +174,76 @@ test("okres: kategoria mieszana — policzona część + dopisek o reszcie, bez 
 test("potrzebne notowania: tylko daty, przed którymi coś kupiono", () => {
   const nh = neededHistory([pStock({ stockExchange: "XNAS", stockTranches: [tr(10, 1, "2026-03-01")] })], ["2025-12-31", B]);
   assert.deepEqual(nh, [{ symbol: "X", exchange: "XNAS", currency: "USD", dates: [B] }]);
+});
+
+// ─── realizedLog ──────────────────────────────────────────────────────────────
+const sale = (o = {}) => ({ id: "s1", portfolioId: "p", category: "Akcje / ETF", kind: "sale", date: "2026-10-02", symbol: "X", exchange: "XNAS", currency: "USD", qty: 2, openDate: "2026-03-01", costPLN: 700, salePLN: 900, pnlPLN: 200, ...o });
+const cash = (kind, pnlPLN, date, id) => ({ id, portfolioId: "p", category: "Akcje / ETF", kind, date, pnlPLN });
+const RB = "2026-09-30"; // dzień graniczny miesiąca
+
+test("dziennik: ponowny import nie dubluje wpisów, a pusty przyrost zachowuje referencję", () => {
+  const a = mergeRealized([], [sale(), cash("dividend", 5, "2026-10-01", "d1")]);
+  assert.equal(a.next.length, 2);
+  const b = mergeRealized(a.next, [sale(), cash("dividend", 5, "2026-10-01", "d1")]);
+  assert.strictEqual(b.next, a.next); assert.equal(b.added.length, 0);
+});
+
+test("dziennik: sumy per portfel i kategoria, rozbicie na rodzaje, koszt sprzedanych", () => {
+  const log = [sale(), cash("dividend", 10, "2026-10-01", "d1"), cash("tax", -1.5, "2026-10-01", "t1"), { ...sale({ id: "s2" }), portfolioId: "other" }, { ...cash("interest", 1, "2026-10-03", "i1"), category: "Inne" }];
+  near(realizedTotal(log, "p"), 209.5);
+  near(realizedTotal(log, "p", "Akcje / ETF"), 208.5);
+  assert.deepEqual(realizedByKind(log, "p"), { sale: 200, dividend: 10, tax: -1.5, interest: 1 });
+  near(realizedSoldCost(log, "p"), 700);
+  assert.equal(removePortfolioFromRealized(log, "p").length, 1);
+});
+
+test("okres: dywidenda po dniu granicznym wchodzi, sprzed — nie", () => {
+  const log = [cash("dividend", 10, "2026-10-01", "d1"), cash("dividend", 7, "2026-09-30", "d2")];
+  near(realizedPeriod(log, "p", RB).sum, 10);
+});
+
+test("okres: sprzedaż partii kupionej w okresie liczy cały wynik", () => {
+  const r = realizedPeriod([sale({ openDate: "2026-10-01" })], "p", RB);
+  near(r.sum, 200); assert.equal(r.pending, false);
+});
+
+test("okres: sprzedaż partii kupionej przed okresem liczy tylko zmianę od dnia granicznego", () => {
+  const h = { prices: { X: { [RB]: { close: 100 } } }, fx: { USD: { [RB]: { rate: 4 } } } };
+  near(realizedPeriod([sale()], "p", RB, h).sum, 900 - 2 * 100 * 4); // 100, a nie 200 od zakupu
+  assert.equal(realizedPeriod([sale()], "p", RB, { prices: {}, fx: {} }).pending, true);
+  const none = realizedPeriod([sale()], "p", RB, { prices: { X: { [RB]: null } }, fx: { USD: { [RB]: { rate: 4 } } } });
+  near(none.sum, 200); assert.equal(none.approx, 1); // brak kursu → cały wynik, ale z flagą
+});
+
+test("okres: sprzedaż sprzed okresu nie wchodzi", () => {
+  near(realizedPeriod([sale({ date: "2026-09-15" })], "p", RB).sum, 0);
+});
+
+test("pseudo-aktywa do notowań: tylko sprzedane partie przecinające dzień graniczny", () => {
+  const log = [sale(), sale({ id: "s2", openDate: "2026-10-01" }), sale({ id: "s3", date: "2026-09-10" })];
+  const assets = realizedHistoryAssets(log, "p", [RB]);
+  assert.equal(assets.length, 1);
+  assert.deepEqual(neededHistory(assets, [RB]), [{ symbol: "X", exchange: "XNAS", currency: "USD", dates: [RB] }]);
+});
+
+test("import XTB: Closed Positions i Cash Operations → wpisy dziennika", () => {
+  const wb = XLSX.utils.book_new();
+  const hdrC = ["Instrument", "Ticker", "Category", "Type", "Volume", "Open Price", "Open Time (UTC)", "Close Price", "Close Time (UTC)", "Product", "Profit/Loss", "Gross Profit", "Purchase Value", "Sale Value", "Stop Loss", "Take Profit", "Commission", "Margin", "Swap", "Rollover", "Open Conversion Rate", "Close Conversion Rate", "Close Origin", "Position ID", "Comment"];
+  const closed = ["Test_Corp", "TST.US", "STOCK", "BUY", 2, 100, 46000.5, 110, 46100.5, "IKE", 80, 80, 800, 880, "", "", 0, "", "", "", 4, 4, "iOS", 1000001, ""];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Account number", "1"], ["Closed Positions"], [], [], hdrC, closed, ["Profit/loss"], ["", "", "", "", "", "", "", "", "", "", 99]]), "Closed Positions");
+  const hdrO = ["Type", "Instrument", "Ticker", "Category", "Time", "Amount", "ID", "Comment", "Product", "Position ID"];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Account number", "1"], ["Cash Operations"], [], [], hdrO,
+    ["Dividend", "Test Corp", "TST.US", "STOCK", 46200.5, 3, "100", "x", "IKE", ""],
+    ["Withholding tax", "Test Corp", "TST.US", "STOCK", 46200.5, -0.45, "101", "x", "IKE", ""],
+    ["Free funds interest", "", "", "", 46210.5, 0.2, "102", "x", "IKE", ""],
+    ["Stock purchase", "Test Corp", "TST.US", "STOCK", 46000.5, -800, "103", "OPEN BUY 2 @ 100", "IKE", "5"],
+    ["Total", "", "", "", 0, 5.5, "", "", "", ""]]), "Cash Operations");
+  const r = parseRealized(wb, "1");
+  assert.equal(r.length, 4); // zakup i wiersz Total pominięte
+  const s = r.find(e => e.kind === "sale");
+  assert.deepEqual([s.symbol, s.exchange, s.currency, s.qty, s.openDate, s.date, s.costPLN, s.salePLN, s.pnlPLN], ["TST", "XNAS", "USD", 2, "2025-12-09", "2026-03-19", 800, 880, 80]);
+  near(r.filter(e => e.kind !== "sale").reduce((a, e) => a + e.pnlPLN, 0), 2.75);
+  assert.equal(new Set(r.map(e => e.id)).size, 4);
 });
 
 console.log(`OK — ${passed} testów`);

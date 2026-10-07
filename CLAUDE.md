@@ -60,7 +60,7 @@ jednej wersji kosztem drugiej.
 
 Kafelki "Bilans dziś / w tym miesiącu / w tym roku / portfela" liczą się z faktycznych danych, nie z estymacji:
 `src/dailyBalance.js` (poprzednie zamknięcie), `src/periodBalance.js` (kursy historyczne z `/api/price-at`,
-per transza — zakup w okresie nie jest zyskiem), `src/historyStore.js` (dzienne snapshoty per portfel).
+per transza — zakup w okresie nie jest zyskiem), `src/historyStore.js` (dzienne snapshoty per portfel), `src/realizedLog.js` (dziennik zrealizowanych: sprzedane pozycje, dywidendy, odsetki z importu XTB — doliczany do "Bilansu portfela" i bilansów okresów).
 To czyste moduły bez Reacta — po zmianie obliczeń odpal `npm run test:bilans`.
 Plan, decyzje i znane luki: `docs/PLAN-statystyki-portfela.md`.
 

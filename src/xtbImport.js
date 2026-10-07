@@ -71,6 +71,78 @@ function findHeader(rows, firstCols) {
   return { idx, cols };
 }
 
+// ─── Zrealizowane wyniki: sprzedane pozycje, dywidendy, odsetki ──────────────
+// Typy operacji w "Cash Operations" (sprawdzone na prawdziwym eksporcie): Dividend, Withholding tax,
+// Free funds interest, Free funds interest tax. Pozostałe (Stock purchase/sell, wpłaty) pomijamy —
+// wynik sprzedaży bierzemy z arkusza "Closed Positions" (Profit/Loss jest tam już w PLN, po kursach z dnia
+// otwarcia i zamknięcia). Id wpisów są stabilne, więc ponowny import tego samego pliku nie dubluje dziennika.
+const CASH_KINDS = {
+  "Dividend": "dividend",
+  "Withholding tax": "tax",
+  "Free funds interest": "interest",
+  "Free funds interest tax": "interest",
+};
+
+const dayOnly = v => xtbDate(v)?.slice(0, 10) ?? null;
+
+export function parseRealized(wb, accountNumber) {
+  const out = [];
+  const category = "Akcje / ETF";
+
+  const closed = sheetRows(wb, "Closed Positions");
+  const ch = closed && findHeader(closed, ["Instrument", "Ticker", "Category"]);
+  if (ch) {
+    const c = ch.cols;
+    for (const r of closed.slice(ch.idx + 1)) {
+      const ticker = String(r[c["Ticker"]] ?? "").trim();
+      const date = dayOnly(r[c["Close Time (UTC)"]]);
+      if (!ticker || !date) continue; // wiersz "Total" nie ma tickera
+      const mapped = mapXtbTicker(ticker);
+      const positionId = String(r[c["Position ID"]] ?? "").trim();
+      out.push({
+        id: `xtb-pos-${accountNumber}-${positionId || ticker}-${xtbDate(r[c["Close Time (UTC)"]])}`,
+        date,
+        category,
+        kind: "sale",
+        symbol: mapped.symbol,
+        exchange: mapped.exchange,
+        currency: mapped.currency ?? "PLN",
+        name: String(r[c["Instrument"]] ?? "").trim().replace(/_/g, " ") || mapped.symbol,
+        qty: num(r[c["Volume"]]),
+        openDate: dayOnly(r[c["Open Time (UTC)"]]),
+        costPLN: round(num(r[c["Purchase Value"]])),
+        salePLN: round(num(r[c["Sale Value"]])),
+        pnlPLN: round(num(r[c["Profit/Loss"]])),
+        source: "xtb",
+      });
+    }
+  }
+
+  const cash = sheetRows(wb, "Cash Operations");
+  const oh = cash && findHeader(cash, ["Type", "Instrument", "Ticker"]);
+  if (oh) {
+    const c = oh.cols;
+    for (const r of cash.slice(oh.idx + 1)) {
+      const kind = CASH_KINDS[String(r[c["Type"]]).trim()];
+      const date = dayOnly(r[c["Time"]]);
+      const opId = String(r[c["ID"]] ?? "").trim();
+      if (!kind || !date || !opId) continue;
+      const ticker = String(r[c["Ticker"]] ?? "").trim();
+      out.push({
+        id: `xtb-cash-${accountNumber}-${opId}`,
+        date,
+        category,
+        kind,
+        symbol: ticker ? mapXtbTicker(ticker).symbol : undefined,
+        name: String(r[c["Instrument"]] ?? "").trim().replace(/_/g, " ") || undefined,
+        pnlPLN: round(num(r[c["Amount"]])),
+        source: "xtb",
+      });
+    }
+  }
+  return out;
+}
+
 // ─── Parsowanie jednego skoroszytu (jednego konta) ───────────────────────────
 function parseAccountWorkbook(wb, fileName) {
   const open = sheetRows(wb, "Open Positions");
@@ -176,6 +248,7 @@ function parseAccountWorkbook(wb, fileName) {
     product: product || (fileName.match(/^([A-Z]+)_/)?.[1] ?? ""),
     generatedAt,
     positions: positions.filter(p => p.qty > 0),
+    realized: parseRealized(wb, accountNumber),
   };
 }
 
