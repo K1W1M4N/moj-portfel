@@ -4,6 +4,7 @@ import { fetchFxRate, fetchFxRates } from "./fxUtils";
 import { usePnlMode } from "./preferences";
 import { calcPaidPLN } from "./portfolioCalc";
 import { fmtNum, fmtPct, fmtPctSigned } from "./format";
+import { localDateStr } from "./historyStore";
 
 // ─── Proxy URL — omija CORS i limity Twelve Data ─────────────────────────────
 const PROXY_BASE = "/api/stock-price";
@@ -1183,6 +1184,8 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
   const [brokerQty, setBrokerQty]        = useState(stock?.stockBrokerValue != null ? (stock?.stockQuantity?.toString() || "") : "");
 
   const [note, setNote] = useState(stock?.note || "");
+  // Opcjonalna data zakupu (YYYY-MM-DD) — pozwala policzyć bilans miesiąca/roku z kursów historycznych
+  const [purchaseDate, setPurchaseDate] = useState(stock?.stockPurchaseDate || "");
 
   // Live cena
   const [currentPrice, setCurrentPrice] = useState(null);
@@ -1287,6 +1290,7 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
       stockExchange: selected.exchange,
       stockCurrency: currency,
       stockType: selected.type,
+      ...(purchaseDate ? { stockPurchaseDate: purchaseDate } : {}),
     };
 
     if (mode === "szybko") {
@@ -1557,6 +1561,19 @@ export function StockModal({ stock, onSave, onDelete, onClose }) {
               );
             })()}
           </>
+        )}
+
+        {/* Data zakupu */}
+        {selected && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelSt}>Data zakupu (opcjonalnie)</label>
+            <input style={baseInp} type="date" max={localDateStr()}
+              value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)}
+              onFocus={focusInp} onBlur={blurInp} />
+            <div style={{ fontSize: 10, color: "#4a5a6e", marginTop: 4, lineHeight: 1.4 }}>
+              Bez daty bilans miesiąca i roku liczony jest od dnia dodania pozycji do aplikacji.
+            </div>
+          </div>
         )}
 
         {/* Notatka */}
