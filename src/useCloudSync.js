@@ -11,6 +11,7 @@ const LOCAL_KEYS = {
   allAssets: "pt-assets",
   categories: "pt-categories",
   history: "pt-history",
+  realized: "pt-realized",
 };
 
 function readLocalSnapshot() {
@@ -30,13 +31,15 @@ function readLocalSnapshot() {
     allAssets: read(LOCAL_KEYS.allAssets, null),
     categories: read(LOCAL_KEYS.categories, null),
     history: read(LOCAL_KEYS.history, null),
+    realized: read(LOCAL_KEYS.realized, null),
   };
 }
 
 function hasLocalData(snapshot) {
   return (
     (Array.isArray(snapshot.allAssets) && snapshot.allAssets.length > 0) ||
-    (Array.isArray(snapshot.history) && snapshot.history.length > 0)
+    (Array.isArray(snapshot.history) && snapshot.history.length > 0) ||
+    (Array.isArray(snapshot.realized) && snapshot.realized.length > 0)
   );
 }
 
@@ -44,7 +47,8 @@ function cloudHasData(cloud) {
   if (!cloud) return false;
   const hasAssets = Array.isArray(cloud.allAssets) && cloud.allAssets.length > 0;
   const hasHistory = Array.isArray(cloud.history) && cloud.history.length > 0;
-  return hasAssets || hasHistory;
+  const hasRealized = Array.isArray(cloud.realized) && cloud.realized.length > 0;
+  return hasAssets || hasHistory || hasRealized;
 }
 
 /**
@@ -63,6 +67,7 @@ export function useCloudSync({
   allAssets, setAllAssets,
   categories, setCategories,
   history, setHistory,
+  realized, setRealized,
 }) {
   const { user, loading: authLoading } = useAuth();
   const [status, setStatus] = useState("idle"); // idle | loading | ready | error
@@ -109,6 +114,8 @@ export function useCloudSync({
           if (Array.isArray(cloud.allAssets)) setAllAssets(cloud.allAssets);
           if (Array.isArray(cloud.categories)) setCategories(cloud.categories);
           if (Array.isArray(cloud.history)) setHistory(cloud.history);
+          // Chmura sprzed dziennika nie ma tego pola — wtedy zostaje lokalny dziennik (i trafi do chmury przy zapisie)
+          if (Array.isArray(cloud.realized)) setRealized(cloud.realized);
           lastSavedJsonRef.current = JSON.stringify(cloud);
         } else {
           const local = readLocalSnapshot();
@@ -119,6 +126,7 @@ export function useCloudSync({
               allAssets: local.allAssets ?? [],
               categories: local.categories ?? [],
               history: local.history ?? [],
+              realized: local.realized ?? [],
             };
             const { error: upsertError } = await supabase
               .from("portfolios")
@@ -152,7 +160,7 @@ export function useCloudSync({
   // Debounced save after state changes
   useEffect(() => {
     if (AUTH_BYPASS || !supabase || !user || !hydratedRef.current) return;
-    const payload = { portfolios, activePortfolioId, allAssets, categories, history };
+    const payload = { portfolios, activePortfolioId, allAssets, categories, history, realized };
     const json = JSON.stringify(payload);
     if (json === lastSavedJsonRef.current) return;
 
@@ -174,7 +182,7 @@ export function useCloudSync({
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [user, portfolios, activePortfolioId, allAssets, categories, history]);
+  }, [user, portfolios, activePortfolioId, allAssets, categories, history, realized]);
 
   return { status, error };
 }

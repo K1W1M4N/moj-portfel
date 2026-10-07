@@ -5,6 +5,7 @@
 // Oba trafiają do tego samego podglądu: przypisanie do portfela + nowe / zmienione / zamknięte.
 import { useState, useMemo, useRef } from "react";
 import { supabase } from "./supabaseClient";
+import { KIND_LABEL } from "./realizedLog";
 
 const NEW_PORTFOLIO = "__new__";
 const MAX_SHOTS = 3; // limit obrazów na zapytanie w modelu Groq
@@ -66,7 +67,7 @@ async function compressImage(file, maxSide = 2000, quality = 0.85) {
   }
 }
 
-export function XtbImportModal({ portfolios, allAssets, activePortfolioId, onApply, onClose }) {
+export function XtbImportModal({ portfolios, allAssets, activePortfolioId, realized, onApply, onClose }) {
   const [source, setSource] = useState("file");   // "file" | "screenshot"
   const [lib, setLib] = useState(null);           // moduł xtbImport (ładowany leniwie — SheetJS jest duży)
   const [accounts, setAccounts] = useState(null);
@@ -79,6 +80,7 @@ export function XtbImportModal({ portfolios, allAssets, activePortfolioId, onApp
   const [target, setTarget] = useState({});       // acc.key → portfolioId | NEW_PORTFOLIO | "" (pomiń)
   const [checked, setChecked] = useState({});     // changeKey → bool
   const [showSame, setShowSame] = useState(false);
+  const [skipRealized, setSkipRealized] = useState({}); // acc.key → true: nie dopisuj zrealizowanych do dziennika
   const fileRef = useRef(null);
   const shotRef = useRef(null);
 
@@ -176,9 +178,16 @@ export function XtbImportModal({ portfolios, allAssets, activePortfolioId, onApp
   const selectedCount = Object.entries(diffs).reduce(
     (s, [accKey, chs]) => s + chs.filter(ch => ch.kind !== "same" && isOn(accKey, ch)).length, 0);
 
+  // Zrealizowane wyniki (sprzedaże, dywidendy, odsetki) z pliku — tylko te, których jeszcze nie ma w dzienniku
+  const knownIds = useMemo(() => new Set((realized || []).map(e => e.id)), [realized]);
+  const newRealized = acc => (acc.realized || []).filter(e => !knownIds.has(e.id));
+  const realizedOn = acc => !!target[acc.key] && !skipRealized[acc.key] && newRealized(acc).length > 0;
+  const realizedCount = (accounts || []).reduce((s, acc) => s + (realizedOn(acc) ? newRealized(acc).length : 0), 0);
+
   function apply() {
     const syncedAt = new Date().toISOString();
     const newPortfolios = [];
+    const realizedAdds = [];
     const upserts = [];
     const removeIds = new Set();
     let firstTarget = null;
@@ -192,6 +201,7 @@ export function XtbImportModal({ portfolios, allAssets, activePortfolioId, onApp
         newPortfolios.push({ id: pid, name: acc.fromScreenshot ? "XTB" : `XTB ${acc.product === "My Trades" ? acc.accountNumber : acc.product}` });
       }
       firstTarget ??= pid;
+      if (realizedOn(raw)) realizedAdds.push(...newRealized(raw).map(e => ({ ...e, portfolioId: pid })));
       for (const ch of diffs[raw.key] || []) {
         if (ch.kind === "same" && ch.before && !ch.before.xtbAccount && !acc.fromScreenshot) {
           // bez zmian liczbowych, ale oznacz pozycję jako powiązaną z kontem XTB (lepsze dopasowanie następnym razem)
@@ -203,7 +213,7 @@ export function XtbImportModal({ portfolios, allAssets, activePortfolioId, onApp
         else upserts.push({ ...lib.buildStockAsset(ch.pos, ch.before, acc.accountNumber, syncedAt), portfolioId: pid });
       }
     }
-    onApply({ newPortfolios, upserts, removeIds, focusPortfolioId: firstTarget });
+    onApply({ newPortfolios, upserts, removeIds, realized: realizedAdds, focusPortfolioId: firstTarget });
     onClose();
   }
 
@@ -382,6 +392,23 @@ export function XtbImportModal({ portfolios, allAssets, activePortfolioId, onApp
                           {showSame ? "Ukryj" : "Pokaż"} bez zmian ({sameCount})
                         </button>
                       )}
+                      {newRealized(acc).length > 0 && (() => {
+                        const items = newRealized(acc);
+                        const byKind = {};
+                        for (const e of items) byKind[e.kind] = (byKind[e.kind] || 0) + (e.pnlPLN || 0);
+                        return (
+                          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 10, paddingTop: 10, borderTop: "1px dashed #1e2a38", cursor: "pointer" }}>
+                            <input type="checkbox" checked={realizedOn(acc)} style={{ marginTop: 3 }}
+                              onChange={() => setSkipRealized(s => ({ ...s, [acc.key]: !s[acc.key] }))} />
+                            <span style={{ fontSize: 12.5, color: "#c8d4e0", lineHeight: 1.5 }}>
+                              Dopisz do dziennika zrealizowanych wyników ({items.length} {items.length === 1 ? "operacja" : "operacji"})
+                              <span style={{ display: "block", fontSize: 11.5, color: "#5a6a7e" }}>
+                                {Object.entries(byKind).map(([k, v]) => `${KIND_LABEL[k] || k} ${v >= 0 ? "+" : ""}${fmtPLN(v)}`).join(" · ")}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -393,13 +420,14 @@ export function XtbImportModal({ portfolios, allAssets, activePortfolioId, onApp
                 style={{ flex: 1, padding: "11px", borderRadius: 10, border: "1px solid #2a3a50", background: "transparent", color: "#8a9bb0", fontSize: 13, cursor: "pointer" }}>
                 Anuluj
               </button>
-              <button onClick={apply} disabled={selectedCount === 0}
+              <button onClick={apply} disabled={selectedCount === 0 && realizedCount === 0}
                 style={{
                   flex: 2, padding: "11px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700,
-                  background: selectedCount ? "#00c896" : "#1e2a38", color: selectedCount ? "#000" : "#5a6a7e",
-                  cursor: selectedCount ? "pointer" : "default",
+                  background: selectedCount || realizedCount ? "#00c896" : "#1e2a38", color: selectedCount || realizedCount ? "#000" : "#5a6a7e",
+                  cursor: selectedCount || realizedCount ? "pointer" : "default",
                 }}>
-                {selectedCount ? `Zastosuj ${selectedCount} ${selectedCount === 1 ? "zmianę" : selectedCount < 5 ? "zmiany" : "zmian"}` : "Brak zmian do zastosowania"}
+                {selectedCount ? `Zastosuj ${selectedCount} ${selectedCount === 1 ? "zmianę" : selectedCount < 5 ? "zmiany" : "zmian"}`
+                  : realizedCount ? `Dopisz ${realizedCount} do dziennika` : "Brak zmian do zastosowania"}
               </button>
             </div>
           </>

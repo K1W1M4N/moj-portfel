@@ -12,6 +12,7 @@ import { calcPeriodBalance, periodBoundaries } from "./periodBalance";
 import { useHistoricalPrices } from "./useHistoricalPrices";
 import { localDateStr } from "./historyStore";
 import { historySeries, upsertSnapshot, removePortfolioFromHistory } from "./historyStore";
+import { mergeRealized, removePortfolioFromRealized, realizedTotal, realizedByKind, realizedSoldCost, realizedPeriod, realizedHistoryAssets, KIND_LABEL } from "./realizedLog";
 import { SettingsView } from "./SettingsView";
 import { XtbImportModal } from "./XtbImportModal";
 import { AUTH_BYPASS } from "./devMode";
@@ -536,19 +537,25 @@ function PieChart({ assets, categories, activeFilter, onFilterChange, hovered, s
 // ─── Podsumowanie Portfela (Live) ──────────────────────────────────────────────
 
 // Bilanse liczone z faktycznych danych: src/dailyBalance.js (dziś) i src/periodBalance.js (miesiąc / rok).
-function PortfolioSummaryPanel({ assets, activeFilter, categories, series, pnlMode, stockPrices, cryptoPrices, commodityPrices }) {
+function PortfolioSummaryPanel({ assets, activeFilter, categories, series, realized, portfolioId, pnlMode, stockPrices, cryptoPrices, commodityPrices }) {
   const today = localDateStr();
   const bounds = useMemo(() => periodBoundaries(), [today]); // eslint-disable-line react-hooks/exhaustive-deps
   const boundaryList = useMemo(() => [...new Set([bounds.year, bounds.month])], [bounds]);
   // Notowania historyczne pobieramy dla całego portfela (nie tylko filtrowanej kategorii) — filtr nie odpala nowych zapytań
-  const hist = useHistoricalPrices(assets, boundaryList);
+  // Do kursów z dni granicznych dokładamy sprzedane partie, które były w portfelu przed początkiem okresu
+  const histAssets = useMemo(() => [...assets, ...realizedHistoryAssets(realized, portfolioId, boundaryList)], [assets, realized, portfolioId, boundaryList]);
+  const hist = useHistoricalPrices(histAssets, boundaryList);
 
   const shown = activeFilter ? assets.filter(a => a.category === activeFilter) : assets;
   const costBasis = a => getAssetCostBasis(a, pnlMode, stockPrices);
   const totalValue = shown.reduce((s, a) => s + a.value, 0);
   const totalPaid = shown.reduce((s, a) => s + costBasis(a), 0);
-  const totalPnl = totalPaid > 0 ? totalValue - totalPaid : null;
-  const totalPnlPct = totalPaid > 0 ? (totalValue - totalPaid) / totalPaid * 100 : null;
+  // Zrealizowane wyniki (sprzedane pozycje, dywidendy, odsetki) są poza wartością aktywów — doliczamy je z dziennika
+  const rTotal = realizedTotal(realized, portfolioId, activeFilter);
+  const rBase = totalPaid + realizedSoldCost(realized, portfolioId, activeFilter);
+  const hasPnl = totalPaid > 0 || rTotal !== 0;
+  const totalPnl = hasPnl ? (totalPaid > 0 ? totalValue - totalPaid : 0) + rTotal : null;
+  const totalPnlPct = hasPnl && rBase > 0 ? totalPnl / rBase * 100 : null;
 
   const daily = calcDailyBalance(shown, {
     stockPrices, cryptoPrices, commodityPrices,
@@ -566,8 +573,13 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, series, pnlMo
       return calcBondCurrentValue(a, new Date(y, m - 1, d)).currentValue;
     },
   };
-  const month = calcPeriodBalance(shown, bounds.month, periodCtx);
-  const year = calcPeriodBalance(shown, bounds.year, periodCtx);
+  const withRealized = (p, boundary) => {
+    const r = realizedPeriod(realized, portfolioId, boundary, hist, activeFilter);
+    const diff = p.diff + r.sum;
+    return { ...p, diff, pending: p.pending || r.pending, pct: p.base > 0 ? (diff / p.base) * 100 : null, realized: r };
+  };
+  const month = withRealized(calcPeriodBalance(shown, bounds.month, periodCtx), bounds.month);
+  const year = withRealized(calcPeriodBalance(shown, bounds.year, periodCtx), bounds.year);
 
   const periodNote = p => {
     const notes = [];
@@ -576,8 +588,15 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, series, pnlMo
     const part = p.uncovered.filter(u => u.partial).map(u => u.category);
     if (none.length > 0) notes.push("bez: " + none.join(", "));
     if (part.length > 0) notes.push("bez części: " + part.join(", "));
+    if (p.realized?.sum) notes.push("w tym zrealizowane " + fmtSigned(p.realized.sum));
+    if (p.realized?.approx) notes.push("bez kursu z początku okresu dla " + p.realized.approx + " sprzedaży");
     return notes.join(" · ") || null;
   };
+
+  const rKinds = realizedByKind(realized, portfolioId, activeFilter);
+  const portfolioNote = rTotal !== 0
+    ? "w tym zrealizowane: " + Object.entries(rKinds).filter(([, v]) => v !== 0).map(([k, v]) => (KIND_LABEL[k] || k) + " " + fmtSigned(v)).join(" · ")
+    : null;
 
   // Formatowanie kwot — bez groszy gdy >= 1000 zł (kompaktowe kafelki)
   function fmtCompact(n) {
@@ -626,7 +645,7 @@ function PortfolioSummaryPanel({ assets, activeFilter, categories, series, pnlMo
         {mBlock("Bilans dziś", daily.covered > 0 ? daily.diff : null, daily.pct, dailyNotes.join(" · ") || null)}
         {periodBlock("Bilans w tym miesiącu", month)}
         {periodBlock("Bilans w tym roku", year)}
-        {mBlock("Bilans portfela", totalPnl, totalPnlPct, null)}
+        {mBlock("Bilans portfela", totalPnl, totalPnlPct, portfolioNote)}
       </div>
     </div>
   );
@@ -1355,6 +1374,10 @@ export default function App() {
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("pt-history") || "[]"); } catch { return []; }
   });
+  // Dziennik zrealizowanych wyników (sprzedaże, dywidendy, odsetki) — patrz src/realizedLog.js
+  const [realized, setRealized] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("pt-realized") || "[]"); } catch { return []; }
+  });
 
   const [editingPortfolio, setEditingPortfolio] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState("");
@@ -1395,6 +1418,7 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem("pt-assets", JSON.stringify(allAssets)); } catch {} }, [allAssets]);
   useEffect(() => { try { localStorage.setItem("pt-categories", JSON.stringify(categories)); } catch {} }, [categories]);
   useEffect(() => { try { localStorage.setItem("pt-history", JSON.stringify(history)); } catch {} }, [history]);
+  useEffect(() => { try { localStorage.setItem("pt-realized", JSON.stringify(realized)); } catch {} }, [realized]);
 
   const { user, loading: authLoading } = useAuth();
   const { status: syncStatus, error: syncError } = useCloudSync({
@@ -1403,6 +1427,7 @@ export default function App() {
     allAssets, setAllAssets,
     categories, setCategories,
     history, setHistory,
+    realized, setRealized,
   });
 
   function handleStart() {
@@ -1459,8 +1484,9 @@ export default function App() {
   }
 
   // ── Import z XTB: hurtowe dodanie / aktualizacja / usunięcie pozycji ──
-  function handleXtbImport({ newPortfolios, upserts, removeIds, focusPortfolioId }) {
+  function handleXtbImport({ newPortfolios, upserts, removeIds, realized: realizedAdds = [], focusPortfolioId }) {
     if (newPortfolios.length) setPortfolios(prev => [...prev, ...newPortfolios]);
+    if (realizedAdds.length) setRealized(prev => mergeRealized(prev, realizedAdds).next);
     if (upserts.length && !categories.find(c => c.name === "Akcje / ETF")) {
       setCategories(cs => [...cs, DEFAULT_CATEGORIES.find(c => c.name === "Akcje / ETF")]);
     }
@@ -1520,6 +1546,7 @@ export default function App() {
     
     setAllAssets(all => all.filter(a => a.portfolioId !== id));
     setHistory(h => removePortfolioFromHistory(h, id));
+    setRealized(r => removePortfolioFromRealized(r, id));
     const nextList = portfolios.filter(p => p.id !== id);
     setPortfolios(nextList);
     if (activePortfolioId === id) {
@@ -2263,6 +2290,8 @@ export default function App() {
                     activeFilter={activeFilter}
                     categories={categories}
                     series={historySeries(history, activePortfolioId)}
+                    realized={realized}
+                    portfolioId={activePortfolioId}
                     pnlMode={pnlMode}
                     stockPrices={stockPrices}
                     cryptoPrices={prices}
@@ -2392,6 +2421,7 @@ export default function App() {
           portfolios={portfolios}
           allAssets={allAssets}
           activePortfolioId={activePortfolioId}
+          realized={realized}
           onApply={handleXtbImport}
           onClose={() => setShowXtbImport(false)}
         />
