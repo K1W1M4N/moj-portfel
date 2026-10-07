@@ -4,7 +4,7 @@
 // od wolnych środków nigdy nie były w wartości aktywów. Dziennik trzyma te wyniki osobno i jest doliczany
 // do "Bilansu portfela" oraz do bilansów okresów.
 //
-// Wpis: { id, portfolioId, date: "YYYY-MM-DD", category, kind: "sale" | "dividend" | "interest" | "tax",
+// Wpis: { id, portfolioId, date: "YYYY-MM-DD", category, kind: "sale" | "dividend" | "interest" | "tax" | "coupon",
 //         pnlPLN, symbol?, name?, source: "xtb" }
 // Wpis sprzedaży ma dodatkowo dane partii: exchange, currency, qty, openDate, costPLN, salePLN —
 // dzięki nim da się policzyć, ile z wyniku przypada na dany okres (patrz realizedPeriod).
@@ -12,7 +12,7 @@
 
 const round2 = n => Math.round(n * 100) / 100;
 
-export const KIND_LABEL = { sale: "sprzedaże", dividend: "dywidendy", interest: "odsetki", tax: "podatki" };
+export const KIND_LABEL = { sale: "sprzedaże", dividend: "dywidendy", interest: "odsetki", tax: "podatki", coupon: "kupony" };
 
 // Dopisuje nowe wpisy (po id). Zwraca { next, added }; `next` to ta sama referencja, gdy nic nie przybyło.
 export function mergeRealized(log, incoming) {

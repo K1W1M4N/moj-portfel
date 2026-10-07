@@ -6,6 +6,7 @@ import { calcDailyBalance, sessionLabel } from "../src/dailyBalance.js";
 import { calcPeriodBalance, periodBoundaries, stockLots, neededHistory } from "../src/periodBalance.js";
 import * as XLSX from "xlsx";
 import { parseRealized } from "../src/xtbImport.js";
+import { bondCoupons, calcBondCurrentValue } from "../src/bondEngine.js";
 import { mergeRealized, realizedTotal, realizedByKind, realizedSoldCost, realizedPeriod, realizedHistoryAssets, removePortfolioFromRealized } from "../src/realizedLog.js";
 
 const near = (a, b, e = 0.005) => assert.ok(Math.abs(a - b) < e, `${a} != ${b}`);
@@ -244,6 +245,38 @@ test("import XTB: Closed Positions i Cash Operations → wpisy dziennika", () =>
   assert.deepEqual([s.symbol, s.exchange, s.currency, s.qty, s.openDate, s.date, s.costPLN, s.salePLN, s.pnlPLN], ["TST", "XNAS", "USD", 2, "2025-12-09", "2026-03-19", 800, 880, 80]);
   near(r.filter(e => e.kind !== "sale").reduce((a, e) => a + e.pnlPLN, 0), 2.75);
   assert.equal(new Set(r.map(e => e.id)).size, 4);
+});
+
+// ─── kupony obligacji ─────────────────────────────────────────────────────────
+const ror = (o = {}) => ({ id: 7, type: "ROR", category: "Obligacje", purchaseDate: "2025-06-10", quantity: 10, rate: 0.05, ...o });
+
+test("silnik obligacji po przeniesieniu: EDO zakup 30.08.2024, stan 27.09.2026 = 113,71 zł/szt. (wg banku)", () => {
+  const edo = { type: "EDO", purchaseDate: "2024-08-30", quantity: 1, rate: 0.068 };
+  near(calcBondCurrentValue(edo, new Date(2026, 8, 27)).currentValue, 113.71);
+});
+
+test("kupon ROR: wpis w dniu po rocznicy, netto po Belce, w IKE brutto", () => {
+  assert.equal(bondCoupons(ror(), { today: new Date(2026, 5, 10) }).length, 0); // w dniu rocznicy wzór jeszcze nalicza odsetki
+  const [c] = bondCoupons(ror(), { today: new Date(2026, 5, 11) });
+  assert.equal(c.date, "2026-06-11"); assert.equal(c.id, "coupon-7-2026-06-11");
+  near(c.grossPLN, 50); near(c.taxPLN, 9.5); near(c.pnlPLN, 40.5);
+  near(bondCoupons(ror(), { today: new Date(2026, 5, 11), taxFree: true })[0].pnlPLN, 50);
+});
+
+test("kupon: spadek wartości obligacji w dniu wypłaty = brutto kuponu, więc bilans dnia to −podatek", () => {
+  const b = ror();
+  const drop = calcBondCurrentValue(b, new Date(2026, 5, 11)).dailyGain;
+  const [c] = bondCoupons(b, { today: new Date(2026, 5, 11) });
+  near(drop, -c.grossPLN);              // 10 × (105 zł → 100 zł) = −50 zł
+  near(drop + c.pnlPLN, -c.taxPLN);     // bilans dnia po doliczeniu kuponu netto = −podatek, nie −cały kupon
+});
+
+test("kupony: COI daje wpis za każdą rocznicę, obligacje bez kuponu (EDO) — żadnego", () => {
+  const coi = { id: 8, type: "COI", category: "Obligacje", purchaseDate: "2023-01-10", quantity: 1, rate: 0.06 };
+  const list = bondCoupons(coi, { today: new Date(2026, 0, 15) });
+  assert.equal(list.length, 3); near(list[0].grossPLN, 6);
+  assert.deepEqual(bondCoupons({ ...coi, type: "EDO" }, { today: new Date(2026, 0, 15) }), []);
+  assert.equal(bondCoupons(coi, { today: new Date(2040, 0, 1) }).length, 4); // po wykupie nie ma kolejnych
 });
 
 console.log(`OK — ${passed} testów`);
