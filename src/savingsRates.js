@@ -1,6 +1,6 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-10-05 17:45
+// Ostatnia aktualizacja: 2026-10-12 18:30
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
@@ -39,11 +39,11 @@ export const SAVINGS_RATES_DB = {
     {
       bank: "Sprawdź, jak tworzymy ranking",
       name: "Ranking Kont Oszczędnościowych – Październik 2026 r.",
-      rateStandard: 0.97,
+      rateStandard: 0.86,
       ratePromo: 7.0,
       promoLimit: 100000,
       promoDays: 4,
-      promoEndDate: "2026-10-01",
+      promoEndDate: "2026-10-09",
       promoConditions: null,
       promoConditionsList: [],
       requiresROR: true,
