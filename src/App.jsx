@@ -705,7 +705,7 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose, onMove }) {
     } else {
       const val = parseFloat(String(form.value).replace(",", "."));
       if (!form.name.trim() || isNaN(val) || val <= 0) return;
-      onSave({ ...form, value: val, cryptoId: "", cryptoAmount: "", cryptoPaid: "", id: asset?.id || Date.now() });
+      onSave({ ...form, value: val, cryptoId: "", cryptoAmount: "", cryptoPaid: "", cryptoPurchaseDate: "", id: asset?.id || Date.now() });
     }
     onClose();
   }
@@ -822,6 +822,16 @@ function AssetModal({ asset, categories, onSave, onDelete, onClose, onMove }) {
                     onFocus={focusInp} onBlur={blurInp}
                     onKeyDown={e => e.key === "Enter" && submit()} />
                 </div>
+              </div>
+            )}
+
+            {form.cryptoId && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelSt}>Data zakupu (opcjonalnie)</label>
+                <input style={baseInp} type="date" max={localDateStr()}
+                  value={form.cryptoPurchaseDate || ""}
+                  onChange={e => setForm(f => ({ ...f, cryptoPurchaseDate: e.target.value }))}
+                  onFocus={focusInp} onBlur={blurInp} />
               </div>
             )}
           </>
@@ -1435,8 +1445,11 @@ export default function App() {
       setCategories(cs => [...cs, { name: asset.category, color: `hsl(${hue},65%,58%)` }]);
     }
     const assetToSave = { ...asset, portfolioId: asset.portfolioId || activePortfolioId };
+    const today = localDateStr();
     setAllAssets(all => {
       const exists = all.find(a => a.id === assetToSave.id);
+      // createdAt = dzień dodania do aplikacji; edycja go nie zmienia (modale budują aktywo od nowa)
+      assetToSave.createdAt = assetToSave.createdAt || exists?.createdAt || today;
       return exists ? all.map(a => a.id === assetToSave.id ? assetToSave : a) : [...all, assetToSave];
     });
   }
