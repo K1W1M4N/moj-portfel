@@ -7,7 +7,7 @@
 // "analogiczny miesiąc poprzedniego roku = 100" (np. 102,9 -> 0.029)
 // Aktualizowana automatycznie przez GitHub Actions (.github/workflows/update-inflation.yml,
 // scripts/fetch_inflation.py) — skrypt nadpisuje cały blok INFLATION_HISTORY
-// Ostatnia aktualizacja: 2026-08
+// Ostatnia aktualizacja: 2026-09
 
 export const INFLATION_HISTORY = {
   "2015-01":-0.0140,"2015-02":-0.0160,"2015-03":-0.0150,"2015-04":-0.0110,
@@ -45,6 +45,7 @@ export const INFLATION_HISTORY = {
   "2025-09":0.0290,"2025-10":0.0280,"2025-11":0.0250,"2025-12":0.0240,
   "2026-01":0.0210,"2026-02":0.0210,"2026-03":0.0300,"2026-04":0.0320,
   "2026-05":0.0310,"2026-06":0.0250,"2026-07":0.0300,"2026-08":0.0340,
+  "2026-09":0.0410,
 };
 
 // Pobierz inflację dla danego miesiąca
