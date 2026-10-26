@@ -1,6 +1,6 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-10-19 16:07
+// Ostatnia aktualizacja: 2026-10-26 15:45
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
@@ -43,7 +43,7 @@ export const SAVINGS_RATES_DB = {
       ratePromo: 7.0,
       promoLimit: 100000,
       promoDays: 6,
-      promoEndDate: "2026-10-15",
+      promoEndDate: "2026-10-23",
       promoConditions: null,
       promoConditionsList: [],
       requiresROR: true,
