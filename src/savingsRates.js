@@ -1,10 +1,10 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-10-26 15:45
+// Ostatnia aktualizacja: 2026-11-02 19:03
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
-  lastUpdated: "2026-10",
+  lastUpdated: "2026-11",
   accounts: [
     {
       bank: "Nest Konto Oszczędnościowe",
@@ -37,8 +37,8 @@ export const SAVINGS_RATES_DB = {
       url: "",
     },
     {
-      bank: "Sprawdź, jak tworzymy ranking",
-      name: "Ranking Kont Oszczędnościowych – Październik 2026 r.",
+      bank: "Ranking Kont Oszczędnościowych – Listopad 2026 r.",
+      name: "Ranking Kont Oszczędnościowych – Listopad 2026 r.",
       rateStandard: 0.86,
       ratePromo: 7.0,
       promoLimit: 100000,
@@ -47,8 +47,8 @@ export const SAVINGS_RATES_DB = {
       promoConditions: null,
       promoConditionsList: [],
       requiresROR: true,
-      isNew: false,
-      addedDate: "2026-10-05",
+      isNew: true,
+      addedDate: "2026-11-02",
       url: "",
     },
     {
@@ -232,6 +232,21 @@ export const SAVINGS_RATES_DB = {
       url: "https://www.aliorbank.pl",
     },
     {
+      bank: "Logo banku Konto oszczędnościowe 4,5% bez limitu kwoty",
+      name: "Konto oszczędnościowe 4,5% bez limitu kwoty",
+      rateStandard: 4.5,
+      ratePromo: null,
+      promoLimit: null,
+      promoDays: null,
+      promoEndDate: null,
+      promoConditions: null,
+      promoConditionsList: [],
+      requiresROR: false,
+      isNew: true,
+      addedDate: "2026-11-02",
+      url: "",
+    },
+    {
       bank: "UniCredit",
       name: "Konto Oszczędnościowe",
       rateStandard: 4.5,
@@ -274,7 +289,7 @@ export const SAVINGS_RATES_DB = {
       requiresROR: false,
       isNew: false,
       addedDate: "2026-09-14",
-      url: "https://www.raisin.com",
+      url: "https://www.raisin.com/pl-pl/banki/renault-bank/",
     },
     {
       bank: "Santander Bank Polska",
@@ -304,7 +319,7 @@ export const SAVINGS_RATES_DB = {
       requiresROR: false,
       isNew: false,
       addedDate: "2026-04-13",
-      url: "https://www.raisin.com",
+      url: "https://www.raisin.com/pl-pl/banki/renault-bank/",
     },
     {
       bank: "Credit Agricole",
