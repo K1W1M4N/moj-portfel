@@ -1,6 +1,6 @@
 // savingsRates.js
 // Automatycznie generowane przez fetch_savings_rates.py
-// Ostatnia aktualizacja: 2026-11-02 19:03
+// Ostatnia aktualizacja: 2026-11-09 19:25
 // Źródła: Moneteo.com, Bankier.pl, Comperia.pl, oficjalne strony banków
 
 export const SAVINGS_RATES_DB = {
@@ -42,8 +42,8 @@ export const SAVINGS_RATES_DB = {
       rateStandard: 0.86,
       ratePromo: 7.0,
       promoLimit: 100000,
-      promoDays: 6,
-      promoEndDate: "2026-10-23",
+      promoDays: 7,
+      promoEndDate: "2026-11-02",
       promoConditions: null,
       promoConditionsList: [],
       requiresROR: true,
@@ -334,7 +334,7 @@ export const SAVINGS_RATES_DB = {
       requiresROR: true,
       isNew: false,
       addedDate: "2026-04-13",
-      url: "https://www.credit-agricole.pl/klienci-indywidualni/oszczednosci/rachunek-oszczedzam",
+      url: "https://www.credit-agricole.pl",
     },
     {
       bank: "PKO BP",
